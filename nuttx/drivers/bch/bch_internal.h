@@ -70,6 +70,9 @@ struct bchlib_s
   bool  dirty;         /* Data has been written to the buffer */
   bool  readonly;      /* true:  Only read operations are supported */
   FAR uint8_t *buffer; /* One sector buffer */
+#if defined(CONFIG_BCH_ENCRIPTION)
+  uint8_t   key[CONFIG_BCH_ENCRIPTION_KEY_SIZE];   /* Encryption key */
+#endif
 };
 
 /****************************************************************************
@@ -93,6 +96,13 @@ EXTERN const struct file_operations bch_fops;
 EXTERN void bchlib_semtake(FAR struct bchlib_s *bch);
 EXTERN int  bchlib_flushsector(FAR struct bchlib_s *bch);
 EXTERN int  bchlib_readsector(FAR struct bchlib_s *bch, size_t sector);
+
+#ifdef CONFIG_BCH_ENCRIPTION
+EXTERN int bchlib_encryptcache(FAR struct bchlib_s *bch);
+EXTERN int bchlib_decryptcache(FAR struct bchlib_s *bch);
+EXTERN int bchlib_encrypt(FAR struct bchlib_s *bch, void *out, void *in, uint32_t sector);
+EXTERN int bchlib_decrypt(FAR struct bchlib_s *bch, void *out, void *in, uint32_t sector);
+#endif
 
 #undef EXTERN
 #if defined(__cplusplus)

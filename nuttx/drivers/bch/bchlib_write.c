@@ -89,6 +89,9 @@ ssize_t bchlib_write(FAR void *handle, FAR const char *buffer, size_t offset, si
   size_t   nbytes;
   size_t   byteswritten;
   int      ret;
+#ifdef CONFIG_BCH_ENCRIPTION
+  size_t i;
+#endif
 
   /* Get rid of this special case right away */
 
@@ -159,6 +162,40 @@ ssize_t bchlib_write(FAR void *handle, FAR const char *buffer, size_t offset, si
 
       /* Write the contiguous sectors */
 
+#ifdef CONFIG_BCH_ENCRIPTION
+      /* We are using cache buffer for encryption result so flush and invalidate cache */
+      ret = bchlib_flushsector(bch);
+      if (ret < 0)
+        {
+          fdbg("Flush failed: %d\n", ret);
+          return ret;
+        }
+      bch->sector = (size_t)-1;
+
+      for (i = 0; i < nsectors; i++)
+        {
+          ret = bchlib_encrypt(bch, bch->buffer, buffer + i * bch->sectsize, sector + i);
+          if (ret < 0)
+            {
+              fdbg("Encryption failed: %d\n", ret);
+              return ret;
+            }
+
+          ret = bch->inode->u.i_bops->write(bch->inode, bch->buffer,
+                                        sector + i, 1);
+          if (ret < 0)
+            {
+              fdbg("Write failed: %d\n", ret);
+              return ret;
+            }
+        }
+
+      if (ret < 0)
+        {
+          fdbg("Write failed: %d\n", ret);
+          return ret;
+        }
+#else
       ret = bch->inode->u.i_bops->write(bch->inode, (FAR uint8_t *)buffer,
                                         sector, nsectors);
       if (ret < 0)
@@ -166,6 +203,7 @@ ssize_t bchlib_write(FAR void *handle, FAR const char *buffer, size_t offset, si
           fdbg("Write failed: %d\n", ret);
           return ret;
         }
+#endif
 
       /* Adjust pointers and counts */
 

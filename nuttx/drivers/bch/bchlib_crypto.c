@@ -1,8 +1,8 @@
 /****************************************************************************
- * drivers/bch/bchlib_cache.c
+ * drivers/bch/bchlib_crypto.c
  *
- *   Copyright (C) 2008-2009 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ *   Copyright (C) 2014 Nekludov Max. All rights reserved.
+ *   Author: Nekludov Max <macscomp@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -46,6 +46,7 @@
 #include <debug.h>
 
 #include <nuttx/fs/fs.h>
+#include <crypto/crypto.h>
 
 #include "bch_internal.h"
 
@@ -69,100 +70,26 @@
  * Public Functions
  ****************************************************************************/
 
-/****************************************************************************
- * Name: bchlib_flushsector
- *
- * Description:
- *   Flush the current contents of the sector buffer (if dirty)
- *
- * Assumptions:
- *   Caller must assume mutual exclusion
- *
- ****************************************************************************/
-
-int bchlib_flushsector(FAR struct bchlib_s *bch)
+int bchlib_encryptcache(FAR struct bchlib_s *bch)
 {
-  FAR struct inode *inode;
-  ssize_t ret = OK;
-
-  if (bch->dirty)
-    {
-      inode = bch->inode;
-#ifdef CONFIG_BCH_ENCRIPTION
-      ret = bchlib_encryptcache(bch);
-      if (ret < 0)
-        {
-          fdbg("Encryption failed: %d\n", ret);
-          bch->sector = (size_t)-1;
-          bch->dirty = false;
-          return (int)ret;
-        }
-#endif
-      ret = inode->u.i_bops->write(inode, bch->buffer, bch->sector, 1);
-      if (ret < 0)
-        {
-          fdbg("Write failed: %d\n");
-#ifdef CONFIG_BCH_ENCRIPTION
-          bch->sector = (size_t)-1;
-          bch->dirty = false;
-          return (int)ret;
-#endif
-        }
-#ifdef CONFIG_BCH_ENCRIPTION
-      ret = bchlib_decryptcache(bch);
-      if (ret < 0)
-        {
-          fdbg("Decryption failed: %d\n", ret);
-          bch->sector = (size_t)-1;
-          bch->dirty = false;
-          return (int)ret;
-        }
-#endif
-      bch->dirty = false;
-    }
-  return (int)ret;
+  return crypto_xex(bch->buffer, bch->buffer, bch->sectsize, bch->key,
+                    CONFIG_BCH_ENCRIPTION_KEY_SIZE, bch->sector, CYPHER_ENCRYPT);
 }
 
-/****************************************************************************
- * Name: bchlib_readsector
- *
- * Description:
- *   Flush the current contents of the sector buffer (if dirty)
- *
- * Assumptions:
- *   Caller must assume mutual exclusion
- *
- ****************************************************************************/
-
-int bchlib_readsector(FAR struct bchlib_s *bch, size_t sector)
+int bchlib_decryptcache(FAR struct bchlib_s *bch)
 {
-  FAR struct inode *inode;
-  ssize_t ret = OK;
-
-  if (bch->sector != sector)
-    {
-      inode = bch->inode;
-
-      (void)bchlib_flushsector(bch);
-      bch->sector = (size_t)-1;
-
-      ret = inode->u.i_bops->read(inode, bch->buffer, sector, 1);
-      if (ret < 0)
-        {
-          fdbg("Read failed: %d\n");
-          return (int)ret;
-        }
-      bch->sector = sector;
-#if defined(CONFIG_BCH_ENCRIPTION)
-      ret = bchlib_decryptcache(bch);
-      if (ret < 0)
-        {
-          fdbg("Decryption failed: %d\n", ret);
-          bch->sector = (size_t)-1;
-          return (int)ret;
-        }
-#endif
-    }
-  return (int)ret;
+  return crypto_xex(bch->buffer, bch->buffer, bch->sectsize, bch->key, 
+                    CONFIG_BCH_ENCRIPTION_KEY_SIZE, bch->sector, CYPHER_DECRYPT);
 }
 
+int bchlib_encrypt(FAR struct bchlib_s *bch, void *out, void *in, uint32_t sector)
+{
+  return crypto_xex(out, in, bch->sectsize, bch->key,
+                    CONFIG_BCH_ENCRIPTION_KEY_SIZE, sector, CYPHER_ENCRYPT);
+}
+
+int bchlib_decrypt(FAR struct bchlib_s *bch, void *out, void *in, uint32_t sector)
+{
+  return crypto_xex(out, in, bch->sectsize, bch->key, 
+                    CONFIG_BCH_ENCRIPTION_KEY_SIZE, sector, CYPHER_DECRYPT);
+}

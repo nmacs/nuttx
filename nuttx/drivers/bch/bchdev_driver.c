@@ -249,6 +249,20 @@ static int bch_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
         }
       bchlib_semgive(bch);
     }
+#if defined(CONFIG_BCH_ENCRIPTION)
+  else if (cmd == DIOC_SETKEY)
+    {
+      bchlib_semtake(bch);
+      memcpy(bch->key, (void*)arg, CONFIG_BCH_ENCRIPTION_KEY_SIZE);
+      bchlib_semgive(bch);
+
+      ret = OK;
+    }
+#endif
+  else if (bch->inode->u.i_bops->ioctl)
+    {
+      ret = bch->inode->u.i_bops->ioctl(bch->inode, cmd, arg);
+    }
 
   return ret;
 }
