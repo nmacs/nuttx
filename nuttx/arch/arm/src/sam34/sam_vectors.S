@@ -133,12 +133,18 @@
 	.globl		_vectors
 	.type		_vectors, function
 
+#ifdef CONFIG_SAM_BOOTARGS
+#  define ENTRY sam_reset
+#else
+#  define ENTRY __start
+#endif
+
 _vectors:
 
 /* Processor Exceptions */
 
 	.word	IDLE_STACK		/* Vector  0: Reset stack pointer */
-	.word	__start			/* Vector  1: Reset vector */
+	.word	ENTRY			/* Vector  1: Reset vector */
 	.word	sam_nmi			/* Vector  2: Non-Maskable Interrupt (NMI) */
 	.word	sam_hardfault	/* Vector  3: Hard fault */
 	.word	sam_mpu			/* Vector  4: Memory management (MPU) */
@@ -183,6 +189,19 @@ _vectors:
 /************************************************************************************************
  * .text
  ************************************************************************************************/
+
+#ifdef CONFIG_SAM_BOOTARGS
+	.text
+	.type	sam_reset, function
+	.thumb_func
+sam_reset:
+	/* r0 is bootargs in case of kexec or garbage if hardware reset */
+	ldr r1, =0xFFFFFFFF
+	cmp r1, lr
+	bne __start
+	mov r0, 0
+	b __start
+#endif
 
 	.text
 	.type	handlers, function

@@ -35,7 +35,11 @@
 
 # The start-up, "head", file
 
+ifeq ($(CONFIG_SAM_LOADER),y)
+HEAD_ASRC = sam_loader.S
+else
 HEAD_ASRC = sam_vectors.S
+endif
 
 # Common ARM and Cortex-M3 files
 
@@ -51,6 +55,10 @@ CMN_CSRCS += up_modifyreg16.c up_modifyreg32.c up_releasepending.c
 CMN_CSRCS += up_releasestack.c up_reprioritizertr.c up_schedulesigaction.c
 CMN_CSRCS += up_sigdeliver.c up_unblocktask.c up_usestack.c up_doirq.c
 CMN_CSRCS += up_hardfault.c up_svcall.c up_vfork.c
+
+ifeq ($(CONFIG_SAM_LOADER),y)
+CMN_ASRCS += sam_vectors.S
+endif
 
 # Configuration-dependent common files
 

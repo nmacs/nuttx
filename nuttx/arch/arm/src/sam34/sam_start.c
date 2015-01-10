@@ -96,7 +96,11 @@
  *
  ****************************************************************************/
 
-void __start(void)
+#ifdef CONFIG_SAM_BOOTARGS
+void *boot_args = 0;
+#endif
+
+void __start(void* args)
 {
   const uint32_t *src;
   uint32_t *dest;
@@ -133,6 +137,12 @@ void __start(void)
     {
       *dest++ = *src++;
     }
+#endif
+
+#ifdef CONFIG_SAM_BOOTARGS
+  /* Setup boot args passed by bootloader
+   */
+  boot_args = args;
 #endif
 
   /* Configure the uart so that we can get debug output as soon as possible */
