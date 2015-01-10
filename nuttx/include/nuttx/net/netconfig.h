@@ -90,6 +90,12 @@
 #    error "SLIP is not implemented for IPv6"
 #  endif
 #  define UIP_LLH_LEN         0
+#elif defined(CONFIG_WIRELESS)
+#  ifdef CONFIG_OMEGA_RF
+#    define UIP_LLH_LEN       24
+#  else
+#    define UIP_LLH_LEN       0
+#  endif
 #else
 #  define CONFIG_NET_ETHERNET 1
 #  define CONFIG_NET_ARP      1

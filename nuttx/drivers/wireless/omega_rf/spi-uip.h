@@ -1,0 +1,1 @@
+../../../../radio/contiki-2.7/platform/omega/dev/spi-uip.h

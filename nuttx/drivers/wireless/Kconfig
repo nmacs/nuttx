@@ -8,6 +8,22 @@ config WL_CC1101
 	default n
 	select SPI
 
+config OMEGA_RF
+	bool "Omega radio modem driver"
+	default n
+	depends on ARCH_BOARD_OMEGA
+	select SPI
+
+config OMEGA_RF_SPIMODE
+	int "Omega radio modem SPI mode"
+	default 0
+	depends on OMEGA_RF
+
+config OMEGA_RF_SPIFREQUENCY
+	int "Omega radio modem SPI frequency"
+	default 1000000
+	depends on OMEGA_RF
+
 menuconfig WL_CC3000
 	bool "CC3000 Wireless Module support"
 	default n

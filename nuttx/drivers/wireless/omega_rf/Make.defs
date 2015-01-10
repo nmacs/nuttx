@@ -1,8 +1,5 @@
 ############################################################################
-# drivers/wireless/Make.defs
-#
-#   Copyright (C) 2011-2012 Gregory Nutt. All rights reserved.
-#   Author: Gregory Nutt <gnutt@nuttx.org>
+# drivers/wireless/omega_rf/Make.defs
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -33,29 +30,15 @@
 #
 ############################################################################
 
-ifeq ($(CONFIG_WIRELESS),y)
-
-# Include wireless drivers
-
-ifeq ($(CONFIG_WL_CC1101),y)
-CSRCS += cc1101.c ISM1_868MHzGFSK100kbps.c ISM2_905MHzGFSK250kbps.c
-endif
-
-ifeq ($(CONFIG_WL_NRF24L01),y)
-CSRCS += nrf24l01.c
-endif
-
-ifeq ($(CONFIG_WL_CC3000),y)
-include wireless$(DELIM)cc3000$(DELIM)Make.defs
-endif
-
 ifeq ($(CONFIG_OMEGA_RF),y)
-include wireless$(DELIM)omega_rf$(DELIM)Make.defs
-endif
+
+# Include omega_rf drivers
+
+CSRCS += omega_rf.c
 
 # Include wireless devices build support
 
-DEPPATH += --dep-path wireless
-VPATH += :wireless
-CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)wireless}
+DEPPATH += --dep-path wireless$(DELIM)omega_rf
+VPATH += :wireless$(DELIM)omega_rf
+CFLAGS += ${shell $(INCDIR) $(INCDIROPT) "$(CC)" $(TOPDIR)$(DELIM)drivers$(DELIM)wireless$(DELIM)omega_rf}
 endif
