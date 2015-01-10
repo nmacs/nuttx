@@ -114,7 +114,7 @@
 
 #if defined(CONFIG_ARCH_CHIP_SAM3U) || defined(CONFIG_ARCH_CHIP_SAM3X) || \
     defined(CONFIG_ARCH_CHIP_SAM3A) || defined(CONFIG_ARCH_CHIP_SAM4S) || \
-    defined(CONFIG_ARCH_CHIP_SAM4E)
+    defined(CONFIG_ARCH_CHIP_SAM4E) || defined(CONFIG_ARCH_CHIP_SAM4CM)
 #  define SAM_SPI_CLOCK  BOARD_MCK_FREQUENCY  /* Frequency of the main clock */
 #elif defined(CONFIG_ARCH_CHIP_SAM4L)
 #  define SAM_SPI_CLOCK  BOARD_PBB_FREQUENCY  /* PBB frequency */

@@ -281,7 +281,7 @@ config SAM34_ADC12B
 config SAM34_AES
 	bool "AES"
 	default n
-	depends on ARCH_CHIP_SAM4E
+	depends on ARCH_CHIP_SAM4CM
 
 config SAM34_AESA
 	bool "Advanced Encryption Standard (AESA)"
@@ -453,12 +453,12 @@ config SAM34_PWM
 config SAM34_RTC
 	bool "Real Time Clock (RTC)"
 	default n
-	depends on ARCH_CHIP_SAM3U || ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A || ARCH_CHIP_SAM4S || ARCH_CHIP_SAM4E
+	depends on ARCH_CHIP_SAM3U || ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A || ARCH_CHIP_SAM4S || ARCH_CHIP_SAM4E || ARCH_CHIP_SAM4CM
 
 config SAM34_RTT
 	bool "Real Time Timer (RTT)"
 	default n
-	depends on ARCH_CHIP_SAM3U || ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A || ARCH_CHIP_SAM4S || ARCH_CHIP_SAM4E
+	depends on ARCH_CHIP_SAM3U || ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A || ARCH_CHIP_SAM4S || ARCH_CHIP_SAM4E || ARCH_CHIP_SAM4CM
 
 config SAM34_SDRAMC
 	bool "SDRAM Controller (SDRAMC)"
@@ -543,6 +543,44 @@ config SAM34_TRNG
 	default n
 	depends on ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A || ARCH_CHIP_SAM4L
 
+if ARCH_CHIP_SAM4CM
+
+config SAM34_TWI0
+	bool "Two-wire Interface 0 (TWI0)"
+	default n
+
+config SAM34_TWI1
+	bool "Two-wire Interface 1 (TWI1)"
+	default n
+
+if SAM34_TWI0 || SAM34_TWI1
+
+menu "TWI device driver options"
+
+config SAM34_TWI0_FREQUENCY
+	int "TWI0 Frequency"
+	default 100000
+	depends on SAM34_TWI0
+
+config SAM34_TWI1_FREQUENCY
+	int "TWI1 Frequency"
+	default 100000
+	depends on SAM34_TWI1
+
+config SAM34_TWI_REGDEBUG
+	bool "TWI register level debug"
+	depends on DEBUG
+	default n
+	---help---
+		Output detailed register-level TWI device debug information.
+		Very invasive! Requires also DEBUG.
+
+endmenu # TWI device driver options
+endif # SAM34_TWI0 || SAM34_TWI1
+
+endif
+
+if !ARCH_CHIP_SAM4CM
 config SAM34_TWIM0
 	bool "Two-wire Master Interface 0 (TWIM0)"
 	default n
@@ -568,6 +606,7 @@ config SAM34_TWIM3
 	bool "Two-wire Master Interface 3 (TWIM3)"
 	default n
 	depends on ARCH_CHIP_SAM4L
+endif
 
 config SAM34_UART0
 	bool "UART 0"

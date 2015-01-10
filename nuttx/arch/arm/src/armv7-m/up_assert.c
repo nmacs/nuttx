@@ -329,7 +329,7 @@ static void _up_assert(int errorcode)
       (void)irqsave();
       for (;;)
         {
-#ifdef CONFIG_ARCH_LEDS
+#if defined(CONFIG_ARCH_LEDS) && defined(LED_PANIC)
           board_led_on(LED_PANIC);
           up_mdelay(250);
           board_led_off(LED_PANIC);
@@ -357,7 +357,9 @@ void up_assert(const uint8_t *filename, int lineno)
   struct tcb_s *rtcb = (struct tcb_s*)g_readytorun.head;
 #endif
 
+#ifdef LED_ASSERTION
   board_led_on(LED_ASSERTION);
+#endif
 
 #ifdef CONFIG_PRINT_TASKNAME
   lldbg("Assertion failed at file:%s line: %d task: %s\n",

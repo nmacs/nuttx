@@ -229,7 +229,9 @@ void up_allocate_heap(FAR void **heap_start, size_t *heap_size)
 
   /* Return the user-space heap settings */
 
+#ifdef LED_HEAPALLOCATE
   board_led_on(LED_HEAPALLOCATE);
+#endif
   *heap_start = (FAR void*)ubase;
   *heap_size  = usize;
 
@@ -240,7 +242,9 @@ void up_allocate_heap(FAR void **heap_start, size_t *heap_size)
 
   /* Return the heap settings */
 
+#ifdef LED_HEAPALLOCATE
   board_led_on(LED_HEAPALLOCATE);
+#endif
   *heap_start = (FAR void*)g_idle_topstack;
   *heap_size  = CONFIG_RAM_END - g_idle_topstack;
 #endif

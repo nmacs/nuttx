@@ -239,16 +239,16 @@ static inline void sam_pmcsetup(void)
   //putreg32(PMC_PMMR_MASK, SAM_PMC_PMMR);
 #endif
 
+  /* Setup PLLA and wait for LOCKA */
+
+  putreg32(BOARD_CKGR_PLLAR, SAM_PMC_CKGR_PLLAR);
+  sam_pmcwait(PMC_INT_LOCKA);
+
 #ifdef CONFIG_ARCH_CHIP_SAM4CM
   /* Setup PLLB and wait for LOCKB */
 
   putreg32(BOARD_CKGR_PLLBR, SAM_PMC_CKGR_PLLBR);
   sam_pmcwait(PMC_INT_LOCKB);
-#else
-  /* Setup PLLA and wait for LOCKA */
-
-  putreg32(BOARD_CKGR_PLLAR, SAM_PMC_CKGR_PLLAR);
-  sam_pmcwait(PMC_INT_LOCKA);
 #endif
 
 #ifdef CONFIG_USBDEV
@@ -347,6 +347,28 @@ static inline void sam_disabledefaultmaster(void)
 }
 #endif
 
+#if defined(CONFIG_ARCH_CHIP_SAM4CM) && defined(CONFIG_SAM34_UART1)
+#include "chip/sam_rstc.h"
+static void setup_system1_clock(void)
+{
+  uint32_t regval;
+
+  putreg32(RSTC_CPMR_CPKEY, SAM_RSTC_CPMR); // Reset System 1 Core and Peripherals
+
+  putreg32(PMC_CPBMCK | PMC_CPCK | PMC_CPKEY, SAM_PMC_SCER);
+
+  regval = getreg32(SAM_PMC_MCKR);
+  regval &= ~PMC_MCKR_CPPRES_MASK;
+  regval |= PMC_MCKR_CPPRES(1) | PMC_MCKR_CCPSS_PLLB;
+  putreg32(regval, SAM_PMC_MCKR);
+
+  // Release Core1 peripheral reset
+  regval = getreg32(SAM_RSTC_CPMR);
+  regval |= RSTC_CPMR_CPEREN | RSTC_CPMR_CPKEY;
+  putreg32(regval, SAM_RSTC_CPMR);
+}
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -385,4 +407,8 @@ void sam_clockconfig(void)
   /* Optimize CPU setting for speed */
 
   sam_enabledefaultmaster();
+
+#if defined(CONFIG_ARCH_CHIP_SAM4CM) && defined(CONFIG_SAM34_UART1)
+  setup_system1_clock();
+#endif
 }

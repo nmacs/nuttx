@@ -439,6 +439,18 @@ void sam_gpioirqenable(int irq)
 }
 
 /************************************************************************************
+ * Name: sam_gpioirqack
+ *
+ * Description:
+ *   Ack the interrupt for specified GPIO IRQ
+ *
+ ************************************************************************************/
+
+void sam_gpioirqack(int irq)
+{
+}
+
+/************************************************************************************
  * Name: sam_gpioirqdisable
  *
  * Description:

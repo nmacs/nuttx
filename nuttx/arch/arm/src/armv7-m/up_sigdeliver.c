@@ -92,7 +92,9 @@ void up_sigdeliver(void)
 
   int saved_errno = rtcb->pterrno;
 
+#ifdef LED_SIGNAL
   board_led_on(LED_SIGNAL);
+#endif
 
   sdbg("rtcb=%p sigdeliver=%p sigpendactionq.head=%p\n",
         rtcb, rtcb->xcp.sigdeliver, rtcb->sigpendactionq.head);
@@ -145,7 +147,9 @@ void up_sigdeliver(void)
    * execution.
    */
 
+#ifdef LED_SIGNAL
   board_led_off(LED_SIGNAL);
+#endif
   up_fullcontextrestore(regs);
 }
 

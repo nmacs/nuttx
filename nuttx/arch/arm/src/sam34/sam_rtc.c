@@ -790,7 +790,7 @@ int up_rtc_gettime(FAR struct timespec *tp)
   t.tm_min  = rtc_bcd2bin((rtc_tim & RTC_TIMR_MIN_MASK)   >> RTC_TIMR_MIN_SHIFT);
   t.tm_hour = rtc_bcd2bin((rtc_tim & RTC_TIMR_HOUR_MASK)  >> RTC_TIMR_HOUR_SHIFT);
   t.tm_mday = rtc_bcd2bin((rtc_cal & RTC_CALR_DATE_MASK)  >> RTC_CALR_DATE_SHIFT);
-  t.tm_mon  = rtc_bcd2bin((rtc_cal & RTC_CALR_MONTH_MASK) >> RTC_CALR_MONTH_SHIFT);
+  t.tm_mon  = rtc_bcd2bin((rtc_cal & RTC_CALR_MONTH_MASK) >> RTC_CALR_MONTH_SHIFT) - 1;
   t.tm_year = (rtc_bcd2bin((rtc_cal & RTC_CALR_CENT_MASK) >> RTC_CALR_CENT_SHIFT) * 100)
              + rtc_bcd2bin((rtc_cal & RTC_CALR_YEAR_MASK) >> RTC_CALR_YEAR_SHIFT)
              - 1900;

@@ -149,3 +149,15 @@ endif
 ifeq ($(CONFIG_TIMER),y)
 CHIP_CSRCS += sam_tc.c
 endif
+
+ifeq ($(CONFIG_CRYPTO_AES),y)
+CHIP_CSRCS   +=  sam_aes.c
+endif
+
+ifeq ($(CONFIG_SAM34_TWI0),y)
+CHIP_CSRCS += sam_twi.c
+else
+ifeq ($(CONFIG_SAM34_TWI1),y)
+CHIP_CSRCS += sam_twi.c
+endif
+endif

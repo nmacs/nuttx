@@ -415,8 +415,9 @@ int sam_configgpio(gpio_pinset_t cfgset)
     }
 
   /* Disable writing to GPIO registers */
-
+#ifndef CONFIG_ARCH_CHIP_SAM4CM
   putreg32(PIO_WPMR_WPEN | PIO_WPMR_WPKEY, base + SAM_PIO_WPMR_OFFSET);
+#endif
   irqrestore(flags);
 
   return ret;
