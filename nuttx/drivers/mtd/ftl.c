@@ -55,6 +55,10 @@
 #include <nuttx/mtd/mtd.h>
 #include <nuttx/rwbuffer.h>
 
+#if defined(CONFIG_MTD_FTL_ENCRYPTION)
+#  include <crypto/crypto.h>
+#endif
+
 /****************************************************************************
  * Private Definitions
  ****************************************************************************/
@@ -77,6 +81,9 @@ struct ftl_struct_s
   uint16_t              blkper;  /* R/W blocks per erase block */
 #ifdef CONFIG_FS_WRITABLE
   FAR uint8_t          *eblock;  /* One, in-memory erase block */
+#endif
+#ifdef CONFIG_MTD_FTL_ENCRYPTION
+  FAR uint8_t          key[CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE];
 #endif
 };
 
@@ -159,6 +166,16 @@ static ssize_t ftl_reload(FAR void *priv, FAR uint8_t *buffer,
 {
   struct ftl_struct_s *dev = (struct ftl_struct_s *)priv;
   ssize_t nread;
+#ifdef CONFIG_MTD_FTL_ENCRYPTION
+  off_t   eraseblock;
+  off_t   rwblock;
+  off_t   mask;
+  off_t   offset;
+  off_t   remaining;
+  off_t   alignedblock;
+  int     nbytes;
+  int     ret;
+#endif
 
   /* Read the full erase block into the buffer */
 
@@ -168,6 +185,90 @@ static ssize_t ftl_reload(FAR void *priv, FAR uint8_t *buffer,
       fdbg("Read %d blocks starting at block %d failed: %d\n",
             nblocks, startblock, nread);
     }
+
+#ifdef CONFIG_MTD_FTL_ENCRYPTION
+  mask         = dev->blkper - 1;
+  alignedblock = (startblock + mask) & ~mask;
+  remaining = nblocks;
+
+  if (alignedblock > startblock)
+    {
+      /* Check if the read is shorter than to the end of the erase block */
+
+      bool short_read = (remaining < (alignedblock - startblock));
+
+      rwblock      = startblock & ~mask;
+      eraseblock   = rwblock / dev->blkper;
+      offset = (startblock & mask) * dev->geo.blocksize;
+
+      if (short_read)
+        {
+          nbytes = remaining * dev->geo.blocksize;
+        }
+      else
+        {
+          nbytes = dev->geo.erasesize - offset;
+        }
+
+      ret = crypto_xex(buffer, buffer, nbytes, dev->key, 
+                       CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE, eraseblock, 
+                       offset, CYPHER_DECRYPT);
+      if (ret)
+        {
+          fdbg("Decrypt erase block=%d failed: %d\n", eraseblock, ret);
+          return ret;
+        }
+
+      if (short_read)
+        {
+          remaining = 0;
+        }
+      else
+        {
+          remaining -= dev->blkper - (startblock & mask);
+        }
+
+      buffer += nbytes;
+    }
+
+  /* Now handle full erase pages in the middle */
+
+  while (remaining >= dev->blkper)
+    {
+      eraseblock = alignedblock / dev->blkper;
+
+      ret = crypto_xex(buffer, buffer, dev->geo.erasesize, dev->key,
+                       CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE, eraseblock,
+                       0, CYPHER_DECRYPT);
+      if (ret)
+        {
+          fdbg("Decrypt erase block=%d failed: %d\n", eraseblock, ret);
+          return ret;
+        }
+
+      alignedblock += dev->blkper;
+      remaining    -= dev->blkper;
+      buffer       += dev->geo.erasesize;
+    }
+
+  /* Finally, handler any partial blocks after the last full erase block */
+
+  if (remaining > 0)
+    {
+      eraseblock = alignedblock / dev->blkper;
+      nbytes = remaining * dev->geo.blocksize;
+
+      ret = crypto_xex(buffer, buffer, nbytes, dev->key, 
+                       CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE, eraseblock,
+                       0, CYPHER_DECRYPT);
+      if (ret)
+        {
+          fdbg("Decrypt erase block=%d failed: %d\n", eraseblock, ret);
+          return ret;
+        }
+    }
+#endif
+
   return nread;
 }
 
@@ -266,10 +367,30 @@ static ssize_t ftl_flush(FAR void *priv, FAR const uint8_t *buffer,
           nbytes = dev->geo.erasesize - offset;
         }
 
+#ifdef CONFIG_MTD_FTL_ENCRYPTION
+      ret = crypto_xex(dev->eblock, dev->eblock, dev->geo.erasesize, dev->key,
+                       CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE, eraseblock, 0, CYPHER_DECRYPT);
+      if (ret)
+        {
+          fdbg("Decrypt erase block=%d failed: %d\n", eraseblock, ret);
+          return ret;
+        }
+#endif
+
       fvdbg("Copy %d bytes into erase block=%d at offset=%d\n",
              nbytes, eraseblock, offset);
 
       memcpy(dev->eblock + offset, buffer, nbytes);
+
+#ifdef CONFIG_MTD_FTL_ENCRYPTION
+      ret = crypto_xex(dev->eblock, dev->eblock, dev->geo.erasesize, dev->key,
+                       CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE, eraseblock, 0, CYPHER_ENCRYPT);
+      if (ret)
+        {
+          fdbg("Encrypt erase block=%d failed: %d\n", eraseblock, ret);
+          return ret;
+        }
+#endif
 
       /* And write the erase block back to flash */
 
@@ -313,12 +434,31 @@ static ssize_t ftl_flush(FAR void *priv, FAR const uint8_t *buffer,
       fvdbg("Write %d bytes into erase block=%d at offset=0\n",
              dev->geo.erasesize, alignedblock);
 
+#ifdef CONFIG_MTD_FTL_ENCRYPTION
+      ret = crypto_xex(dev->eblock, buffer, dev->geo.erasesize, dev->key,
+                       CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE, eraseblock, 0, CYPHER_ENCRYPT);
+      if (ret)
+        {
+          fdbg("Encrypt erase block=%d failed: %d\n", eraseblock, ret);
+          return ret;
+        }
+
+      nxfrd = MTD_BWRITE(dev->mtd, alignedblock, dev->blkper, dev->eblock);
+      if (nxfrd != dev->blkper)
+        {
+          fdbg("Write erase block %d failed: %d\n", alignedblock, nxfrd);
+          return -EIO;
+        }
+#else
       nxfrd = MTD_BWRITE(dev->mtd, alignedblock, dev->blkper, buffer);
       if (nxfrd != dev->blkper)
         {
           fdbg("Write erase block %d failed: %d\n", alignedblock, nxfrd);
           return -EIO;
         }
+#endif
+
+
 
       /* Then update for amount written */
 
@@ -350,12 +490,34 @@ static ssize_t ftl_flush(FAR void *priv, FAR const uint8_t *buffer,
           return ret;
         }
 
+#ifdef CONFIG_MTD_FTL_ENCRYPTION
+      ret = crypto_xex(dev->eblock, dev->eblock, dev->geo.erasesize, dev->key,
+                       CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE, eraseblock, 0, CYPHER_DECRYPT);
+
+      if (ret)
+        {
+          fdbg("Decrypt erase block=%d failed: %d\n", eraseblock, ret);
+          return ret;
+        }
+#endif
+
       /* Copy the user data at the beginning the buffered erase block */
 
       nbytes = remaining * dev->geo.blocksize;
       fvdbg("Copy %d bytes into erase block=%d at offset=0\n",
              nbytes, alignedblock);
       memcpy(dev->eblock, buffer, nbytes);
+
+#ifdef CONFIG_MTD_FTL_ENCRYPTION
+      ret = crypto_xex(dev->eblock, dev->eblock, dev->geo.erasesize, dev->key,
+                       CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE, eraseblock, 0, CYPHER_ENCRYPT);
+
+      if (ret)
+        {
+          fdbg("Encrypt erase block=%d failed: %d\n", eraseblock, ret);
+          return ret;
+        }
+#endif
 
       /* And write the erase back to flash */
 
@@ -479,6 +641,16 @@ static int ftl_ioctl(FAR struct inode *inode, int cmd, unsigned long arg)
    */
 
   dev = (struct ftl_struct_s *)inode->i_private;
+
+#ifdef CONFIG_MTD_FTL_ENCRYPTION
+  if (cmd == DIOC_SETKEY)
+    {
+      memcpy(dev->key, (void*)arg, CONFIG_MTD_FTL_ENCRYPTION_KEY_SIZE);
+
+      return OK;
+    }
+#endif
+
   ret = MTD_IOCTL(dev->mtd, cmd, arg);
   if (ret < 0)
     {

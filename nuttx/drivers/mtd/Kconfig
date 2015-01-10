@@ -461,3 +461,12 @@ config W25_SLOWREAD
 	default n
 
 endif
+
+config MTD_FTL_ENCRYPTION
+	bool "Enable FTL encryption feature"
+	default n
+
+config MTD_FTL_ENCRYPTION_KEY_SIZE
+	int "Encryption key size in Bytes"
+	default 16
+	depends on MTD_FTL_ENCRYPTION
