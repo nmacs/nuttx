@@ -41,6 +41,7 @@
 
 #include <nuttx/arch.h>
 #include "up_internal.h"
+#include <arch/board/board.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -82,9 +83,14 @@ void up_idle(void)
 #else
 
   /* Sleep until an interrupt occurs to save power */
-
-#if 0
+#ifdef LED_IDLE
+  board_led_on(LED_IDLE);
+#endif
+#if 1
   asm("WFI");  /* For example */
+#endif
+#ifdef LED_IDLE
+  board_led_off(LED_IDLE);
 #endif
 #endif
 }
