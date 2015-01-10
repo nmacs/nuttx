@@ -58,6 +58,7 @@
 #include <debug.h>
 
 #include <nuttx/kmalloc.h>
+#include <nuttx/clock.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/i2c.h>
 #include <nuttx/mtd/mtd.h>
@@ -99,6 +100,9 @@
 #elif CONFIG_AT24XX_SIZE == 512   /* AT24C512: 512Kbits = 64KiB; 512 * 128 = 65536 */
 #  define AT24XX_NPAGES     512
 #  define AT24XX_PAGESIZE   128
+#elif CONFIG_AT24XX_SIZE == 1024 /* AT24C1024: 1024Kbits = 128KiB; 512 * 256 = 131072 */
+#  define AT24XX_NPAGES     512
+#  define AT24XX_PAGESIZE   256
 #endif
 
 /* For applications where a file system is used on the AT24, the tiny page sizes
@@ -112,6 +116,8 @@
 #  warning "Assuming driver block size is the same as the FLASH page size"
 #  define CONFIG_AT24XX_MTD_BLOCKSIZE AT24XX_PAGESIZE
 #endif
+
+#define AT24_WRITE_TIMEOUT ((100 * CLK_TCK) / 1000)
 
 /************************************************************************************
  * Private Types
@@ -129,6 +135,7 @@ struct at24c_dev_s
   uint8_t               addr;     /* I2C address */
   uint16_t              pagesize; /* 32, 63 */
   uint16_t              npages;   /* 128, 256, 512, 1024 */
+  uint32_t              timeout;
 };
 
 /************************************************************************************
@@ -229,20 +236,33 @@ static ssize_t at24c_bread(FAR struct mtd_dev_s *dev, off_t startblock,
   I2C_SETADDRESS(priv->dev,priv->addr,7);
   I2C_SETFREQUENCY(priv->dev,100000);
 
+  priv->timeout = clock_systimer();
   while (blocksleft-- > 0)
     {
       uint16_t offset = startblock * priv->pagesize;
       uint8_t buf[2];
+      ssize_t ret;
       buf[1] = offset & 0xff;
       buf[0] = (offset >> 8) & 0xff;
 
-      while (I2C_WRITE(priv->dev, buf, 2) < 0)
+      priv->timeout = (uint32_t)clock_systimer();
+      do
         {
+          ret = I2C_WRITE(priv->dev, buf, 2);
+          if (ret == OK)
+            break;
           fvdbg("wait\n");
           usleep(1000);
         }
+      while ((uint32_t)(clock_systimer() - priv->timeout) < AT24_WRITE_TIMEOUT);
 
-      I2C_READ(priv->dev, buffer, priv->pagesize);
+      if (ret < 0)
+        return -ETIMEDOUT;
+
+      ret = I2C_READ(priv->dev, buffer, priv->pagesize);
+      if (ret < 0)
+        return -EIO;
+
       startblock++;
       buffer += priv->pagesize;
     }
@@ -290,18 +310,31 @@ static ssize_t at24c_bwrite(FAR struct mtd_dev_s *dev, off_t startblock, size_t 
 
   while (blocksleft-- > 0)
     {
+      ssize_t ret;
       uint16_t offset = startblock * priv->pagesize;
-      while (I2C_WRITE(priv->dev, (uint8_t *)&offset, 2) < 0)
+
+      priv->timeout = (uint32_t)clock_systimer();
+      do
         {
+          ret = I2C_WRITE(priv->dev, (uint8_t *)&offset, 2);
+          if (ret == OK)
+            break;
           fvdbg("wait\n");
           usleep(1000);
         }
+      while ((uint32_t)(clock_systimer() - priv->timeout) < AT24_WRITE_TIMEOUT);
+
+      if (ret < 0)
+        return -ETIMEDOUT;
 
       buf[1] = offset & 0xff;
       buf[0] = (offset >> 8) & 0xff;
       memcpy(&buf[2], buffer, priv->pagesize);
 
-      I2C_WRITE(priv->dev, buf, priv->pagesize + 2);
+      ret = I2C_WRITE(priv->dev, buf, priv->pagesize + 2);
+      if (ret < 0)
+        return -EIO;
+
       startblock++;
       buffer += priv->pagesize;
     }
