@@ -66,10 +66,7 @@
  ************************************************************************************/
 /* Configuration ********************************************************************/
 
-#ifdef CONFIG_RTC_HIRES
-# if !defined(CONFIG_SAM34_RTT)
-#  error RTT is required to emulate high resolution RTC
-# endif
+#if defined(CONFIG_RTC_HIRES) && defined(CONFIG_SAM34_RTT)
 # if (CONFIG_RTC_FREQUENCY > 32768) || ((32768 % CONFIG_RTC_FREQUENCY) != 0)
 #  error CONFIG_RTC_FREQUENCY must be an integer division of 32768
 # endif
@@ -769,7 +766,32 @@ int up_rtc_setalarm(FAR const struct timespec *tp, alarmcb_t callback)
  *
  ************************************************************************************/
 
-#if defined(CONFIG_RTC_HIRES) && defined (CONFIG_SAM34_RTT)
+#if defined(CONFIG_RTC_HIRES)
+
+static time_t time2sec(const struct tm *tp)
+{
+  unsigned int days;
+
+  /* Years since epoch in units of days (ignoring leap years). */
+
+  days = (tp->tm_year - 70) * 365;
+
+  /* Add in the extra days for the leap years prior to the current year. */
+
+  days += (tp->tm_year - 69) >> 2;
+
+  /* Add in the days up to the beginning of this month. */
+
+  days += (time_t)clock_daysbeforemonth(tp->tm_mon, clock_isleapyear(tp->tm_year + 1900));
+
+  /* Add in the days since the beginning of this month (days are 1-based). */
+
+  days += tp->tm_mday - 1;
+
+  /* Then convert the seconds and add in hours, minutes, and seconds */
+
+  return ((days * 24 + tp->tm_hour) * 60 + tp->tm_min) * 60 + tp->tm_sec;
+}
 
 int up_rtc_gettime(FAR struct timespec *tp)
 {
@@ -781,10 +803,15 @@ int up_rtc_gettime(FAR struct timespec *tp)
   {
     rtc_cal = getreg32(SAM_RTC_CALR);
     rtc_tim = getreg32(SAM_RTC_TIMR);
+#if defined (CONFIG_SAM34_RTT)
     rtt_val = getreg32(SAM_RTT_VR);
-  } while((rtc_cal != getreg32(SAM_RTC_CALR)) ||
-          (rtc_tim != getreg32(SAM_RTC_TIMR)) ||
-          (rtt_val != getreg32(SAM_RTT_VR)));
+#endif
+  } while((rtc_cal != getreg32(SAM_RTC_CALR))
+          || (rtc_tim != getreg32(SAM_RTC_TIMR))
+#if defined (CONFIG_SAM34_RTT)
+          || (rtt_val != getreg32(SAM_RTT_VR))
+#endif
+          );
 
   t.tm_sec  = rtc_bcd2bin((rtc_tim & RTC_TIMR_SEC_MASK)   >> RTC_TIMR_SEC_SHIFT);
   t.tm_min  = rtc_bcd2bin((rtc_tim & RTC_TIMR_MIN_MASK)   >> RTC_TIMR_MIN_SHIFT);
@@ -795,9 +822,14 @@ int up_rtc_gettime(FAR struct timespec *tp)
              + rtc_bcd2bin((rtc_cal & RTC_CALR_YEAR_MASK) >> RTC_CALR_YEAR_SHIFT)
              - 1900;
 
-  tp->tv_sec = mktime(&t);
+  tp->tv_sec = time2sec(&t);
+
+#if defined (CONFIG_SAM34_RTT)
   tp->tv_nsec = (((rtt_val-g_rtt_offset) & (CONFIG_RTC_FREQUENCY-1)) * 1000000000ULL) /
                 CONFIG_RTC_FREQUENCY;
+#else
+  tp->tv_nsec = 0;
+#endif
 
   return OK;
 }
