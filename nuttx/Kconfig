@@ -689,6 +689,10 @@ menu "File Systems"
 source fs/Kconfig
 endmenu
 
+menu "Crypto"
+source crypto/Kconfig
+endmenu
+
 menu "Graphics Support"
 source graphics/Kconfig
 endmenu
