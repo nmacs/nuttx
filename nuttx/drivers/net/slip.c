@@ -56,6 +56,7 @@
 
 #include <nuttx/irq.h>
 #include <nuttx/net/net.h>
+#include <nuttx/clock.h>
 
 #include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
@@ -167,6 +168,7 @@ struct slip_driver_s
   pid_t         txpid;      /* Transmitter thread ID */
   sem_t         waitsem;    /* Mutually exclusive access to uIP */
   uint16_t      rxlen;      /* The number of bytes in rxbuf */
+  int           txnodelay;
 
   /* Driver statistics */
 
@@ -356,12 +358,11 @@ static int slip_transmit(FAR struct slip_driver_s *priv)
               if (len > 0)
                 {
                   slip_write(priv, start, len);
-
-                  /* Reset */
-
-                  start = src + 1;
-                  len   = 0;
                 }
+                /* Reset */
+
+                start = src + 1;
+                len   = 0;
 
               /* Then send the escape sequence */
 
@@ -394,6 +395,7 @@ static int slip_transmit(FAR struct slip_driver_s *priv)
   /* And send the END token */
 
   slip_putc(priv, SLIP_END);
+  priv->txnodelay = 1;
   return OK;
 }
 
@@ -458,6 +460,8 @@ static void slip_txtask(int argc, char *argv[])
   FAR struct slip_driver_s *priv;
   unsigned int index = *(argv[1]) - '0';
   uip_lock_t flags;
+  unsigned int msec_now, msec_start;
+  unsigned int hsec;
 
   ndbg("index: %d\n", index);
   DEBUGASSERT(index < CONFIG_SLIP_NINTERFACES);
@@ -471,11 +475,22 @@ static void slip_txtask(int argc, char *argv[])
 
   /* Loop forever */
 
+  msec_start = clock_systimer() * MSEC_PER_TICK;
   for (;;)
     {
       /* Wait for the timeout to expire (or until we are signaled by by  */
 
-      usleep(SLIP_WDDELAY);
+      slip_semtake(priv);
+      if (!priv->txnodelay)
+        {
+          slip_semgive(priv);
+          usleep(SLIP_WDDELAY);
+        }
+      else
+        {
+          priv->txnodelay = 0;
+          slip_semgive(priv);
+        }
 
       /* Is the interface up? */
 
@@ -487,15 +502,24 @@ static void slip_txtask(int argc, char *argv[])
 
           slip_semtake(priv);
 
-          /* Poll uIP for new XMIT data. BUG:  We really need to calculate
-           * the number of hsecs!  When we are awakened by slip_txavail, the
-           * number will be smaller; when we have to wait for the semaphore
-           * (above), it may be larger.
+          /* Poll uIP for new XMIT data.
            */
 
           flags = uip_lock();
           priv->dev.d_buf = priv->txbuf;
-          (void)uip_timer(&priv->dev, slip_uiptxpoll, SLIP_POLLHSEC);
+
+          msec_now = clock_systimer() * MSEC_PER_TICK;
+          hsec = (unsigned int)(msec_now - msec_start) / (MSEC_PER_SEC / 2);
+          if (hsec)
+            {
+              (void)uip_timer(&priv->dev, slip_uiptxpoll, hsec);
+              msec_start += hsec * (MSEC_PER_SEC / 2);
+            }
+          else
+            {
+              (void)uip_poll(&priv->dev, slip_uiptxpoll);
+            }
+
           uip_unlock(flags);
           slip_semgive(priv);
         }
@@ -728,6 +752,7 @@ static int slip_rxtask(int argc, char *argv[])
           if (priv->dev.d_len > 0)
             {
               slip_transmit(priv);
+              kill(priv->txpid, SIGALRM);
             }
           uip_unlock(flags);
           slip_semgive(priv);
@@ -826,6 +851,10 @@ static int slip_txavail(struct uip_driver_s *dev)
     {
       /* Wake up the TX polling thread */
 
+      slip_semtake(priv);
+      priv->txnodelay = 1;
+      slip_semgive(priv);
+
       kill(priv->txpid, SIGALRM);
     }
 
@@ -916,7 +945,7 @@ int slip_initialize(int intf, const char *devname)
 {
   struct slip_driver_s *priv;
   char buffer[8];
-  const char *argv[2];
+  char *argv[2];
 
   /* Get the interface structure associated with this interface number. */
 
