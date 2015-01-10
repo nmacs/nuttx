@@ -920,6 +920,18 @@ config ARCH_BOARD_ZKITARM
 		Zilogic System's ARM development Kit, ZKIT-ARM-1769.  This board is based
 		on the NXP LPC1769.  The Nuttx Buildroot toolchain is used by default.
 
+config ARCH_BOARD_COLIBRI
+	bool "Colibri project board"
+	depends on ARCH_CHIP_LM4C129
+	select ARCH_HAVE_LEDS
+
+config ARCH_BOARD_OMEGA
+	bool "Omega project board"
+	depends on ARCH_CHIP_ATSAM4CMP16B
+	select ARCH_HAVE_LEDS
+	select FS_READABLE
+	select FS_WRITABLE
+
 config ARCH_BOARD_SIM
 	bool "User mode simulation"
 	depends on ARCH_SIM
@@ -1045,6 +1057,8 @@ config ARCH_BOARD
 	default "z8f64200100kit"      if ARCH_BOARD_Z8F64200100KIT
 	default "zp214xpa"            if ARCH_BOARD_ZP214XPA
 	default "zkit-arm-1769"       if ARCH_BOARD_ZKITARM
+	default "colibri"             if ARCH_BOARD_COLIBRI
+	default "omega"               if ARCH_BOARD_OMEGA
 	default "sim"                 if ARCH_BOARD_SIM
 
 comment "Common Board Options"
@@ -1371,6 +1385,12 @@ source "configs/zp214xpa/Kconfig"
 endif
 if ARCH_BOARD_ZKITARM
 source "configs/zkit-arm-1769/Kconfig"
+endif
+if ARCH_BOARD_COLIBRI
+source "configs/colibri/Kconfig"
+endif
+if ARCH_BOARD_OMEGA
+source "configs/omega/Kconfig"
 endif
 if ARCH_BOARD_SIM
 source "configs/sim/Kconfig"

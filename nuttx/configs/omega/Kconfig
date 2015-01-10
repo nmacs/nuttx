@@ -1,0 +1,29 @@
+#
+# For a description of the syntax of this configuration file,
+# see misc/tools/kconfig-language.txt.
+#
+
+if ARCH_BOARD_OMEGA
+config SAM34_METROLOGY
+	bool "Metrology support"
+	default n
+	depends on ARCH_CHIP_SAM4CM
+
+config SAM_BOOTARGS
+	bool "Support of passing boot arguments"
+	default n
+
+config SAM_BOOTLOADER
+	bool "Able to start from bootloader"
+	default n
+
+config SAM_LOADER
+	bool "Firmware switch"
+	default n
+	select SAM_BOOTLOADER
+
+config SAM_KEXEC
+	bool "Enable kernel switch kexec function"
+	default n
+
+endif
