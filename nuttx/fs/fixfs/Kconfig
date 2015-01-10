@@ -1,0 +1,15 @@
+#
+# For a description of the syntax of this configuration file,
+# see misc/tools/kconfig-language.txt.
+#
+
+config FS_FIXFS
+	bool "FIXFS File System"
+	default n
+	select FS_READABLE
+	select FS_WRITABLE
+	select BCH
+
+if FS_FIXFS
+
+endif

@@ -111,6 +111,15 @@ struct fs_binfsdir_s
 };
 #endif
 
+#ifdef CONFIG_FS_FIXFS
+/* The state value is simply an index */
+
+struct fs_fixfsdir_s
+{
+  unsigned int fb_index;               /* Index to the next named entry point */
+};
+#endif
+
 #ifdef CONFIG_FS_NXFFS
 /* NXFFS is the tiny NuttX wear-leveling FLASH file system.  The state value is
  * the offset in FLASH memory to the next inode entry.
@@ -195,6 +204,9 @@ struct fs_dirent_s
 #endif
 #ifdef CONFIG_FS_BINFS
       struct fs_binfsdir_s   binfs;
+#endif
+#ifdef CONFIG_FS_FIXFS
+      struct fs_fixfsdir_s   fixfs;
 #endif
 #ifdef CONFIG_FS_PROCFS
       FAR void              *procfs;
