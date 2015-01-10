@@ -303,6 +303,7 @@ static void at25_waitwritecomplete(struct at25_dev_s *priv)
 
       SPI_SELECT(priv->dev, SPIDEV_FLASH, false);
 
+#if 0
       /* Given that writing could take up to few tens of milliseconds, and erasing
        * could take more.  The following short delay in the "busy" case will allow
        * other peripherals to access the SPI bus.
@@ -314,6 +315,7 @@ static void at25_waitwritecomplete(struct at25_dev_s *priv)
           usleep(10000);
           at25_lock(priv->dev);
         }
+#endif
     }
   while ((status & AT25_SR_BUSY) != 0);
 #endif
