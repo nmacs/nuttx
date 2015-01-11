@@ -204,7 +204,7 @@
 #endif
 
 #define EMAC_RX_UNITSIZE 128                 /* Fixed size for RX buffer  */
-#define EMAC_TX_UNITSIZE CONFIG_NET_BUFSIZE  /* MAX size for Ethernet packet */
+#define EMAC_TX_UNITSIZE CONFIG_NET_ETH_MTU  /* MAX size for Ethernet packet */
 
 /* We need at least one more free buffer than transmit buffers */
 
@@ -1010,9 +1010,9 @@ static int sam_recvframe(struct sam_emac_s *priv)
           /* Get the number of bytes to copy from the buffer */
 
           copylen = EMAC_RX_UNITSIZE;
-          if ((pktlen + copylen) > CONFIG_NET_BUFSIZE)
+          if ((pktlen + copylen) > CONFIG_NET_ETH_MTU)
             {
-              copylen = CONFIG_NET_BUFSIZE - pktlen;
+              copylen = CONFIG_NET_ETH_MTU - pktlen;
             }
 
           /* Get the data source.  Invalidate the source memory region to
@@ -1133,7 +1133,7 @@ static void sam_receive(struct sam_emac_s *priv)
        * (this should not happen)
        */
 
-      if (dev->d_len > CONFIG_NET_BUFSIZE)
+      if (dev->d_len > CONFIG_NET_ETH_MTU)
         {
           nlldbg("DROPPED: Too big: %d\n", dev->d_len);
         }
@@ -3063,7 +3063,7 @@ void up_netinitialize(void)
     }
 
   priv->txtimeout = wd_create();     /* Create TX timeout timer */
-  if (!priv->txpoll)
+  if (!priv->txtimeout)
     {
       nlldbg("ERROR: Failed to create periodic poll timer\n");
       goto errout_with_txpoll;
@@ -3108,7 +3108,7 @@ void up_netinitialize(void)
 
   /* Register the device with the OS so that socket IOCTLs can be performed */
 
-  ret = netdev_register(&priv->dev);
+  ret = netdev_register(&priv->dev, NET_LL_ETHERNET);
   if (ret >= 0)
     {
       return;

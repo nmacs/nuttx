@@ -1,5 +1,5 @@
 /****************************************************************************
- * up_head.c
+ * arch/sim/src/up_head.c
  *
  *   Copyright (C) 2007-2009, 2011-2113 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>

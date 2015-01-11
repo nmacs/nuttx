@@ -41,7 +41,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
-#include <debug.h>
+#include <syslog.h>
 #include <errno.h>
 
 #ifdef CONFIG_SYSTEM_USBMONITOR
@@ -59,22 +59,8 @@
  * Pre-Processor Definitions
  ****************************************************************************/
 
-/* Configuration ************************************************************/
-
-/* Debug ********************************************************************/
-
-#ifdef CONFIG_CPP_HAVE_VARARGS
-#  if defined(CONFIG_DEBUG) || !defined(CONFIG_NSH_ARCHINIT)
-#    define message(...) lowsyslog(__VA_ARGS__)
-#  else
-#    define message(...) printf(__VA_ARGS__)
-#  endif
-#else
-#  if defined(CONFIG_DEBUG) || !defined(CONFIG_NSH_ARCHINIT)
-#    define message lowsyslog
-#  else
-#    define message printf
-#  endif
+#if !defined(CONFIG_STM32_CAN1) && !defined(CONFIG_STM32_CAN2)
+#  undef CONFIG_CAN
 #endif
 
 /****************************************************************************
@@ -102,13 +88,13 @@ int nsh_archinitialize(void)
   int ret;
 #endif
 
-#if defined(CONFIG_CAN) && (defined(CONFIG_STM32_CAN1) || defined(CONFIG_STM32_CAN2))
+#ifdef CONFIG_CAN
   /* Configure on-board CAN if CAN support has been selected. */
 
   ret = stm32_can_initialize();
   if (ret != OK)
     {
-      message("nsh_archinitialize: Failed to initialize CAN: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: Failed to initialize CAN: %d\n", ret);
     }
 #endif
 
@@ -118,7 +104,7 @@ int nsh_archinitialize(void)
   ret = stm32_adc_initialize();
   if (ret != OK)
     {
-      message("nsh_archinitialize: Failed to initialize ADC: %d\n", ret);
+      syslog(LOG_ERR, "ERROR: Failed to initialize ADC: %d\n", ret);
     }
 #endif
 

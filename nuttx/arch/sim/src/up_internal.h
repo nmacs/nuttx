@@ -1,7 +1,7 @@
 /**************************************************************************
- * up_internal.h
+ * arch/sim/src/up_internal.h
  *
- *   Copyright (C) 2007, 2009, 2011-2012 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007, 2009, 2011-2012, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,8 +33,8 @@
  *
  **************************************************************************/
 
-#ifndef __ARCH_UP_INTERNAL_H
-#define __ARCH_UP_INTERNAL_H
+#ifndef __ARCH_SIM_SRC_UP_INTERNAL_H
+#define __ARCH_SIM_SRC_UP_INTERNAL_H
 
 /**************************************************************************
  * Included Files
@@ -44,6 +44,7 @@
 #include <nuttx/compiler.h>
 #include <sys/types.h>
 #include <nuttx/irq.h>
+#include <arch/irq.h>
 
 /**************************************************************************
  * Pre-processor Definitions
@@ -84,24 +85,63 @@
 #  undef CONFIG_RAMLOG_SYSLOG
 #endif
 
+/* The design for how we signal UART data availability is up in the air */
+
+#undef CONFIG_SIM_UART_DATAPOST
+
 /* Context Switching Definitions ******************************************/
+
+#if defined(CONFIG_HOST_X86_64) && !defined(CONFIG_SIM_M32)
+   /* Storage order: %rbx, %rsp, %rbp, %r12, %r13, %r14, %r15, %rip */
+
+#  ifdef __ASSEMBLY__
+#    define JB_RBX (0*8)
+#    define JB_RSP (1*8)
+#    define JB_RBP (2*8)
+#    define JB_R12 (3*8)
+#    define JB_R13 (4*8)
+#    define JB_R14 (5*8)
+#    define JB_R15 (6*8)
+#    define JB_RSI (7*8)
+
+#  else
+#    define JB_RBX (0)
+#    define JB_RSP (1)
+#    define JB_RBP (2)
+#    define JB_R12 (3)
+#    define JB_R13 (4)
+#    define JB_R14 (5)
+#    define JB_R15 (6)
+#    define JB_RSI (7)
+
+#  endif /* __ASSEMBLY__ */
+
+/* Compatibility definitions */
+
+#  define JB_SP    JB_RSP
+#  define JB_PC    JB_RSI
+
+#else
 /* Storage order: %ebx, $esi, %edi, %ebp, sp, and return PC */
 
-#ifdef __ASSEMBLY__
-#  define JB_EBX (0*4)
-#  define JB_ESI (1*4)
-#  define JB_EDI (2*4)
-#  define JB_EBP (3*4)
-#  define JB_SP  (4*4)
-#  define JB_PC  (5*4)
-#else
-#  define JB_EBX (0)
-#  define JB_ESI (1)
-#  define JB_EDI (2)
-#  define JB_EBP (3)
-#  define JB_SP  (4)
-#  define JB_PC  (5)
-#endif /* __ASSEMBLY__ */
+#  ifdef __ASSEMBLY__
+#    define JB_EBX (0*4)
+#    define JB_ESI (1*4)
+#    define JB_EDI (2*4)
+#    define JB_EBP (3*4)
+#    define JB_SP  (4*4)
+#    define JB_PC  (5*4)
+
+#  else
+#    define JB_EBX (0)
+#    define JB_ESI (1)
+#    define JB_EDI (2)
+#    define JB_EBP (3)
+#    define JB_SP  (4)
+#    define JB_PC  (5)
+
+#  endif /* __ASSEMBLY__ */
+#endif /* CONFIG_HOST_X86_64 && !CONFIG_SIM_M32 */
 
 /* Simulated Heap Definitions **********************************************/
 /* Size of the simulated heap */
@@ -132,7 +172,7 @@
  **************************************************************************/
 
 /**************************************************************************
- * Public Variables
+ * Public Data
  **************************************************************************/
 
 #ifndef __ASSEMBLY__
@@ -144,14 +184,18 @@ extern volatile int g_eventloop;
 #endif
 #endif
 
+#if defined(CONFIG_DEV_CONSOLE) && !defined(CONFIG_SIM_UART_DATAPOST)
+extern volatile int g_uart_data_available;
+#endif
+
 /**************************************************************************
  * Public Function Prototypes
  **************************************************************************/
 
-/* up_setjmp.S ************************************************************/
+/* up_setjmp32.S **********************************************************/
 
-int  up_setjmp(int *jb);
-void up_longjmp(int *jb, int val) noreturn_function;
+int  up_setjmp(xcpt_reg_t *jb);
+void up_longjmp(xcpt_reg_t *jb, int val) noreturn_function;
 
 /* up_tickless.c **********************************************************/
 
@@ -164,14 +208,21 @@ void up_timer_update(void);
 void up_devconsole(void);
 void up_registerblockdevice(void);
 
+/* up_simuart.c ***********************************************************/
+
+void simuart_start(void);
+int simuart_putc(int ch);
+int simuart_getc(void);
+
+/* up_uartwait.c **********************************************************/
+
+void simuart_initialize(void);
+void simuart_post(void);
+void simuart_wait(void);
+
 /* up_deviceimage.c *******************************************************/
 
 char *up_deviceimage(void);
-
-/* up_stdio.c *************************************************************/
-
-size_t up_hostread(void *buffer, size_t len);
-size_t up_hostwrite(const void *buffer, size_t len);
 
 /* up_netdev.c ************************************************************/
 
@@ -179,7 +230,7 @@ size_t up_hostwrite(const void *buffer, size_t len);
 unsigned long up_getwalltime( void );
 #endif
 
-/* up_x11framebuffer.c ******************************************************/
+/* up_x11framebuffer.c ****************************************************/
 
 #ifdef CONFIG_SIM_X11FB
 int up_x11initialize(unsigned short width, unsigned short height,
@@ -192,13 +243,13 @@ int up_x11cmap(unsigned short first, unsigned short len,
 #endif
 #endif
 
-/* up_eventloop.c ***********************************************************/
+/* up_eventloop.c *********************************************************/
 
 #if defined(CONFIG_SIM_X11FB) && defined(CONFIG_SIM_TOUCHSCREEN)
 void up_x11events(void);
 #endif
 
-/* up_eventloop.c ***********************************************************/
+/* up_eventloop.c *********************************************************/
 
 #if defined(CONFIG_SIM_X11FB) && defined(CONFIG_SIM_TOUCHSCREEN)
 int up_buttonevent(int x, int y, int buttons);
@@ -241,4 +292,4 @@ struct spi_dev_s *up_spiflashinitialize(void);
 #endif
 
 #endif /* __ASSEMBLY__ */
-#endif /* __ARCH_UP_INTERNAL_H */
+#endif /* __ARCH_SIM_SRC_UP_INTERNAL_H */

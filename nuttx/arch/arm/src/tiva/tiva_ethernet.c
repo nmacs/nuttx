@@ -515,7 +515,7 @@ static int tiva_transmit(struct tiva_driver_s *priv)
 
       pktlen     = priv->ld_dev.d_len;
       nllvdbg("Sending packet, pktlen: %d\n", pktlen);
-      DEBUGASSERT(pktlen > NET_LL_HDRLEN);
+      DEBUGASSERT(pktlen > ETH_HDRLEN);
 
       dbuf       = priv->ld_dev.d_buf;
       regval     = (uint32_t)(pktlen - 14);
@@ -677,7 +677,7 @@ static void tiva_receive(struct tiva_driver_s *priv)
        * and 4 byte FCS that are not copied into the uIP packet.
        */
 
-      if (pktlen > (CONFIG_NET_BUFSIZE + 6) || pktlen <= (NET_LL_HDRLEN + 6))
+      if (pktlen > (CONFIG_NET_ETH_MTU + 6) || pktlen <= (ETH_HDRLEN + 6))
         {
           int wordlen;
 
@@ -1448,7 +1448,7 @@ static inline int tiva_ethinitialize(int intf)
 
   /* Register the device with the OS so that socket IOCTLs can be performed */
 
-  (void)netdev_register(&priv->ld_dev);
+  (void)netdev_register(&priv->ld_dev, NET_LL_ETHERNET);
   return OK;
 }
 

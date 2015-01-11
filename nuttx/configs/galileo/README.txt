@@ -42,11 +42,34 @@ Serial Console
      to 165-5.5V.
 
   2) In addition, a second UART provides RS-232 support via a MAX3232 driver
-     and is connected via a 3.5mm jack:  Sleeve = GND, RING=SERIAL1_RXD, and
+     and is connected via a 3.5mm jack:  Sleeve=GND, RING=SERIAL1_RXD, and
      TIP=SERIAL1_TXD.
 
   UART1 may be convenient because of its built-in RS232 drivers.  But if you
   have a standard RS-232 shield, then UART0 may be the better choice.
+
+Running from SRAM
+=================
+
+  The Host Bridge contains an interface to 512KB of on-chip, low latency,
+  embedded SRAM (eSRAM). The eSRAM memory may be used as either 128 x 4KB
+  pages, or in block mode as a single contiguous 512KB block page. The
+  eSRAM pages may be mapped anywhere in the physical address space as a
+  DRAM overlay.
+
+  To map the eSRAM as a single 512KB block page, the register
+  ESRAMPGCTRL_BLOCK is used. If any of the 4KB pages are already enabled,
+  it is not possible to enable the block page.
+
+  To map and enable the 512KB block page, the following steps should be
+  followed:
+
+    - Set ESRAMPGCTRL_BLOCK.BLOCK_PG_SYSTEM_ADDRESS_16MB to the required
+      address value
+    - Set ESRAMPGCTRL_BLOCK.BLOCK_ENABLE_PG to 1
+
+  Once an eSRAM page is enabled, it is implicitly locked and any further
+  configuration change attempts will fail.
 
 Configurations
 ==============

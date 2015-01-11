@@ -44,7 +44,7 @@
 #include "mqueue/mqueue.h"
 
 /************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ************************************************************************/
 
 /************************************************************************
@@ -52,7 +52,7 @@
  ************************************************************************/
 
 /************************************************************************
- * Global Variables
+ * Public Variables
  ************************************************************************/
 
 /************************************************************************
@@ -71,11 +71,11 @@
  * Name: mq_msgqfree
  *
  * Description:
- *   This function deallocates an initialized message queue
- *   structure.  First, it deallocates all of the queued
- *   messages in the message Q.  It is assumed that this
- *   message is fully unlinked and closed so that not thread
- *   will attempt access it while it is being deleted.
+ *   This function deallocates an initialized message queue structure.
+ *   First, it deallocates all of the queued messages in the message
+ *   queue.  It is assumed that this message is fully unlinked and
+ *   closed so that no thread will attempt access it while it is being
+ *   deleted.
  *
  * Inputs:
  *   msgq - Named essage queue to be freed
@@ -85,14 +85,14 @@
  *
  ************************************************************************/
 
-void mq_msgqfree(FAR msgq_t *msgq)
+void mq_msgqfree(FAR struct mqueue_inode_s *msgq)
 {
-  FAR mqmsg_t *curr;
-  FAR mqmsg_t *next;
+  FAR struct mqueue_msg_s *curr;
+  FAR struct mqueue_msg_s *next;
 
   /* Deallocate any stranded messages in the message queue. */
 
-  curr = (FAR mqmsg_t*)msgq->msglist.head;
+  curr = (FAR struct mqueue_msg_s*)msgq->msglist.head;
   while (curr)
     {
       /* Deallocate the message structure. */

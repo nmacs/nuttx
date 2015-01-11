@@ -48,7 +48,7 @@
 #include "up_internal.h"
 
 /****************************************************************************
- * Pre-Processor Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
 #ifndef CONFIG_SIM_FBWIDTH

@@ -226,10 +226,16 @@ config ARCH_CHIP_SAM3U
 config ARCH_CHIP_SAM3X
 	bool
 	default n
+	select SAM34_HAVE_GPIOD_IRQ
+	select SAM34_HAVE_GPIOE_IRQ
+	select SAM34_HAVE_GPIOF_IRQ
 
 config ARCH_CHIP_SAM3A
 	bool
 	default n
+	select SAM34_HAVE_GPIOD_IRQ
+	select SAM34_HAVE_GPIOE_IRQ
+	select SAM34_HAVE_GPIOF_IRQ
 
 config ARCH_CHIP_SAM4CM
 	bool
@@ -247,6 +253,9 @@ config ARCH_CHIP_SAM4E
 	select ARCH_HAVE_EXTNAND
 	select ARCH_HAVE_EXTSRAM0
 	select ARCH_HAVE_EXTSRAM1
+	select SAM34_HAVE_GPIOD_IRQ
+	select SAM34_HAVE_GPIOE_IRQ
+	select SAM34_HAVE_GPIOF_IRQ
 
 config ARCH_CHIP_SAM4S
 	bool
@@ -613,12 +622,14 @@ config SAM34_UART0
 	default y
 	depends on ARCH_CHIP_SAM3U || ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A || ARCH_CHIP_SAM4CM || ARCH_CHIP_SAM4S || ARCH_CHIP_SAM4E
 	select ARCH_HAVE_UART0
+	select ARCH_HAVE_SERIAL_TERMIOS
 
 config SAM34_UART1
 	bool "UART 1"
 	default n
 	depends on ARCH_CHIP_SAM4CM || ARCH_CHIP_SAM4S || ARCH_CHIP_SAM4E
 	select ARCH_HAVE_UART1
+	select ARCH_HAVE_SERIAL_TERMIOS
 
 config SAM34_UDP
 	bool "USB Device Full Speed (UDP)"
@@ -645,23 +656,27 @@ config SAM34_USART0
 	bool "USART 0"
 	default n
 	select ARCH_HAVE_USART0
+	select ARCH_HAVE_SERIAL_TERMIOS
 
 config SAM34_USART1
 	bool "USART 1"
 	default n
 	select ARCH_HAVE_USART1
+	select ARCH_HAVE_SERIAL_TERMIOS
 
 config SAM34_USART2
 	bool "USART 2"
 	default n
-	select ARCH_HAVE_USART2
 	depends on ARCH_CHIP_SAM3U || ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A || ARCH_CHIP_SAM4CM || ARCH_CHIP_SAM4L
+	select ARCH_HAVE_USART2
+	select ARCH_HAVE_SERIAL_TERMIOS
 
 config SAM34_USART3
 	bool "USART 3"
 	default n
-	select ARCH_HAVE_USART3
 	depends on ARCH_CHIP_SAM3U || ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A || ARCH_CHIP_SAM4CM || ARCH_CHIP_SAM4L
+	select ARCH_HAVE_USART3
+	select ARCH_HAVE_SERIAL_TERMIOS
 
 config SAM34_WDT
 	bool "Watchdog Timer (WDT)"
@@ -904,6 +919,18 @@ endmenu # External Memory Configuration
 
 menu "AT91SAM3/4 GPIO Interrupt Configuration"
 
+config SAM34_HAVE_GPIOD_IRQ
+	bool
+	default n
+
+config SAM34_HAVE_GPIOE_IRQ
+	bool
+	default n
+
+config SAM34_HAVE_GPIOF_IRQ
+	bool
+	default n
+
 config SAM34_GPIO_IRQ
 	bool "GPIO pin interrupts"
 	---help---
@@ -926,17 +953,17 @@ config SAM34_GPIOC_IRQ
 config SAM34_GPIOD_IRQ
 	bool "GPIOD interrupts"
 	default n
-	depends on ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A
+	depends on SAM34_HAVE_GPIOD_IRQ
 
 config SAM34_GPIOE_IRQ
 	bool "GPIOE interrupts"
 	default n
-	depends on ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A
+	depends on SAM34_HAVE_GPIOE_IRQ
 
 config SAM34_GPIOF_IRQ
 	bool "GPIOF interrupts"
 	default n
-	depends on ARCH_CHIP_SAM3X || ARCH_CHIP_SAM3A
+	depends on SAM34_HAVE_GPIOF_IRQ
 
 endif # SAM34_GPIO_IRQ
 endmenu # AT91SAM3/4 GPIO Interrupt Configuration

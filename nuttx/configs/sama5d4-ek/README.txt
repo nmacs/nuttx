@@ -864,7 +864,7 @@ SAMA4D44-MB RevC PIO Usage
   ------------------------------ ------------------- -------------------------
   PA0/LCDDAT0/TMS                PA0                 LCDDAT0, TMS
   PA1/LCDDAT1                    PA1                 LCDDAT1
-  PA2/LCDDAT2/G1_TXCK            PA                  LCDDAT2, G1_TXCK
+  PA2/LCDDAT2/G1_TXCK            PA2                 LCDDAT2, G1_TXCK
   PA3/LCDDAT3/G1_RXCK            PA3                 LCDDAT3
   PA4/LCDDAT4/G1_TXEN            PA4                 LCDDAT4, G1_TXEN
   PA5/LCDDAT5/G1_TXER            PA5                 LCDDAT5
@@ -1335,8 +1335,8 @@ Networking
   Networking Support
     CONFIG_NET=y                         : Enable Neworking
     CONFIG_NET_SOCKOPTS=y                : Enable socket operations
-    CONFIG_NET_BUFSIZE=562               : Maximum packet size (MTD) 1518 is more standard
-    CONFIG_NET_RECEIVE_WINDOW=562        : Should be the same as CONFIG_NET_BUFSIZE
+    CONFIG_NET_ETH_MTU=562               : Maximum packet size (MTU) 1518 is more standard
+    CONFIG_NET_ETH_TCP_RECVWNDO=562      : Should be the same as CONFIG_NET_ETH_MTU
     CONFIG_NET_ARP=y                     : ARP support should be enabled
     CONFIG_NET_ARP_IPIN=y                : IP address harvesting (optional)
     CONFIG_NET_TCP=y                     : Enable TCP/IP networking
@@ -3588,6 +3588,8 @@ Configurations
       AT25 serial FLASH (in particular, dramboot).  See the description
       below and the section above entitled "Creating and Using AT25BOOT"
       for more information
+    bridge:  This is a simple testing that exercises EMAC0 and EMAC1 for
+      a simple UDP relay bridge test.
     dramboot: This is a little program to help debug of code in DRAM.  See
       the description below and the section above entitled "Creating and
       Using DRAMBOOT" for more information
@@ -3634,6 +3636,67 @@ Configurations
     the binary image onto the AT25 Serial FLASH, the RomBOOT loader will
     not boot it!  I believe that is because the secure boot loader has some
     undocumented requirements that I am unaware of. (2014-6-28)
+
+  bridge:
+
+    This is a simple testing that exercises EMAC0 and EMAC1 for a simple
+    UDP relay bridge test using apps/examples/bridge.  See
+    apps/examples/README.txt for more information about this test.
+
+
+    NOTES:
+
+    1. This configuration uses the the USART3 for the serial console
+       which is available at the "DBGU" RS-232 connector (J24).  That
+       is easily changed by reconfiguring to (1) enable a different
+       serial peripheral, and (2) selecting that serial peripheral as
+       the console device.
+
+    2. By default, this configuration is set up to build on Windows
+       under either a Cygwin or MSYS environment using a recent, Windows-
+       native, generic ARM EABI GCC toolchain (such as the CodeSourcery
+       toolchain).  Both the build environment and the toolchain
+       selection can easily be changed by reconfiguring:
+
+       CONFIG_HOST_WINDOWS=y                   : Windows operating system
+       CONFIG_WINDOWS_CYGWIN=y                 : POSIX environment under windows
+       CONFIG_ARMV7A_TOOLCHAIN_CODESOURCERYW=y : CodeSourcery for Windows
+
+       If you are running on Linux, make *certain* that you have
+       CONFIG_HOST_LINUX=y *before* the first make or you will create a
+       corrupt configuration that may not be easy to recover from. See
+       the warning in the section "Information Common to All Configurations"
+       for further information.
+
+     3. EMAC0 and EMAC1 connect KSZ8081RNB PHYs and are available at the
+        ETH0 and ETH1 connector, respectively.
+
+        The ETH1 signals go through line drivers that are enabled via the
+        board LCD_ETH1_CONFIG signal.  Jumper JP2 selects either the EMAC1
+        or the LCD by controlling the the LCD_ETH1_CONFIG signal on the
+        board.
+
+        - JP2 open, LCD_ETH1_CONFIG pulled high:
+
+          LCD_ETH1_CONFIG=1: LCD 5v enable(LCD_DETECT#=0); ETH1 disable
+
+        - JP2 closed, LCD_ETH1_CONFIG grounded:
+
+          LCD_ETH1_CONFIG=0: LCD 5v disable; ETH1 enable
+
+    STATUS:
+
+      2014-11-17:  Configuration created.  Only partially verified.  EMAC0
+        seems functional, but EMAC1 does not respond to pings.  Cannot perform
+        the full bridge test yet anyway because there still is no host-side
+        test driver in apps/examples/bridge.
+      2014-11-18:  Continued working with EMAC1:  It does not work.  No
+        errors are reported, link auto-negotiation works without error, but I
+        cannot send or receive anything on EMAC1:  TX transfers all timeout
+        with no interrupts and nothing appearing on the line; RX transfers
+        are not received... no RX interrupts and no RX status gets set.  This
+        appears to be some very low-level issue, perhaps a pin configuration
+        problem.  But I am not seeing it yet. No interrupts are ever received.
 
   dramboot:
 
@@ -3770,7 +3833,11 @@ Configurations
         CONFIG_GRAN=n                          : Disable the granule allocator
         CONFIG_MM_PGALLOC=n                    : Disable the page allocator
 
-    4. A system call interface is enabled and the ELF test programs interface with the base RTOS code system calls.  This eliminates the need for symbol tables to link with the base RTOS (symbol tables are still used, however, to interface with the common C library instaniation).  Relevant configuration settings:
+    4. A system call interface is enabled and the ELF test programs interface
+       with the base RTOS code system calls.  This eliminates the need for symbol
+       tables to link with the base RTOS (symbol tables are still used, however,
+       to interface with the common C library instaniation).  Relevant
+       configuration settings:
 
       RTOS Features -> System call support
         CONFIG_LIB_SYSCALL=y                   : Enable system call support
@@ -3796,7 +3863,6 @@ Configurations
 
   knsh:
     An NSH configuration used to test the SAMA5D kenel build configuration.
-    More to come... this is still a work in progress as of this writing.
 
     NOTES:
 
@@ -3853,7 +3919,8 @@ Configurations
        build out-of-the-box.  You have to take special steps in the build
        process as described below.
 
-       Assuming that you will want to reconfigure to use the ROMFS (rather than debugging HSCMI), you will need to disable all of these settings:
+       Assuming that you will want to reconfigure to use the ROMFS (rather
+       than debugging HSCMI), you will need to disable all of these settings:
 
        System Type->ATSAMA5 Peripheral Support
          CONFIG_SAMA5_HSMCI0=n           : Disable HSMCI0 support
@@ -4040,7 +4107,6 @@ Configurations
        configuration settings are summarized below:
 
        File System:
-       CONFIG_SYSLOG_ENABLE=n      : (Output debug info unconditionally)
        CONFIG_SYSLOG=y             : Enables the System Logging feature.
 
        Device Drivers:

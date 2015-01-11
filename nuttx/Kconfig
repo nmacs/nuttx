@@ -757,7 +757,7 @@ menu "Audio Support"
 source audio/Kconfig
 endmenu
 
-menu "Binary Formats"
+menu "Binary Loader"
 source binfmt/Kconfig
 endmenu
 
@@ -770,4 +770,3 @@ endmenu
 menu "Application Configuration"
 source "$APPSDIR/Kconfig"
 endmenu
-

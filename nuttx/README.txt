@@ -10,6 +10,7 @@ README
     - Notes about Header Files
   o Configuring NuttX
     - Instantiating "Canned" Configurations
+    - Refreshing Configurations
     - NuttX Configuration Tool
     - Incompatibilities with Older Configurations
     - NuttX Configuration Tool under DOS
@@ -62,12 +63,21 @@ Installing Cygwin
      of the Cygwin utilities that you will need to build NuttX.  The
      build will fail in numerous places because of missing packages.
 
+     NOTE: You don't really have to install EVERYTHING but I cannot
+     answer the question "Then what should I install?"  I don't know
+     the answer to that and so will continue to recommend installing
+     EVERYTHING.
+
   After installing Cygwin, you will get lots of links for installed
   tools and shells.  I use the RXVT native shell.  It is fast and reliable
   and does not require you to run the Cygwin X server (which is neither
   fast nor reliable).  Unless otherwise noted, the rest of these
   instructions assume that you are at a bash command line prompt in
   either Linux or in Cygwin shell.
+
+  UPDATE: The last time I installed EVERTHING, the download was
+  about 5GiB.  The server I selected was also very slow so it took
+  over a day to do the whole install!
 
 Download and Unpack
 -------------------
@@ -109,7 +119,7 @@ Semi-Optional apps/ Package
       nuttx/     apps/
 
   This is important because the NuttX build will expect to find the
-  apps directory in that (default) location.  )That default location
+  apps directory in that (default) location.  That default location
   can be changed by editing your NuttX configuration file, but that
   is another story).
 
@@ -133,10 +143,38 @@ Installation Directories with Spaces in the Path
 Downloading from Repositories
 -----------------------------
 
-  The current NuttX du jour is available in from a GIT repository.  Download
-  instructions are available here:
+  Cloning the Repository
 
-  https://sourceforge.net/p/nuttx/git
+    The current NuttX du jour is available in from a GIT repository.  Cloning
+    instructions are available here:
+
+      https://sourceforge.net/p/nuttx/git
+
+  Configuring the Cone
+
+    Set your identity:
+
+      git config --global user.name "My Name"
+      git config --global user.email my.name@example.com
+
+    Colorized diffs are much easier to read:
+
+      git config --global color.branch auto
+      git config --global color.diff auto
+      git config --global color.interactive auto
+      git config --global color.status auto
+
+    Checkout other settings
+
+      git config --list
+
+  Cloning NuttX Inside Cygwin
+
+    If you are cloning the NuttX repository, it is recommended to avoid
+    automatic end of lines conversions by git. These conversions may break
+    some scripts like configure.sh. Before cloning, do the following:
+
+      git config --global core.autocrlf false
 
 Notes about Header Files
 ------------------------
@@ -224,53 +262,67 @@ CONFIGURING NUTTX
 Instantiating "Canned" Configurations
 -------------------------------------
 
-"Canned" NuttX configuration files are retained in:
+  "Canned" NuttX configuration files are retained in:
 
-  configs/<board-name>/<config-dir>
+    configs/<board-name>/<config-dir>
 
-Where <board-name> is the name of your development board and <config-dir>.
-Configuring NuttX requires only copying three files from the <config-dir>
-to the directory where you installed NuttX (TOPDIR) (and sometimes one
-additional file to the directory the NuttX application package (APPSDIR)):
+  Where <board-name> is the name of your development board and <config-dir>.
+  Configuring NuttX requires only copying three files from the <config-dir>
+  to the directory where you installed NuttX (TOPDIR) (and sometimes one
+  additional file to the directory the NuttX application package (APPSDIR)):
 
-  Copy configs/<board-name>/<config-dir>/Make.def to ${TOPDIR}/Make.defs
+    Copy configs/<board-name>/<config-dir>/Make.def to ${TOPDIR}/Make.defs
 
-    Make.defs describes the rules needed by you tool chain to compile
-    and link code.  You may need to modify this file to match the
-    specific needs of your toolchain.
+      Make.defs describes the rules needed by you tool chain to compile
+      and link code.  You may need to modify this file to match the
+      specific needs of your toolchain.
 
-  Copy configs/<board-name>/<config-dir>/setenv.sh to ${TOPDIR}/setenv.sh
+    Copy configs/<board-name>/<config-dir>/setenv.sh to ${TOPDIR}/setenv.sh
 
-    setenv.sh is an optional convenience file that I use to set
-    the PATH variable to the toolchain binaries.  You may chose to
-    use setenv.sh or not.  If you use it, then it may need to be
-    modified to include the path to your toolchain binaries.
+      setenv.sh is an optional convenience file that I use to set
+      the PATH variable to the toolchain binaries.  You may chose to
+      use setenv.sh or not.  If you use it, then it may need to be
+      modified to include the path to your toolchain binaries.
 
-  Copy configs/<board-name>/<config-dir>/defconfig to ${TOPDIR}/.config
+    Copy configs/<board-name>/<config-dir>/defconfig to ${TOPDIR}/.config
 
-    The defconfig file holds the actual build configuration.  This
-    file is included by all other make files to determine what is
-    included in the build and what is not.  This file is also used
-    to generate a C configuration header at include/nuttx/config.h.
+      The defconfig file holds the actual build configuration.  This
+      file is included by all other make files to determine what is
+      included in the build and what is not.  This file is also used
+      to generate a C configuration header at include/nuttx/config.h.
 
-General information about configuring NuttX can be found in:
+   General information about configuring NuttX can be found in:
 
-  ${TOPDIR}/configs/README.txt
-  ${TOPDIR}/configs/<board-name>/README.txt
+      ${TOPDIR}/configs/README.txt
+      ${TOPDIR}/configs/<board-name>/README.txt
 
-There is a configuration script in the tools/ directory that makes this
-easier.  It is used as follows:
+    There is a configuration script in the tools/ directory that makes this
+    easier.  It is used as follows:
 
-  cd ${TOPDIR}/tools
-  ./configure.sh <board-name>/<config-dir>
+      cd ${TOPDIR}/tools
+      ./configure.sh <board-name>/<config-dir>
 
-There is an alternative Windows batch file that can be used in the
-windows native environment like:
+    There is an alternative Windows batch file that can be used in the
+    windows native environment like:
 
-  cd ${TOPDIR}\tools
-  configure.bat <board-name>\<config-dir>
+      cd ${TOPDIR}\tools
+      configure.bat <board-name>\<config-dir>
 
-See tools/README.txt for more information about these scripts.
+    See tools/README.txt for more information about these scripts.
+
+Refreshing Configurations
+-------------------------
+
+  Configurations can get out of data.  It is a good practice to "refresh"
+  each configuration before making.  To refresh the configuration, use the
+  NuttX Configuration Tool like this:
+
+    make oldconfig
+
+  If you configuration is out of date, you will be prompted to resolve the
+  issues detected by the configuration tool.  Doing this can save you a lot
+  of problems done the road due to a bad configuration.  The NuttX
+  configuration is discussed in the following paragraph.
 
 NuttX Configuration Tool
 ------------------------
@@ -484,7 +536,7 @@ NuttX Buildroot Toolchain
 
   NOTE: For Cortex-M3/4, there are OABI and EABI versions of the buildroot
   toolchains.  If you are using the older OABI toolchain the prefix for
-  the tools will be arm-nuttx-elf-; for the EABI toolchin the prefix will
+  the tools will be arm-nuttx-elf-; for the EABI toolchain the prefix will
   be arm-nuttx-eabi-.  If you are using the older OABI toolchain with
   an ARM Cortex-M3/4, you will need to set CONFIG_ARMV7M_OABI_TOOLCHAIN
   in the .config file in order to pick the right tool prefix.
@@ -513,7 +565,7 @@ SHELLS
 
      In this case, bash is probably available and the #!/bin/bash at the
      beginning of the file should do the job.  If any scripts with #!/bin/sh
-     fail, try changing that ti #!/bin/bash and let me know about the change.
+     fail, try changing that to #!/bin/bash and let me know about the change.
 
   2. FreeBSD with the Bourne Shell and no bash shell.
 
@@ -833,7 +885,7 @@ General Pre-built Toolchain Issues
   There may be incompatibilities with header files, libraries, and compiler
   built-in functions at detailed below.  For the most part, these issues
   are handled in the existing make logic.  But if you are breaking new ground,
-  then you may incounter these:
+  then you may encounter these:
 
   4. Header Files.  Most pre-built toolchains will build with a foreign C
      library (usually newlib, but maybe uClibc or glibc if you are using a
@@ -842,14 +894,14 @@ General Pre-built Toolchain Issues
      you will get the stdio.h from the incompatible, foreign C library and
      not the nuttx stdio.h (at nuttx/include/stdio.h) that you wanted.
 
-     This can cause really confusion in the buildds and you must always be
+     This can cause really confusion in the builds and you must always be
      sure the -nostdinc is included in the CFLAGS.  That will assure that
      you take the include files only from
 
   5. Libraries.  What was said above header files applies to libraries.
      You do not want to include code from the libraries of any foreign
      C libraries built into your toolchain.  If this happens you will get
-     perplexing errors about undefined sysmbols.  To avoid these errors,
+     perplexing errors about undefined symbols.  To avoid these errors,
      you will need to add -nostdlib to your CFLAGS flags to assure that
      you only take code from the NuttX libraries.
 
@@ -874,7 +926,43 @@ General Pre-built Toolchain Issues
      of this in the misc/buildroot/configs directory.  However, it
      is possible that there could be interoperability issues with
      your toolchain since they will be using different versions of
-     binutials and possibly different ABIs.
+     binutils and possibly different ABIs.
+
+Building Original Linux Boards in Cygwin
+
+  Some default board configurations are set to build under Linux and others
+  to build under Windows with Cygwin.  Various default toolchains may also
+  be used in each configuration.  It is possible to change the default
+  setup.  Here, for example, is what you must do in order to compile a
+  default Linux configuration in the Cygwin environment using the
+  CodeSourceery for Windows toolchain.  After instantiating a "canned"
+  NuttX configuration, run the target 'menuconfig' and set the following
+  items:
+
+    Build Setup->Build Host Platform->Windows
+    Build Setup->Windows Build Environment->Cygwin
+    System Type->Toolchain Selection->CodeSourcery GNU Toolchain under Windows
+
+  In Windows 7 it may be required to open the Cygwin shell as Administrator
+  ("Run As" option, right button) you find errors like "Permission denied".
+
+Recovering from Bad Configurations
+
+  Many people make the mistake of configuring NuttX with the "canned"
+  configuration and then just typing 'make' with disastrous consequences;
+  the build may fail with mysterious, uninterpretable, and irrecoverable
+  build errors.  If, for example, you do this with an unmodified Linux
+  configuration in a Windows/Cgwin environment, you will corrupt the
+  build environment.  The environment will be corrupted because of POSIX vs
+  Windows path issues and with issues related to symbolic links.  If you
+  make the mistake of doing this, the easiest way to recover is to just
+  start over: Do 'make distclean' to remove every trace of the corrupted
+  configuration, reconfigure from scratch, and make certain that the set
+  the configuration correctly for your platform before attempting to make
+  again.
+
+  Just fixing the configuration file after you have instantiated the bad
+  configuration with 'make' is not enough.
 
 DOCUMENTATION
 ^^^^^^^^^^^^^
@@ -944,6 +1032,10 @@ nuttx
  |   |   `- README.txt
  |   |- eagle100/
  |   |   `- README.txt
+ |   |- efm32-g8xx-stk/
+ |   |   `- README.txt
+ |   |- efm32gg-stk3700/
+ |   |   `- README.txt
  |   |- ekk-lm3s9b96/
  |   |   `- README.txt
  |   |- ez80f910200kitg/
@@ -1000,11 +1092,13 @@ nuttx
  |   |- ntosd-dm320/
  |   |   |- doc/README.txt
  |   |   `- README.txt
- |   |- nucleo-f401re/
+ |   |- nucleo-f4x1re/
  |   |   `- README.txt
  |   |- nucleus2g/
  |   |   `- README.txt
  |   |- nutiny-nuc120/
+ |   |   `- README.txt
+ |   |- olimex-efm32g880f129-stk/
  |   |   `- README.txt
  |   |- olimex-lpc1766stk/
  |   |   `- README.txt
@@ -1072,8 +1166,6 @@ nuttx
  |   |- stm3240g-eval/
  |   |   `- README.txt
  |   |- stm32_tiny/
- |   |   `- README.txt
- |   |- stm32f100rc_generic/
  |   |   `- README.txt
  |   |- stm32f3discovery/
  |   |   `- README.txt
@@ -1165,12 +1257,15 @@ nuttx
 
 apps
  |- examples/
+ |   |- bastest/README.txt
  |   |- json/README.txt
  |   |- pashello/README.txt
  |   `- README.txt
  |- graphics/
  |   `- tiff/README.txt
  |- interpreters/
+ |   |- bas
+ |   |  `- README.txt
  |   |- ficl
  |   |  `- README.txt
  |   `- README.txt

@@ -141,7 +141,8 @@ struct stm32_dmaregs_s
 #undef EXTERN
 #if defined(__cplusplus)
 #define EXTERN extern "C"
-extern "C" {
+extern "C"
+{
 #else
 #define EXTERN extern
 #endif
@@ -189,7 +190,7 @@ extern "C" {
  *
  ****************************************************************************/
 
-EXTERN DMA_HANDLE stm32_dmachannel(unsigned int chan);
+DMA_HANDLE stm32_dmachannel(unsigned int chan);
 
 /****************************************************************************
  * Name: stm32_dmafree
@@ -329,4 +330,3 @@ void stm32_dmadump(DMA_HANDLE handle, const struct stm32_dmaregs_s *regs,
 
 #endif /* __ASSEMBLY__ */
 #endif /* __ARCH_ARM_SRC_STM32_STM32_DMA_H */
-

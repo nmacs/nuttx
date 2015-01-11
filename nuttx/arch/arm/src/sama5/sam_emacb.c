@@ -266,7 +266,7 @@
 #  else
 #    error EMAC PHY unrecognized
 #  endif
-#endif /* CONFIG_SAMA5_EMAC0 */
+#endif /* CONFIG_SAMA5_EMAC1 */
 
 /* Common Configuration *****************************************************/
 
@@ -300,7 +300,7 @@
 #endif
 
 #define EMAC_RX_UNITSIZE 128                 /* Fixed size for RX buffer  */
-#define EMAC_TX_UNITSIZE CONFIG_NET_BUFSIZE  /* MAX size for Ethernet packet */
+#define EMAC_TX_UNITSIZE CONFIG_NET_ETH_MTU  /* MAX size for Ethernet packet */
 
 /* Timing *******************************************************************/
 /* TX poll delay = 1 seconds. CLK_TCK is the number of clock ticks per
@@ -587,7 +587,7 @@ static struct emac_rxdesc_s g_emac1_rxdesc[CONFIG_SAMA5_EMAC1_NRXBUFFERS]
 static uint8_t g_emac1_txbuffer[CONFIG_SAMA5_EMAC1_NTXBUFFERS * EMAC_TX_UNITSIZE];
                __attribute__((aligned(8)))
 
-/* EMAC0 Receive Buffers */
+/* EMAC1 Receive Buffers */
 
 static uint8_t g_emac1_rxbuffer[CONFIG_SAMA5_EMAC1_NRXBUFFERS * EMAC_RX_UNITSIZE]
                __attribute__((aligned(8)));
@@ -604,7 +604,7 @@ static const struct sam_emacattr_s g_emac0_attr =
 
   .base         = SAM_EMAC0_VBASE,
   .handler      = sam_emac0_interrupt,
-  .emac         = 0,
+  .emac         = EMAC0_INTF,
   .irq          = SAM_IRQ_EMAC0,
 
   /* PHY Configuration */
@@ -641,8 +641,8 @@ static const struct sam_emacattr_s g_emac0_attr =
     .std        =
     {
       .stdmask  = (CONFIG_SAMA5_EMAC0_PHYSR_SPEED | CONFIG_SAMA5_EMAC0_PHYSR_MODE),
-      .speed100 = CONFIG_SAMA5_EMAC1_PHYSR_100MBPS,
-      .fduplex  = CONFIG_SAMA5_EMAC1_PHYSR_FULLDUPLEX,
+      .speed100 = CONFIG_SAMA5_EMAC0_PHYSR_100MBPS,
+      .fduplex  = CONFIG_SAMA5_EMAC0_PHYSR_FULLDUPLEX,
     },
 #endif
   },
@@ -672,7 +672,7 @@ static const struct sam_emacattr_s g_emac1_attr =
 
   .base         = SAM_EMAC1_VBASE,
   .handler      = sam_emac1_interrupt,
-  .emac         = 0,
+  .emac         = EMAC1_INTF,
   .irq          = SAM_IRQ_EMAC1,
 
   /* PHY Configuration */
@@ -1359,9 +1359,9 @@ static int sam_recvframe(struct sam_emac_s *priv)
           /* Get the number of bytes to copy from the buffer */
 
           copylen = EMAC_RX_UNITSIZE;
-          if ((pktlen + copylen) > CONFIG_NET_BUFSIZE)
+          if ((pktlen + copylen) > CONFIG_NET_ETH_MTU)
             {
-              copylen = CONFIG_NET_BUFSIZE - pktlen;
+              copylen = CONFIG_NET_ETH_MTU - pktlen;
             }
 
           /* Get the data source.  Invalidate the source memory region to
@@ -1499,7 +1499,7 @@ static void sam_receive(struct sam_emac_s *priv)
        * (this should not happen)
        */
 
-      if (dev->d_len > CONFIG_NET_BUFSIZE)
+      if (dev->d_len > CONFIG_NET_ETH_MTU)
         {
           nlldbg("DROPPED: Too big: %d\n", dev->d_len);
         }
@@ -3248,7 +3248,7 @@ static inline void sam_ethgpioconfig(struct sam_emac_s *priv)
 #if defined(CONFIG_SAMA5_EMAC0)
   /* Configure EMAC0 PIO pins */
 
-  if (priv->attr->emac == 0)
+  if (priv->attr->emac == EMAC0_INTF)
     {
       /* Configure PIO pins common to RMII and MII mode*/
 
@@ -3271,18 +3271,19 @@ static inline void sam_ethgpioconfig(struct sam_emac_s *priv)
           sam_configpio(PIO_EMAC0_TX3);  /* Transmit data TXD3 */
           sam_configpio(PIO_EMAC0_TXER); /* Transmit Coding Error */
           sam_configpio(PIO_EMAC0_RXCK); /* Receive Clock */
-          sam_configpio(PIO_EMAC0_RX2);  /* Receive data RXD0 */
-          sam_configpio(PIO_EMAC0_RX3);  /* Receive data RXD0 */
+          sam_configpio(PIO_EMAC0_RX2);  /* Receive data RXD2 */
+          sam_configpio(PIO_EMAC0_RX3);  /* Receive data RXD3 */
           sam_configpio(PIO_EMAC0_CRS);  /* Carrier Sense and Data Valid */
           sam_configpio(PIO_EMAC0_COL);  /* Collision Detect */
         }
     }
+ else
 #endif
 
-#if defined(CONFIG_SAMA5_EMAC0)
+#if defined(CONFIG_SAMA5_EMAC1)
   /* Configure EMAC0 PIO pins */
 
-  if (priv->attr->emac == 1)
+  if (priv->attr->emac == EMAC1_INTF)
     {
       /* Configure PIO pins common to RMII and MII mode*/
 
@@ -3305,13 +3306,17 @@ static inline void sam_ethgpioconfig(struct sam_emac_s *priv)
           sam_configpio(PIO_EMAC1_TX3);  /* Transmit data TXD3 */
           sam_configpio(PIO_EMAC1_TXER); /* Transmit Coding Error */
           sam_configpio(PIO_EMAC1_RXCK); /* Receive Clock */
-          sam_configpio(PIO_EMAC1_RX2);  /* Receive data RXD0 */
-          sam_configpio(PIO_EMAC1_RX3);  /* Receive data RXD0 */
+          sam_configpio(PIO_EMAC1_RX2);  /* Receive data RXD2 */
+          sam_configpio(PIO_EMAC1_RX3);  /* Receive data RXD3 */
           sam_configpio(PIO_EMAC1_CRS);  /* Carrier Sense and Data Valid */
           sam_configpio(PIO_EMAC1_COL);  /* Collision Detect */
         }
     }
+  else
 #endif
+   {
+     nvdbg("ERROR: emac=%d\n", priv->attr->emac);
+   }
 }
 
 /****************************************************************************
@@ -3463,7 +3468,7 @@ static void sam_emac_enableclk(struct sam_emac_s *priv)
 #if defined(CONFIG_SAMA5_EMAC0) && defined(CONFIG_SAMA5_EMAC1)
   /* Both EMAC blocks are selected, which are we enabling? */
 
-  if (priv->attr->emac == 0)
+  if (priv->attr->emac == EMAC0_INTF)
     {
       sam_emac0_enableclk();
     }
@@ -3506,7 +3511,7 @@ static void sam_emac_disableclk(struct sam_emac_s *priv)
 #if defined(CONFIG_SAMA5_EMAC0) && defined(CONFIG_SAMA5_EMAC1)
   /* Both EMAC blocks are selected, which are we disabling? */
 
-  if (priv->attr->emac == 0)
+  if (priv->attr->emac == EMAC0_INTF)
     {
       sam_emac0_disableclk();
     }
@@ -3805,7 +3810,7 @@ int sam_emac_initialize(int intf)
     }
 
   priv->txtimeout = wd_create();     /* Create TX timeout timer */
-  if (!priv->txpoll)
+  if (!priv->txtimeout)
     {
       ndbg("ERROR: Failed to create periodic poll timer\n");
       ret = -EAGAIN;
@@ -3851,7 +3856,7 @@ int sam_emac_initialize(int intf)
 
   /* Register the device with the OS so that socket IOCTLs can be performed */
 
-  ret = netdev_register(&priv->dev);
+  ret = netdev_register(&priv->dev, NET_LL_ETHERNET);
   if (ret >= 0)
     {
       return ret;

@@ -52,6 +52,11 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+/* This is an artificial limit to detect error conditions where an argv[]
+ * list is not properly terminated.
+ */
+
+#define MAX_START_ARGS 256
 
 /****************************************************************************
  * Private Type Declarations
@@ -110,15 +115,22 @@ void task_start(void)
     }
 #endif
 
-  /* Count how many non-null arguments we are passing */
+  /* Count how many non-null arguments we are passing. The first non-null
+   * argument terminates the list .
+   */
 
-  for (argc = 1; argc <= CONFIG_MAX_TASK_ARGS; argc++)
+  argc = 1;
+  while (tcb->argv[argc])
     {
-      /* The first non-null argument terminates the list */
+      /* Increment the number of args.  Here is a sanity check to
+       * prevent running away with an unterminated argv[] list.
+       * MAX_START_ARGS should be sufficiently large that this never
+       * happens in normal usage.
+       */
 
-      if (!tcb->argv[argc])
+      if (++argc > MAX_START_ARGS)
         {
-          break;
+          exit(EXIT_FAILURE);
         }
     }
 

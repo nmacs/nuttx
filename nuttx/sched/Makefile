@@ -35,6 +35,9 @@
 
 -include $(TOPDIR)/Make.defs
 
+ASRCS =
+CSRCS =
+
 VPATH =
 DEPPATH = --dep-path .
 
@@ -53,13 +56,7 @@ include mqueue/Make.defs
 include clock/Make.defs
 include timer/Make.defs
 include environ/Make.defs
-
-ASRCS =
-
-CSRCS  = $(INIT_SRCS) $(IRQ_SRCS) $(PG_SRCS) $(GRP_SRCS) $(SCHED_SRCS)
-CSRCS += $(TSK_SRCS) $(ERRNO_SRCS) $(WDOG_SRCS) $(SEM_SRCS)
-CSRCS += $(SIGNAL_SRCS) $(PTHREAD_SRCS) $(MQUEUE_SRCS) $(CLOCK_SRCS)
-CSRCS += $(TIMER_SRCS) $(ENV_SRCS)
+include wqueue/Make.defs
 
 AOBJS = $(ASRCS:.S=$(OBJEXT))
 COBJS = $(CSRCS:.c=$(OBJEXT))

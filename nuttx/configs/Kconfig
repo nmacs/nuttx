@@ -7,7 +7,7 @@ choice
 	prompt "Select target board"
 	default ARCH_BOARD_CUSTOM
 	---help---
-		Select the board hosting the architure.  You must first select the
+		Select the board hosting the architecture.  You must first select the
 		exact MCU part number, then the boards supporting that part will
 		be available for selection.  Use ARCH_BOARD_CUSTOM to create a new
 		board configuration.
@@ -125,6 +125,22 @@ config ARCH_BOARD_EAGLE100
 		Micromint Eagle-100 Development board.  This board is based on the
 		an ARM Cortex-M3 MCU, the Luminary LM3S6918. This OS is built with the
 		arm-nuttx-elf toolchain*.  STATUS:  This port is complete and mature.
+
+config ARCH_BOARD_EFM32G8XXSTK
+	bool "EFM32 Gecko Starter Kit"
+	depends on ARCH_CHIP_EFM32G890F128
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	---help---
+		This option selects the EFM32 Gecko Starter Kit (EFM32-G8XX-STK).
+
+config ARCH_BOARD_EFM32GG_STK3700
+	bool "EFM32 Giant Gecko Starter Kit"
+	depends on ARCH_CHIP_EFM32GG990F1024
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	---help---
+		This option selects the EFM32 Giant Gecko Starter Kit (EFM32GG-STK3700).
 
 config ARCH_BOARD_EKKLM3S9B96
 	bool "TI/Stellaris EKK-LM3S9B96"
@@ -355,6 +371,14 @@ config ARCH_BOARD_NUTINY_NUC120
 		Nuvoton NUC120 chip, specifically the NUC120LE3AN.  See http://www.nuvoton.com/
 		for further information.
 
+config ARCH_BOARD_OLIMEX_EFM32G880F128_STK
+	bool "Olimex EFM32G880F128 STK"
+	depends on ARCH_CHIP_EFM32G880F128
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	---help---
+		This options selects the Olimex EFM32G880F128 STK
+
 config ARCH_BOARD_OLIMEXLPC2378
 	bool "Olimex-lpc2378 board"
 	depends on ARCH_CHIP_LPC2378
@@ -520,6 +544,16 @@ config ARCH_BOARD_NUCLEO_F401RE
 		This is a minimal configuration that supports low-level test of the
 		Nucleo F401RE in the NuttX source tree.
 
+config ARCH_BOARD_NUCLEO_F411RE
+	bool "STM32F411 Nucleo F411RE"
+	depends on ARCH_CHIP_STM32F411RE
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	---help---
+		This is a minimal configuration that supports low-level test of the
+		Nucleo F411RE in the NuttX source tree.
+
 config ARCH_BOARD_QEMU_I486
 	bool "Qemu i486 Mode"
 	depends on ARCH_X86 || ARCH_I486
@@ -596,6 +630,7 @@ config ARCH_BOARD_SAM4EEK
 	select ARCH_HAVE_LEDS
 	select ARCH_HAVE_BUTTONS
 	select ARCH_HAVE_IRQBUTTONS
+	select ARCH_PHY_INTERRUPT if NETDEVICES
 	---help---
 		The port of NuttX to the Atmel SAM4E-EK development board.  This
 		board features the SAM4E16 MCU running at up to 120MHz.
@@ -699,15 +734,6 @@ config ARCH_BOARD_STM3240G_EVAL
 		STMicro STM3240G-EVAL development board based on the STMicro STM32F103ZET6
 		microcontroller (ARM Cortex-M4 with FPU).  This port uses a GNU Cortex-M4
 		toolchain (such as CodeSourcery).
-
-config ARCH_BOARD_STM32F100RC_GENERIC
-	bool "STMicro STM32F100RC generic board"
-	depends on ARCH_CHIP_STM32F100RC
-	select ARCH_HAVE_LEDS
-	select ARCH_HAVE_BUTTONS
-	select ARCH_HAVE_IRQBUTTONS
-	---help---
-		STMicro STM32F100RC generic board.
 
 config ARCH_BOARD_STM32F3_DISCOVERY
 	bool "STMicro STM32F3-Discovery board"
@@ -947,6 +973,9 @@ config ARCH_BOARD_CUSTOM
 
 endchoice
 
+if ARCH_BOARD_CUSTOM
+menu "Custom Board Configuration"
+
 config ARCH_BOARD_CUSTOM_DIR
 	string "Custom board directory"
 	depends on ARCH_BOARD_CUSTOM
@@ -957,6 +986,34 @@ config ARCH_BOARD_CUSTOM_DIR
 		toplevel NuttX directory (like "configs/myboard") or an absolute path
 		to some location outside of the NuttX source tree (like
 		"~/projects/myboard").
+
+config BOARD_CUSTOM_LEDS
+	bool "Custom board LEDs"
+	default n
+	select ARCH_HAVE_LEDS
+	select ARCH_LEDS
+
+config BOARD_CUSTOM_BUTTONS
+	bool "Custom board buttons"
+	default n
+	select ARCH_HAVE_BUTTONS
+	select ARCH_BUTTONS
+
+config BOARD_CUSTOM_IRQBUTTONS
+	bool "Custom Board IRQ buttons"
+	default n
+	depends on BOARD_CUSTOM_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	select ARCH_IRQBUTTONS
+
+config BOARD_CUSTOM_INTERRUPT
+	bool "Custom board PHY interrupts"
+	default n
+	depends on NETDEVICES
+	select ARCH_PHY_INTERRUPT if NETDEVICES
+
+endmenu # Custom Board Configuration
+endif #ARCH_BOARD_CUSTOM
 
 config ARCH_BOARD
 	string
@@ -971,6 +1028,8 @@ config ARCH_BOARD
 	default "ea3131"              if ARCH_BOARD_EA3131
 	default "ea3152"              if ARCH_BOARD_EA3152
 	default "eagle100"            if ARCH_BOARD_EAGLE100
+	default "efm32-g8xx-stk"           if ARCH_BOARD_EFM32G8XXSTK
+	default "efm32gg-stk3700"          if ARCH_BOARD_EFM32GG_STK3700
 	default "ekk-lm3s9b96"        if ARCH_BOARD_EKKLM3S9B96
 	default "ez80f910200kitg"     if ARCH_BOARD_EZ80F910200KITG
 	default "ez80f910200zco"      if ARCH_BOARD_EZ80F910200ZCO
@@ -995,6 +1054,7 @@ config ARCH_BOARD
 	default "ntosd-dm320"         if ARCH_BOARD_NTOSD_DM320
 	default "nucleus2g"           if ARCH_BOARD_NUCLEUS2G
 	default "nutiny-nuc120"       if ARCH_BOARD_NUTINY_NUC120
+	default "olimex-efm32g880f128-stk" if ARCH_BOARD_OLIMEX_EFM32G880F128_STK
 	default "olimex-lpc1766stk"   if ARCH_BOARD_LPC1766STK
 	default "olimex-lpc2378"      if ARCH_BOARD_OLIMEXLPC2378
 	default "olimex-lpc-h3131"    if ARCH_BOARD_OLIMEX_LPC_H3131
@@ -1010,7 +1070,7 @@ config ARCH_BOARD
 	default "pic32mx7mmb"         if ARCH_BOARD_PIC32MX7MMB
 	default "pirelli_dpl10"       if ARCH_BOARD_PIRELLI_DPL10
 	default "px4fmu-v2_upstream"  if ARCH_BOARD_PX4FMU_V2
-	default "nucleo-f401re"       if ARCH_BOARD_NUCLEO_F401RE
+	default "nucleo-f4x1re"            if ARCH_BOARD_NUCLEO_F401RE || ARCH_BOARD_NUCLEO_F411RE
 	default "qemu-i486"           if ARCH_BOARD_QEMU_I486
 	default "rgmp"                if ARCH_BOARD_RGMP
 	default "sama5d3x-ek"         if ARCH_BOARD_SAMA5D3X_EK
@@ -1029,7 +1089,6 @@ config ARCH_BOARD
 	default "stm3210e-eval"       if ARCH_BOARD_STM3210E_EVAL
 	default "stm3220g-eval"       if ARCH_BOARD_STM3220G_EVAL
 	default "stm3240g-eval"       if ARCH_BOARD_STM3240G_EVAL
-	default "stm32f100rc_generic" if ARCH_BOARD_STM32F100RC_GENERIC
 	default "stm32f3discovery"    if ARCH_BOARD_STM32F3_DISCOVERY
 	default "stm32f4discovery"    if ARCH_BOARD_STM32F4_DISCOVERY
 	default "stm32f429i-disco"    if ARCH_BOARD_STM32F429I_DISCO
@@ -1144,6 +1203,12 @@ endif
 if ARCH_BOARD_EAGLE100
 source "configs/eagle100/Kconfig"
 endif
+if ARCH_BOARD_EFM32G8XXSTK
+source "configs/efm32-g8xx-stk/Kconfig"
+endif
+if ARCH_BOARD_EFM32GG_STK3700
+source "configs/efm32gg-stk3700/Kconfig"
+endif
 if ARCH_BOARD_EKKLM3S9B96
 source "configs/ekk-lm3s9b96/Kconfig"
 endif
@@ -1216,6 +1281,9 @@ endif
 if ARCH_BOARD_NUTINY_NUC120
 source "configs/nutiny-nuc120/Kconfig"
 endif
+if ARCH_BOARD_OLIMEX_EFM32G880F128_STK
+source "configs/olimex-efm32g880f128-stk/Kconfig"
+endif
 if ARCH_BOARD_LPC1766STK
 source "configs/olimex-lpc1766stk/Kconfig"
 endif
@@ -1255,8 +1323,8 @@ endif
 if ARCH_BOARD_PIRELLI_DPL10
 source "configs/pirelli_dpl10/Kconfig"
 endif
-if ARCH_BOARD_NUCLEO_F401RE
-source "configs/nucleo-f401re/Kconfig"
+if ARCH_BOARD_NUCLEO_F401RE || ARCH_BOARD_NUCLEO_F411RE
+source "configs/nucleo-f4x1re/Kconfig"
 endif
 if ARCH_BOARD_PX4FMU_V2
 source "configs/px4fmu-v2_upstream/Kconfig"
@@ -1314,9 +1382,6 @@ source "configs/stm3220g-eval/Kconfig"
 endif
 if ARCH_BOARD_STM3240G_EVAL
 source "configs/stm3240g-eval/Kconfig"
-endif
-if ARCH_BOARD_STM32F100RC_GENERIC
-source "configs/stm32f100rc_generic/Kconfig"
 endif
 if ARCH_BOARD_STM32F4_DISCOVERY
 source "configs/stm32f4discovery/Kconfig"

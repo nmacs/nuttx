@@ -38,8 +38,8 @@ config NOPRINTF_FIELDWIDTH
 	bool "Disable sprintf support fieldwidth"
 	default n
 	---help---
-	sprintf-related logic is a
-	little smaller if we do not support fieldwidthes
+		sprintf-related logic is a little smaller if we do not support field
+		widths.
 
 config LIBC_FLOATINGPOINT
 	bool "Enable floating point in printf"
@@ -191,6 +191,27 @@ config LIBC_PERROR_STDOUT
 		POSIX requires that perror() provide its output on stderr.  This option may
 		be defined, however, to provide perror() output that is serialized with
 		other stdout messages.
+
+config LIBC_TMPDIR
+	string "Temporary file directory"
+	default "/tmp"
+	depends on FS_WRITABLE
+		---help---
+		If a write-able file system is selected, this string will be
+		provided to specify the full path to a directory where temporary
+		files can be created.  This would be a good application of RAM disk:
+		To provide temporary storage for application data.
+
+config LIBC_MAX_TMPFILE
+	int "Maximum size of a temporary file path"
+	default 32
+	depends on FS_WRITABLE
+		---help---
+		If a write-able file system is selected, then temporary file may be
+		supported at the path provided by LIBC_TMPDIR.  The tmpnam() interface
+		keeps a static copy of this last filename produced; this value is the
+		maximum size of that last filename.  This size is the size of the full
+		file path.
 
 config ARCH_LOWPUTC
 	bool "Low-level console output"
@@ -393,117 +414,39 @@ endif # ARCH_OPTIMIZED_FUNCTIONS
 
 comment "Non-standard Library Support"
 
-config SCHED_WORKQUEUE
-	bool "Enable worker thread"
+if BUILD_PROTECTED || BUILD_KERNEL
+
+config LIB_USRWORK
+	bool "User mode worker thread"
 	default n
 	depends on !DISABLE_SIGNALS
 	---help---
-		Create a dedicated "worker" thread to handle delayed processing from interrupt
-		handlers.  This feature is required for some drivers but, if there are no
-		complaints, can be safely disabled.  The worker thread also performs
-		garbage collection -- completing any delayed memory deallocations from
-		interrupt handlers.  If the worker thread is disabled, then that clean up will
-		be performed by the IDLE thread instead (which runs at the lowest of priority
-		and may not be appropriate if memory reclamation is of high priority).
+		User space work queues can also be made available for deferred
+		processing in the NuttX kernel build.
 
-if SCHED_WORKQUEUE
+if LIB_USRWORK
 
-config SCHED_HPWORK
-	bool "High priority (kernel) worker thread"
-	default y
-	---help---
-		If SCHED_WORKQUEUE is defined, then a single, high priority work queue is
-		created by default.  This high priority worker thread is intended to serve
-		as the "bottom half" for driver interrupt handling.
-
-if SCHED_HPWORK
-
-config SCHED_WORKPRIORITY
-	int "High priority worker thread priority"
-	default 192
-	---help---
-		The execution priority of the worker thread.  Default: 192
-
-config SCHED_WORKPERIOD
-	int "High priority worker thread period"
-	default 50000
-	---help---
-		How often the worker thread checks for work in units of microseconds.
-		Default: 50*1000 (50 MS).
-
-config SCHED_WORKSTACKSIZE
-	int "High priority worker thread stack size"
-	default 2048
-	depends on SCHED_WORKQUEUE
-	---help---
-		The stack size allocated for the worker thread.  Default: 2K.
-
-config SCHED_LPWORK
-	bool "Low priority (kernel) worker thread"
-	default n
-	---help---
-		If SCHED_WORKQUEUE is defined, then a single work queue is created by
-		default.  If SCHED_LPWORK is also defined then an additional, lower-
-		priority work queue will also be created.  This lower priority work
-		queue is better suited for more extended processing (such as file system
-		clean-up operations)
-
-if SCHED_LPWORK
-
-config SCHED_LPWORKPRIORITY
-	int "Low priority worker thread priority"
-	default 50
-	---help---
-		The execution priority of the lopwer priority worker thread.  Default: 192
-
-config SCHED_LPWORKPERIOD
-	int "Low priority worker thread period"
-	default 50000
-	---help---
-		How often the lower priority worker thread checks for work in units
-		of microseconds. Default: 50*1000 (50 MS).
-
-config SCHED_LPWORKSTACKSIZE
-	int "Low priority worker thread stack size"
-	default 2048
-	---help---
-		The stack size allocated for the lower priority worker thread.  Default: 2K.
-
-endif # SCHED_LPWORK
-endif # SCHED_HPWORK
-
-if BUILD_PROTECTED
-
-config SCHED_USRWORK
-	bool "User mode worker thread"
-	default n
-	---help---
-		User space work queues can also be made available for deferred processing in the NuttX kernel build.
-
-if SCHED_USRWORK
-
-config SCHED_LPWORKPRIORITY
+config LIB_USRWORKPRIORITY
 	int "User mode priority worker thread priority"
-	default 50
+	default 100
 	---help---
-		The execution priority of the lopwer priority worker thread.  Default: 192
+		The execution priority of the user-mode priority worker thread.  Default: 100
 
-config SCHED_LPWORKPERIOD
+config LIB_USRWORKPERIOD
 	int "User mode worker thread period"
-	default 50000
+	default 100000
 	---help---
 		How often the lower priority worker thread checks for work in units
-		of microseconds. Default: 50*1000 (50 MS).
+		of microseconds. Default: 100*1000 (100 MS).
 
-config SCHED_LPWORKSTACKSIZE
+config LIB_USRWORKSTACKSIZE
 	int "User mode worker thread stack size"
 	default 2048
 	---help---
 		The stack size allocated for the lower priority worker thread.  Default: 2K.
 
-endif # SCHED_USRWORK
-endif # BUILD_PROTECTED
-endif # SCHED_WORKQUEUE
+endif # LIB_USRWORK
+endif # BUILD_PROTECTED || BUILD_KERNEL
 
 config LIB_KBDCODEC
 	bool "Keyboard CODEC"

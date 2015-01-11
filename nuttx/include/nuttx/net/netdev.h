@@ -96,9 +96,20 @@ struct net_driver_s
 
   uint8_t d_flags;
 
+#ifdef CONFIG_NET_MULTILINK
+  /* Multi network devices using multiple data links protocols are selected */
+
+  uint8_t d_lltype;         /* See enum net_datalink_e */
+  uint8_t d_llhdrlen;       /* Link layer header size */
+  uint16_t d_mtu;           /* Maximum packet size */
+#ifdef CONFIG_NET_TCP
+  uint16_t d_recvwndo;      /* TCP receive window size */
+#endif
+#endif
+
+#ifdef CONFIG_NET_ETHERNET
   /* Ethernet device identity */
 
-#if defined(CONFIG_NET_ETHERNET) || defined(CONFIG_WIRELESS)
   struct ether_addr d_mac;  /* Device MAC address */
 #endif
 
@@ -112,7 +123,7 @@ struct net_driver_s
    * driver should place incoming data into this buffer. When sending data,
    * the device driver should read the link level headers and the TCP/IP
    * headers from this buffer. The size of the link level headers is
-   * configured by the NET_LL_HDRLEN define.
+   * configured by the NET_LL_HDRLEN(dev) define.
    *
    * uIP will handle only a single buffer for both incoming and outgoing
    * packets.  However, the drive design may be concurrently send and
@@ -123,7 +134,7 @@ struct net_driver_s
 #ifdef CONFIG_NET_MULTIBUFFER
   uint8_t *d_buf;
 #else
-  uint8_t d_buf[CONFIG_NET_BUFSIZE + CONFIG_NET_GUARDSIZE];
+  uint8_t d_buf[MAX_NET_DEV_MTU + CONFIG_NET_GUARDSIZE];
 #endif
 
   /* d_appdata points to the location where application data can be read from
@@ -171,9 +182,9 @@ struct net_driver_s
 
   uint16_t d_sndlen;
 
+#ifdef CONFIG_NET_IGMP
   /* IGMP group list */
 
-#ifdef CONFIG_NET_IGMP
   sq_queue_t grplist;
 #endif
 

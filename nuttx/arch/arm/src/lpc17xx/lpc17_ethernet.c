@@ -822,7 +822,7 @@ static void lpc17_rxdone(struct lpc17_driver_s *priv)
        * imply that the packet is too big.
        */
 
-      /* else */ if (pktlen > CONFIG_NET_BUFSIZE + CONFIG_NET_GUARDSIZE)
+      /* else */ if (pktlen > CONFIG_NET_ETH_MTU + CONFIG_NET_GUARDSIZE)
         {
           nlldbg("Too big. considx: %08x prodidx: %08x pktlen: %d rxstat: %08x\n",
                  considx, prodidx, pktlen, *rxstat);
@@ -2587,7 +2587,7 @@ static inline int lpc17_ethinitialize(int intf)
 
   /* Register the device with the OS so that socket IOCTLs can be performed */
 
-  (void)netdev_register(&priv->lp_dev);
+  (void)netdev_register(&priv->lp_dev, NET_LL_ETHERNET);
   return OK;
 }
 

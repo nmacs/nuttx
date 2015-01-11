@@ -49,6 +49,7 @@
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/arp.h>
 
+#include "route/route.h"
 #include "arp/arp.h"
 
 #ifdef CONFIG_NET_ARP
@@ -58,8 +59,8 @@
  ****************************************************************************/
 
 #define ETHBUF  ((struct eth_hdr_s *)&dev->d_buf[0])
-#define ARPBUF  ((struct arp_hdr_s *)&dev->d_buf[NET_LL_HDRLEN])
-#define IPBUF   ((struct arp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
+#define ARPBUF  ((struct arp_hdr_s *)&dev->d_buf[ETH_HDRLEN])
+#define IPBUF   ((struct arp_iphdr_s *)&dev->d_buf[ETH_HDRLEN])
 
 /****************************************************************************
  * Private Types
@@ -247,7 +248,7 @@ void arp_out(FAR struct net_driver_s *dev)
 
   memcpy(peth->src, dev->d_mac.ether_addr_octet, ETHER_ADDR_LEN);
   peth->type  = HTONS(ETHTYPE_IP);
-  dev->d_len += NET_LL_HDRLEN;
+  dev->d_len += ETH_HDRLEN;
 }
 
 #endif /* CONFIG_NET_ARP */

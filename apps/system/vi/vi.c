@@ -41,6 +41,7 @@
 
 #include <sys/stat.h>
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -150,9 +151,9 @@
 #ifdef CONFIG_CPP_HAVE_VARARGS
 #  if CONFIG_SYSTEM_VI_DEBUGLEVEL > 0
 #    define vidbg(format, ...) \
-       syslog(EXTRA_FMT format EXTRA_ARG, ##__VA_ARGS__)
+       syslog(LOG_DEBUG, EXTRA_FMT format EXTRA_ARG, ##__VA_ARGS__)
 #    define vvidbg(format, ap) \
-       vsyslog(format, ap)
+       vsyslog(LOG_DEBUG, format, ap)
 #  else
 #    define vidbg(x...)
 #    define vvidbg(x...)
@@ -160,21 +161,21 @@
 
 #  if CONFIG_SYSTEM_VI_DEBUGLEVEL > 1
 #    define vivdbg(format, ...) \
-       syslog(EXTRA_FMT format EXTRA_ARG, ##__VA_ARGS__)
+       syslog(LOG_DEBUG, EXTRA_FMT format EXTRA_ARG, ##__VA_ARGS__)
 #  else
 #    define vivdbg(x...)
 #  endif
 #else
 #  if CONFIG_SYSTEM_VI_DEBUGLEVEL > 0
-#    define vidbg  syslog
-#    define vvidbg vsyslog
+#    define vidbg  vi_debug
+#    define vvidbg vi_vdebug
 #  else
 #    define vidbg  (void)
 #    define vvidbg (void)
 #  endif
 
 #  if CONFIG_SYSTEM_VI_DEBUGLEVEL > 1
-#    define vivdbg syslog
+#    define vivdbg vi_debug
 #  else
 #    define vivdbg (void)
 #  endif
@@ -446,6 +447,34 @@ static const char g_fmtnotcmd[]     = "Not an editor command: %s";
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: vi_vdebug and vi_debug
+ *
+ * Description:
+ *   Print a debug message to the syslog
+ *
+ ****************************************************************************/
+
+#if !defined(CONFIG_CPP_HAVE_VARARGS) && CONFIG_SYSTEM_VI_DEBUGLEVEL > 0
+static inline int vi_vdebug(FAR const char *fmt, va_list ap)
+{
+  return vsyslog(LOG_DEBUG, fmt, ap);
+}
+
+static int vi_debug(FAR const char *fmt, ...)
+{
+  va_list ap;
+  int ret;
+
+  /* Let vsyslog do the real work */
+
+  va_start(ap, fmt);
+  ret = vsyslog(LOG_DEBUG, fmt, ap);
+  va_end(ap);
+  return ret;
+}
+#endif
 
 /****************************************************************************
  * Low-level display and data entry functions
@@ -1201,6 +1230,7 @@ static bool vi_savetext(FAR struct vi_s *vi, FAR const char *filename,
       /* Report the error (or partial write).  EINTR is not handled. */
 
       vi_error(vi, g_fmtcmdfail, "fwrite", errno);
+      (void)fclose(stream);
       return false;
     }
 
@@ -3607,7 +3637,7 @@ int vi_main(int argc, char **argv)
                 }
               else
                 {
-                  fprintf(stderr, "ERROR: Column value out of range: %ld\n",
+                  fprintf(stderr, "ERROR: Column value out of range: %lu\n",
                           value);
                   vi_showusage(vi, argv[0], EXIT_FAILURE);
                 }
@@ -3623,7 +3653,7 @@ int vi_main(int argc, char **argv)
                 }
               else
                 {
-                  fprintf(stderr, "ERROR: Row value out of range: %ld\n",
+                  fprintf(stderr, "ERROR: Row value out of range: %lu\n",
                           value);
                   vi_showusage(vi, argv[0], EXIT_FAILURE);
                 }

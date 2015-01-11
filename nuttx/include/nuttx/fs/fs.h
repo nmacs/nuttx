@@ -44,12 +44,21 @@
 #include <nuttx/compiler.h>
 
 #include <sys/types.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <semaphore.h>
 
+#ifdef CONFIG_FS_NAMED_SEMAPHORES
+#  include <nuttx/semaphore.h>
+#endif
+
+#ifndef CONFIG_DISABLE_MQUEUE
+#  include <nuttx/mqueue.h>
+#endif
+
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 /* Stream flags for the fs_flags field of in struct file_struct */
 
@@ -57,7 +66,7 @@
 #define __FS_FLAG_ERROR (1 << 1) /* Error detected by any operation */
 
 /****************************************************************************
- * Type Definitions
+ * Public Type Definitions
  ****************************************************************************/
 
 /* This structure is provided by devices when they are registered with the
@@ -66,7 +75,6 @@
 
 struct file;
 struct pollfd;
-
 struct file_operations
 {
   /* The device driver open method differs from the mountpoint open method */
@@ -92,7 +100,7 @@ struct file_operations
 
 /* This structure provides information about the state of a block driver */
 
-#ifndef CONFIG_DISABLE_MOUNTPOUNT
+#ifndef CONFIG_DISABLE_MOUNTPOINT
 struct geometry
 {
   bool   geo_available;    /* true: The device is vailable */
@@ -114,9 +122,9 @@ struct block_operations
   int     (*open)(FAR struct inode *inode);
   int     (*close)(FAR struct inode *inode);
   ssize_t (*read)(FAR struct inode *inode, FAR unsigned char *buffer,
-                  size_t start_sector, unsigned int nsectors);
+            size_t start_sector, unsigned int nsectors);
   ssize_t (*write)(FAR struct inode *inode, FAR const unsigned char *buffer,
-                   size_t start_sector, unsigned int nsectors);
+            size_t start_sector, unsigned int nsectors);
   int     (*geometry)(FAR struct inode *inode, FAR struct geometry *geometry);
   int     (*ioctl)(FAR struct inode *inode, int cmd, unsigned long arg);
 };
@@ -140,16 +148,17 @@ struct mountpt_operations
    */
 
   int     (*open)(FAR struct file *filep, FAR const char *relpath,
-                  int oflags, mode_t mode);
+            int oflags, mode_t mode);
 
-  /* The following methods must be identical in signature and position because
-   * the struct file_operations and struct mountp_operations are treated like
-   * unions.
+  /* The following methods must be identical in signature and position
+   * because the struct file_operations and struct mountp_operations are
+   * treated like unions.
    */
 
   int     (*close)(FAR struct file *filep);
   ssize_t (*read)(FAR struct file *filep, FAR char *buffer, size_t buflen);
-  ssize_t (*write)(FAR struct file *filep, FAR const char *buffer, size_t buflen);
+  ssize_t (*write)(FAR struct file *filep, FAR const char *buffer,
+            size_t buflen);
   off_t   (*seek)(FAR struct file *filep, off_t offset, int whence);
   int     (*ioctl)(FAR struct file *filep, int cmd, unsigned long arg);
 
@@ -165,31 +174,48 @@ struct mountpt_operations
 
   /* Directory operations */
 
-  int     (*opendir)(FAR struct inode *mountpt, FAR const char *relpath, FAR struct fs_dirent_s *dir);
-  int     (*closedir)(FAR struct inode *mountpt, FAR struct fs_dirent_s *dir);
-  int     (*readdir)(FAR struct inode *mountpt, FAR struct fs_dirent_s *dir);
-  int     (*rewinddir)(FAR struct inode *mountpt, FAR struct fs_dirent_s *dir);
+  int     (*opendir)(FAR struct inode *mountpt, FAR const char *relpath,
+            FAR struct fs_dirent_s *dir);
+  int     (*closedir)(FAR struct inode *mountpt,
+            FAR struct fs_dirent_s *dir);
+  int     (*readdir)(FAR struct inode *mountpt,
+            FAR struct fs_dirent_s *dir);
+  int     (*rewinddir)(FAR struct inode *mountpt,
+            FAR struct fs_dirent_s *dir);
 
   /* General volume-related mountpoint operations: */
 
-  int     (*bind)(FAR struct inode *blkdriver, FAR const void *data, FAR void **handle);
+  int     (*bind)(FAR struct inode *blkdriver, FAR const void *data,
+            FAR void **handle);
   int     (*unbind)(FAR void *handle, FAR struct inode **blkdriver);
-
   int     (*statfs)(FAR struct inode *mountpt, FAR struct statfs *buf);
 
   /* Operations on paths */
 
   int     (*unlink)(FAR struct inode *mountpt, FAR const char *relpath);
-  int     (*mkdir)(FAR struct inode *mountpt, FAR const char *relpath, mode_t mode);
+  int     (*mkdir)(FAR struct inode *mountpt, FAR const char *relpath,
+            mode_t mode);
   int     (*rmdir)(FAR struct inode *mountpt, FAR const char *relpath);
-  int     (*rename)(FAR struct inode *mountpt, FAR const char *oldrelpath, FAR const char *newrelpath);
-  int     (*stat)(FAR struct inode *mountpt, FAR const char *relpath, FAR struct stat *buf);
+  int     (*rename)(FAR struct inode *mountpt, FAR const char *oldrelpath,
+            FAR const char *newrelpath);
+  int     (*stat)(FAR struct inode *mountpt, FAR const char *relpath,
+            FAR struct stat *buf);
 
-  /* NOTE:  More operations will be needed here to support:  disk usage stats
-   * file stat(), file attributes, file truncation, etc.
+  /* NOTE:  More operations will be needed here to support:  disk usage
+   * stats file stat(), file attributes, file truncation, etc.
    */
 };
 #endif /* CONFIG_DISABLE_MOUNTPOUNT */
+
+/* Named OS resources are also maintained by the VFS.  This includes:
+ *
+ *   - Named semaphores:     sem_open(), sem_close(), and sem_unlink()
+ *   - POSIX Message Queues: mq_open() and mq_close()
+ *   - Shared memory:        shm_open() and shm_unlink();
+ *
+ * These are a special case in that they do not follow quite the same
+ * pattern as the other file system types in that they have operations.
+ */
 
 /* These are the various kinds of operations that can be associated with
  * an inode.
@@ -197,27 +223,34 @@ struct mountpt_operations
 
 union inode_ops_u
 {
-  FAR const struct file_operations    *i_ops;  /* Driver operations for inode */
+  FAR const struct file_operations      *i_ops;    /* Driver operations for inode */
 #ifndef CONFIG_DISABLE_MOUNTPOUNT
-  FAR const struct block_operations   *i_bops; /* Block driver operations */
-  FAR const struct mountpt_operations *i_mops; /* Operations on a mountpoint */
+  FAR const struct block_operations     *i_bops;   /* Block driver operations */
+  FAR const struct mountpt_operations   *i_mops;   /* Operations on a mountpoint */
 #endif
+#ifdef CONFIG_FS_NAMED_SEMAPHORES
+  FAR struct nsem_inode_s               *i_nsem;   /* Named semaphore */
+#endif
+#ifndef CONFIG_DISABLE_MQUEUE
+  FAR struct mqueue_inode_s             *i_mqueue; /* POSIX message queue */
+#endif
+
 };
 
 /* This structure represents one inode in the Nuttx pseudo-file system */
 
 struct inode
 {
-  FAR struct inode *i_peer;       /* Link to same level inode */
-  FAR struct inode *i_child;      /* Link to lower level inode */
-  int16_t           i_crefs;      /* References to inode */
-  uint16_t          i_flags;      /* Flags for inode */
-  union inode_ops_u u;            /* Inode operations */
+  FAR struct inode *i_peer;     /* Link to same level inode */
+  FAR struct inode *i_child;    /* Link to lower level inode */
+  int16_t           i_crefs;    /* References to inode */
+  uint16_t          i_flags;    /* Flags for inode */
+  union inode_ops_u u;          /* Inode operations */
 #ifdef CONFIG_FILE_MODE
-  mode_t            i_mode;       /* Access mode flags */
+  mode_t            i_mode;     /* Access mode flags */
 #endif
-  FAR void         *i_private;    /* Per inode driver private data */
-  char              i_name[1];    /* Name of inode (variable) */
+  FAR void         *i_private;  /* Per inode driver private data */
+  char              i_name[1];  /* Name of inode (variable) */
 };
 #define FSNODE_SIZE(n) (sizeof(struct inode) + (n))
 
@@ -228,10 +261,10 @@ struct inode
 
 struct file
 {
-  int               f_oflags; /* Open mode flags */
-  off_t             f_pos;    /* File position */
-  FAR struct inode *f_inode;  /* Driver interface */
-  void             *f_priv;   /* Per file driver private data */
+  int               f_oflags;   /* Open mode flags */
+  off_t             f_pos;      /* File position */
+  FAR struct inode *f_inode;    /* Driver interface */
+  void             *f_priv;     /* Per file driver private data */
 };
 
 /* This defines a list of files indexed by the file descriptor */
@@ -239,7 +272,7 @@ struct file
 #if CONFIG_NFILE_DESCRIPTORS > 0
 struct filelist
 {
-  sem_t   fl_sem;             /* Manage access to the file list */
+  sem_t   fl_sem;               /* Manage access to the file list */
   struct file fl_files[CONFIG_NFILE_DESCRIPTORS];
 };
 #endif
@@ -332,7 +365,7 @@ extern "C"
  *
  ****************************************************************************/
 
-void weak_function fs_initialize(void);
+void fs_initialize(void);
 
 /* fs_foreachmountpoint.c ***************************************************/
 /****************************************************************************
@@ -473,7 +506,7 @@ void files_releaselist(FAR struct filelist *list);
 #endif
 
 /****************************************************************************
- * Name: files_dup
+ * Name: file_dup2
  *
  * Description:
  *   Assign an inode to a specific files structure.  This is the heart of
@@ -482,12 +515,12 @@ void files_releaselist(FAR struct filelist *list);
  ****************************************************************************/
 
 #if CONFIG_NFILE_DESCRIPTORS > 0
-int files_dup(FAR struct file *filep1, FAR struct file *filep2);
+int file_dup2(FAR struct file *filep1, FAR struct file *filep2);
 #endif
 
 /* fs_filedup.c *************************************************************/
 /****************************************************************************
- * Name: file_dup OR dup
+ * Name: fs_dupfd OR dup
  *
  * Description:
  *   Clone a file descriptor 'fd' to an arbitray descriptor number (any value
@@ -502,12 +535,24 @@ int files_dup(FAR struct file *filep1, FAR struct file *filep2);
  ****************************************************************************/
 
 #if CONFIG_NFILE_DESCRIPTORS > 0
-int file_dup(int fd, int minfd);
+int fs_dupfd(int fd, int minfd);
 #endif
+
+/****************************************************************************
+ * Name: file_dup
+ *
+ * Description:
+ *   Equivalent to the non-standard fs_dupfd() function except that it
+ *   accepts a struct file instance instead of a file descriptor.  Currently
+ *   used only by file_vfcntl();
+ *
+ ****************************************************************************/
+
+int file_dup(FAR struct file *filep, int minfd);
 
 /* fs_filedup2.c ************************************************************/
 /****************************************************************************
- * Name: file_dup2 OR dup2
+ * Name: fs_dupfd2 OR dup2
  *
  * Description:
  *   Clone a file descriptor to a specific descriptor number. If socket
@@ -522,9 +567,9 @@ int file_dup(int fd, int minfd);
 
 #if CONFIG_NFILE_DESCRIPTORS > 0
 #if defined(CONFIG_NET) && CONFIG_NSOCKET_DESCRIPTORS > 0
-int file_dup2(int fd1, int fd2);
+int fs_dupfd2(int fd1, int fd2);
 #else
-#  define file_dup2(fd1, fd2) dup2(fd1, fd2)
+#  define fs_dupfd2(fd1, fd2) dup2(fd1, fd2)
 #endif
 #endif
 
@@ -621,22 +666,92 @@ int lib_flushall(FAR struct streamlist *list);
 ssize_t lib_sendfile(int outfd, int infd, off_t *offset, size_t count);
 #endif
 
-/* fs/fs_fileread.c *********************************************************/
+/* fs/fs_getfilep.c *********************************************************/
+/****************************************************************************
+ * Name: fs_getfilep
+ *
+ * Description:
+ *   Given a file descriptor, return the corresponding instance of struct
+ *   file.  NOTE that this function will currently fail if it is provided
+ *   with a socket descriptor.
+ *
+ * Parameters:
+ *   fd - The file descriptor
+ *
+ * Return:
+ *   A point to the corresponding struct file instance is returned on
+ *   success.  On failure,  NULL is returned and the errno value is
+ *   set appropriately (EBADF).
+ *
+ ****************************************************************************/
+
+#if CONFIG_NFILE_DESCRIPTORS > 0
+FAR struct file *fs_getfilep(int fd);
+#endif
+
+/* fs/fs_read.c *************************************************************/
 /****************************************************************************
  * Name: file_read
  *
  * Description:
  *   Equivalent to the standard read() function except that is accepts a
  *   struct file instance instead of a file descriptor.  Currently used
- *   only by net_sendfile()
+ *   only by net_sendfile() and aio_read();
  *
  ****************************************************************************/
 
-#if CONFIG_NFILE_DESCRIPTORS > 0 && defined(CONFIG_NET_SENDFILE)
+#if CONFIG_NFILE_DESCRIPTORS > 0
 ssize_t file_read(FAR struct file *filep, FAR void *buf, size_t nbytes);
 #endif
 
-/* fs/fs_fileread.c *********************************************************/
+/* fs/fs_write.c ************************************************************/
+/****************************************************************************
+ * Name: file_write
+ *
+ * Description:
+ *   Equivalent to the standard write() function except that is accepts a
+ *   struct file instance instead of a file descriptor.  Currently used
+ *   only by aio_write();
+ *
+ ****************************************************************************/
+
+#if CONFIG_NFILE_DESCRIPTORS > 0
+ssize_t file_write(FAR struct file *filep, FAR const void *buf, size_t nbytes);
+#endif
+
+/* fs/fs_pread.c ************************************************************/
+/****************************************************************************
+ * Name: file_pread
+ *
+ * Description:
+ *   Equivalent to the standard pread function except that is accepts a
+ *   struct file instance instead of a file descriptor.  Currently used
+ *   only by aio_read();
+ *
+ ****************************************************************************/
+
+#if CONFIG_NFILE_DESCRIPTORS > 0
+ssize_t file_pread(FAR struct file *filep, FAR void *buf, size_t nbytes,
+                   off_t offset);
+#endif
+
+/* fs/fs_pwrite.c ***********************************************************/
+/****************************************************************************
+ * Name: file_pwrite
+ *
+ * Description:
+ *   Equivalent to the standard pwrite function except that is accepts a
+ *   struct file instance instead of a file descriptor.  Currently used
+ *   only by aio_write();
+ *
+ ****************************************************************************/
+
+#if CONFIG_NFILE_DESCRIPTORS > 0
+ssize_t file_pwrite(FAR struct file *filep, FAR const void *buf,
+                    size_t nbytes, off_t offset);
+#endif
+
+/* fs/fs_lseek.c ************************************************************/
 /****************************************************************************
  * Name: file_seek
  *
@@ -647,8 +762,38 @@ ssize_t file_read(FAR struct file *filep, FAR void *buf, size_t nbytes);
  *
  ****************************************************************************/
 
-#if CONFIG_NFILE_DESCRIPTORS > 0 && defined(CONFIG_NET_SENDFILE)
+#if CONFIG_NFILE_DESCRIPTORS > 0
 off_t file_seek(FAR struct file *filep, off_t offset, int whence);
+#endif
+
+/* fs/fs_fsync.c ************************************************************/
+/****************************************************************************
+ * Name: file_fsync
+ *
+ * Description:
+ *   Equivalent to the standard fsync() function except that is accepts a
+ *   struct file instance instead of a file descriptor.  Currently used
+ *   only by aio_fsync();
+ *
+ ****************************************************************************/
+
+#if CONFIG_NFILE_DESCRIPTORS > 0
+int file_fsync(FAR struct file *filep);
+#endif
+
+/* fs/fs_fcntl.c ************************************************************/
+/****************************************************************************
+ * Name: file_vfcntl
+ *
+ * Description:
+ *   Similar to the standard vfcntl function except that is accepts a struct
+ *   struct file instance instead of a file descriptor.  Currently used
+ *   only by aio_fcntl();
+ *
+ ****************************************************************************/
+
+#if CONFIG_NFILE_DESCRIPTORS > 0
+int file_vfcntl(FAR struct file *filep, int cmd, va_list ap);
 #endif
 
 /* drivers/dev_null.c *******************************************************/

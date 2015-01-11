@@ -91,7 +91,7 @@
 #include <nuttx/net/ip.h>
 
 #ifdef CONFIG_NET_IPv6
-#  include "net_neighbor.h"
+#  include "ipv6/ipv6.h"
 #endif /* CONFIG_NET_IPv6 */
 
 #include "devif/devif.h"
@@ -107,13 +107,13 @@
 
 /* Macros */
 
-#define BUF                  ((FAR struct net_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
+#define BUF                  ((FAR struct net_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev)])
 #define FBUF                 ((FAR struct net_iphdr_s *)&g_reassembly_buffer[0])
 
 /* IP fragment re-assembly */
 
-#define IP_MF                0x20
-#define TCP_REASS_BUFSIZE    (CONFIG_NET_BUFSIZE - NET_LL_HDRLEN)
+#define IP_MF                0x20  /* See IP_FLAG_MOREFRAGS */
+#define TCP_REASS_BUFSIZE    (NET_DEV_MTU(dev) - NET_LL_HDRLEN(dev))
 #define TCP_REASS_LASTFRAG   0x01
 
 /****************************************************************************

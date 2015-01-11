@@ -461,7 +461,7 @@ Programming U-Boot
 
      http://www.at91.com/linux4sam/bin/view/Linux4SAM/U-Boot#Build_U_Boot_from_sources
 
-     A pre-Built binay image is available here:
+     A pre-Built binary image is available here:
 
      ftp://www.at91.com/pub/uboot/u-boot-v2013.07/u-boot-sama5d3_xplained-v2013.07-at91-r1.bin
 
@@ -798,8 +798,8 @@ Networking
   Networking Support
     CONFIG_NET=y                         : Enable Neworking
     CONFIG_NET_SOCKOPTS=y                : Enable socket operations
-    CONFIG_NET_BUFSIZE=562               : Maximum packet size (MTD) 1518 is more standard
-    CONFIG_NET_RECEIVE_WINDOW=562        : Should be the same as CONFIG_NET_BUFSIZE
+    CONFIG_NET_ETH_MTU=562               : Maximum packet size (MTU) 1518 is more standard
+    CONFIG_NET_ETH_TCP_RECVWNDO=562      : Should be the same as CONFIG_NET_ETH_MTU
     CONFIG_NET_TCP=y                     : Enable TCP/IP networking
     CONFIG_NET_TCPBACKLOG=y              : Support TCP/IP backlog
     CONFIG_NET_TCP_READAHEAD_BUFSIZE=562 : Read-ahead buffer size
@@ -2865,6 +2865,8 @@ Configurations
   Summary:  Some of the descriptions below are long and wordy. Here is the
   concise summary of the available SAMA5D3-Xplained configurations:
 
+    bridge:  This is a simple testing that exercises EMAC and GMAC for
+      a simple UDP relay bridge test.
     nsh:  This is another NSH configuration, not too different from the
       demo configuration.  The nsh configuration is, however, bare bones.
       It is the simplest possible NSH configuration and is useful as a
@@ -2874,6 +2876,68 @@ Configurations
   before of the status of individual configurations.
 
   Now for the gory details:
+
+  bridge:
+
+    This is a simple testing that exercises EMAC and GEMAC for a simple
+    UDP relay bridge test using apps/examples/bridge.  See
+    apps/examples/README.txt for more information about this test.
+
+
+    NOTES:
+
+    1. This configuration uses the default DBGU serial console.  That
+       is easily changed by reconfiguring to (1) enable a different
+       serial peripheral, and (2) selecting that serial peripheral as
+       the console device.
+
+    2. By default, this configuration is set up to build on Windows
+       under either a Cygwin or MSYS environment using a recent, Windows-
+       native, generic ARM EABI GCC toolchain (such as the CodeSourcery
+       toolchain).  Both the build environment and the toolchain
+       selection can easily be changed by reconfiguring:
+
+       CONFIG_HOST_WINDOWS=y                   : Windows operating system
+       CONFIG_WINDOWS_CYGWIN=y                 : POSIX environment under windows
+       CONFIG_ARMV7A_TOOLCHAIN_CODESOURCERYW=y : CodeSourcery for Windows
+
+       If you are running on Linux, make *certain* that you have
+       CONFIG_HOST_LINUX=y *before* the first make or you will create a
+       corrupt configuration that may not be easy to recover from. See
+       the warning in the section "Information Common to All Configurations"
+       for further information.
+
+    3. This configuration executes out of SDRAM flash and is loaded into
+       SDRAM from NAND, Serial DataFlash, SD card or from a TFTPC sever via
+       U-Boot or BareBox.  Data also is positioned in SDRAM.
+
+       I did most testing with nuttx.bin on an SD card.  These are the
+       commands that I used to boot NuttX from the SD card:
+
+         U-Boot> fatload mmc 0 0x20008000 nuttx.bin
+         U-Boot> go 0x20008040
+
+    4. You will almost certainly need to adapt this configuration to
+       work in your network environment.  I did all testing with a
+       single 10.0.0.xx network and a 4+1 port switch:
+
+       - Host PC IP 10.0.0.1
+       - Target GMAC IP: 10.0.0.2
+       - Target EMAC IP: 10.0.0.3
+
+       Host PC, EMAC, and GMAC were all connected using an Ethernet
+       switch to the same 255.255.255.0 network.
+
+    STATUS:
+
+      2014-11-20:  Configuration created.  Partially verified.  Both the
+        EMAC and GMAC appear to be function; both respond to pings from
+        the host PC.  But I cannot perform the full bridge test yet
+        because there still is no host-side test driver in apps/examples/bridge.
+      2014-11-21:  Added the host-side test driver and correct a number
+        of errors in the test logic.  The testing is working (according
+        to WireShark), but I an having some procedural issues related to
+        the Windows firewall.
 
   nsh:
 

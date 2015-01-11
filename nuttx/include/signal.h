@@ -1,7 +1,7 @@
 /********************************************************************************
  * include/signal.h
  *
- *   Copyright (C) 2007-2009, 2011, 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007-2009, 2011, 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -98,6 +98,14 @@
 #    define SIGCHLD     4  /* Used by child threads to signal parent thread */
 #  else
 #    define SIGCHLD     CONFIG_SIG_SIGCHLD
+#  endif
+#endif
+
+#ifdef CONFIG_FS_AIO
+#  ifndef CONFIG_SIG_POLL
+#    define SIGPOLL     5  /* Sent when an asynchronous I/O event occurs */
+#  else
+#    define SIGPOLL     CONFIG_SIG_POLL
 #  endif
 #endif
 

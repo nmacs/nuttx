@@ -71,11 +71,11 @@
 #include "socket/socket.h"
 
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
-#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
-#define TCPBUF ((struct tcp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
+#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev)])
+#define TCPBUF ((struct tcp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev)])
 
 /****************************************************************************
  * Private Types
@@ -1159,7 +1159,13 @@ static ssize_t pkt_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
 
       /* Notify the device driver of the receive call */
 
-      /* netdev_rxnotify(conn->ripaddr); */
+#if 0 /* No */
+#ifdef CONFIG_NET_MULTILINK
+      netdev_rxnotify(conn->lipaddr, conn->ripaddr);
+#else
+      netdev_rxnotify(conn->ripaddr);
+#endif
+#endif
 
       /* Wait for either the receive to complete or for an error/timeout to occur.
        * NOTES:  (1) net_lockedwait will also terminate if a signal is received, (2)
@@ -1295,7 +1301,11 @@ static ssize_t udp_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
 
       /* Notify the device driver of the receive call */
 
+#ifdef CONFIG_NET_MULTILINK
+      netdev_rxnotify(conn->lipaddr, conn->ripaddr);
+#else
       netdev_rxnotify(conn->ripaddr);
+#endif
 
       /* Wait for either the receive to complete or for an error/timeout to occur.
        * NOTES:  (1) net_lockedwait will also terminate if a signal is received, (2)

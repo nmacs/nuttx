@@ -218,6 +218,13 @@ configs/eagle100
   an ARM Cortex-M3 MCU, the Luminary LM3S6918. This OS is built with the
   arm-nuttx-elf toolchain*.  STATUS:  This port is complete and mature.
 
+configs/efm32-g8xx-stk
+  The port of NuttX to the the EFM32 Gecko Starter Kit (EFM32-G8XX-STK).
+
+configs/efm32gg-stk3700
+  The port of NuttX to the the EFM32 Giant Gecko Starter Kit
+  (EFM32GG-STK3700).
+
 configs/ekk-lm3s9b96
   TI/Stellaris EKK-LM3S9B96 board.  This board is based on the
   an EKK-LM3S9B96 which is a Cortex-M3.
@@ -330,8 +337,11 @@ configs/ntosd-dm320
   STATUS: This port is code complete, verified, and included in the
   NuttX 0.2.1 release.
 
-configs/nucleo-f401re
-  STMicro ST Nucleo F401RE http://mbed.org/platforms/ST-Nucleo-F401RE
+configs/nucleo-f4x1re
+  STMicro ST Nucleo F401RE and F411RE boards.  See
+  http://mbed.org/platforms/ST-Nucleo-F401RE and
+  http://developer.mbed.org/platforms/ST-Nucleo-F411RE for more
+  information about these boards.
 
 configs/nucleus2g
   This port uses the Nucleus 2G board (with Babel CAN board).  This board
@@ -341,6 +351,10 @@ configs/nucleus2g
 configs/nutiny-nuc120
   This is the port of NuttX to the NuvoTon NuTiny-SDK-NUC120 board.  This
   board has the NUC120LE3AN chip with a built-in NuLink debugger.
+
+configs/olimex-efm32g880f128-stk
+  This is the port of NuttX to the Olimex EFM32G880F128-STK development
+  board.
 
 configs/olimex-lpc1766stk
   This port uses the Olimex LPC1766-STK board and a GNU GCC toolchain* under
@@ -528,12 +542,6 @@ configs/stm3240g-eval
   STMicro STM3240G-EVAL development board based on the STMicro STM32F103ZET6
   microcontroller (ARM Cortex-M4 with FPU).  This port uses a GNU Cortex-M4
   toolchain (such as CodeSourcery).
-
-configs/stm32f100rc_generic
-  STMicro STM32F100RC generic board based on STM32F100RC high-density value line
-  chip. This "generic" configuration is not very usable out-of-box, but can be
-  used as a starting point to creating new configs with similar STM32
-  high-density value line chips.
 
 configs/stm32f4discovery
   STMicro STM32F4-Discovery board based on the STMIcro STM32F407VGT6 MCU.

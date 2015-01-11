@@ -48,6 +48,10 @@ config FS_WRITABLE
 	bool
 	default n
 
+source fs/aio/Kconfig
+source fs/semaphore/Kconfig
+source fs/mqueue/Kconfig
+source fs/shm/Kconfig
 source fs/mmap/Kconfig
 source fs/fat/Kconfig
 source fs/nfs/Kconfig
@@ -60,13 +64,6 @@ source fs/fixfs/Kconfig
 
 comment "System Logging"
 
-config SYSLOG_ENABLE
-	bool "Enable SYSLOG Controls"
-	default n
-	---help---
-		Support an interface called syslog_enable to dynamically enable or
-		disable SYSLOG output.  Default:  SYSLOG output is always enabled.
-
 config SYSLOG
 	bool "Advanced SYSLOG features"
 	default n
@@ -76,6 +73,12 @@ config SYSLOG
 		system logging will still be available and will log to the system
 		console (like printf()).  This setting is required to enable
 		customization of the basic system loggin capability.
+
+config SYSLOG_TIMESTAMP
+	bool "Prepend timestamp to syslog message"
+	default n
+	---help---
+		Prepend timestamp to syslog message.
 
 if SYSLOG
 

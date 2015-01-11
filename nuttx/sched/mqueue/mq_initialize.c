@@ -46,7 +46,7 @@
 #include "mqueue/mqueue.h"
 
 /************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ************************************************************************/
 
 /************************************************************************
@@ -62,12 +62,8 @@ struct mq_des_block_s
 };
 
 /************************************************************************
- * Global Variables
+ * Public Variables
  ************************************************************************/
-
-/* This is a list of all opened message queues */
-
-sq_queue_t  g_msgqueues;
 
 /* The g_msgfree is a list of messages that are available for general
  * use.  The number of messages in this list is a system configuration
@@ -97,17 +93,17 @@ sq_queue_t  g_desfree;
  * messages.
  */
 
-static mqmsg_t    *g_msgalloc;
+static struct mqueue_msg_s  *g_msgalloc;
 
 /* g_msgfreeirqalloc is a pointer to the start of the allocated block of
  * messages.
  */
 
-static mqmsg_t    *g_msgfreeirqalloc;
+static struct mqueue_msg_s  *g_msgfreeirqalloc;
 
 /* g_desalloc is a list of allocated block of message queue descriptors. */
 
-static sq_queue_t  g_desalloc;
+static sq_queue_t g_desalloc;
 
 /************************************************************************
  * Private Functions
@@ -124,19 +120,22 @@ static sq_queue_t  g_desalloc;
  *
  ************************************************************************/
 
-static mqmsg_t *mq_msgblockalloc(sq_queue_t *queue, uint16_t nmsgs,
-                                 uint8_t alloc_type)
+static struct mqueue_msg_s *
+mq_msgblockalloc(FAR sq_queue_t *queue, uint16_t nmsgs,
+                 uint8_t alloc_type)
 {
-  mqmsg_t *mqmsgblock;
+  struct mqueue_msg_s *mqmsgblock;
 
   /* The g_msgfree must be loaded at initialization time to hold the
    * configured number of messages.
    */
 
-  mqmsgblock = (mqmsg_t*)kmm_malloc(sizeof(mqmsg_t) * nmsgs);
+  mqmsgblock = (FAR struct mqueue_msg_s*)
+    kmm_malloc(sizeof(struct mqueue_msg_s) * nmsgs);
+
   if (mqmsgblock)
     {
-      mqmsg_t *mqmsg = mqmsgblock;
+      struct mqueue_msg_s *mqmsg = mqmsgblock;
       int      i;
 
       for (i = 0; i < nmsgs; i++)
@@ -171,10 +170,6 @@ static mqmsg_t *mq_msgblockalloc(sq_queue_t *queue, uint16_t nmsgs,
 
 void mq_initialize(void)
 {
-  /* Initialize the list of message queues */
-
-  sq_init(&g_msgqueues);
-
   /* Initialize the message free lists */
 
   sq_init(&g_msgfree);

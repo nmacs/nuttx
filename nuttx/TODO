@@ -1,4 +1,4 @@
-NuttX TODO List (Last updated September 25, 2014)
+NuttX TODO List (Last updated November 23, 2014)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This file summarizes known NuttX bugs, limitations, inconsistencies with
@@ -8,8 +8,8 @@ board port.
 
 nuttx/
 
-  (9)  Task/Scheduler (sched/)
-  (2)  Memory Managment (mm/)
+ (10)  Task/Scheduler (sched/)
+  (1)  Memory Managment (mm/)
   (3)  Signals (sched/, arch/)
   (2)  pthreads (sched/)
   (8)  Kernel/Protected Builds
@@ -18,13 +18,13 @@ nuttx/
  (13)  Network (net/, drivers/net)
   (4)  USB (drivers/usbdev, drivers/usbhost)
  (10)  Libraries (libc/, )
- (12)  File system/Generic drivers (fs/, drivers/)
-  (6)  Graphics subystem (graphics/)
+ (11)  File system/Generic drivers (fs/, drivers/)
+  (8)  Graphics subystem (graphics/)
   (1)  Pascal add-on (pcode/)
   (1)  Documentation (Documentation/)
-  (5)  Build system / Toolchains
-  (5)  Linux/Cywgin simulation (arch/sim)
-  (4)  ARM (arch/arm/)
+  (2)  Build system / Toolchains
+  (3)  Linux/Cywgin simulation (arch/sim)
+  (5)  ARM (arch/arm/)
   (1)  ARM/C5471 (arch/arm/src/c5471/)
   (3)  ARM/DM320 (arch/arm/src/dm320/)
   (2)  ARM/i.MX (arch/arm/src/imx/)
@@ -32,8 +32,8 @@ nuttx/
   (7)  ARM/LPC214x (arch/arm/src/lpc214x/)
   (2)  ARM/LPC313x (arch/arm/src/lpc313x/)
   (0)  ARM/LPC43x (arch/arm/src/lpc43xx/)
-  (3)  ARM/STR71x (arch/arm/src/str71x/)
-  (3)  ARM/LM3S6918 (arch/arm/src/lm/)
+  (2)  ARM/STR71x (arch/arm/src/str71x/)
+  (2)  ARM/LM3S6918 (arch/arm/src/tiva/)
   (x)  ARM/SAMA5D3 ((arch/arm/src/sama5/)
   (5)  ARM/STM32 (arch/arm/src/stm32/)
   (3)  AVR (arch/avr)
@@ -47,10 +47,10 @@ nuttx/
 
 apps/
 
-  (4)  Network Utilities (apps/netutils/)
-  (3)  NuttShell (NSH) (apps/nshlib)
+  (6)  Network Utilities (apps/netutils/)
+  (2)  NuttShell (NSH) (apps/nshlib)
   (1)  System libraries apps/system (apps/system)
-  (5)  Other Applications & Tests (apps/examples/)
+  (4)  Other Applications & Tests (apps/examples/)
 
 o Task/Scheduler (sched/)
   ^^^^^^^^^^^^^^^^^^^^^^^
@@ -133,13 +133,13 @@ o Task/Scheduler (sched/)
 
   Title:       execv() AND vfork()
   Description: There is a problem when vfork() calls execv() (or execl()) to
-               start a new appliction:  When the parent thread calls vfork()
+               start a new application:  When the parent thread calls vfork()
                it receives and gets the pid of the vforked task, and *not*
                the pid of the desired execv'ed application.
 
                The same tasking arrangement is used by the standard function
                posix_spawn().  However, posix_spawn uses the non-standard, internal
-               NuttX interface task_reparent() to replace the childs parent task
+               NuttX interface task_reparent() to replace the child's parent task
                with the caller of posix_spawn().  That cannot be done with vfork()
                because we don't know what vfork() is going to do.
 
@@ -158,6 +158,20 @@ o Task/Scheduler (sched/)
   Status:      Closed.  The existing solution is better (although its
                incompatibilities could show up in porting some code).
   Priority:    Low
+
+  Title:       REMOVE TASK_DELETE
+  Description: Need to remove or fix task delete.  This interface is non-
+               standard and not safe.  Arbitrary deleting tasks can cause
+               serious problems such as memory leaks.  Better to remove it
+               than to retain it as a latent bug.
+
+               Currently used within the OS and also part of the
+               implementation of pthread_cancel() and task_restart() (which
+               should also go for the same reasons).  It is used in
+               NxWM::CNxConsole to terminate console tasks and also in
+               apps/netutils/thttpd to kill CGI tasks that timeout.
+  Status:      Open
+  Priority:    Low and not easily removable.
 
 o Memory Managment (mm/)
   ^^^^^^^^^^^^^^^^^^^^^^
@@ -225,12 +239,6 @@ o Memory Managment (mm/)
   Priority:    Medium/Low, a good feature to prevent memory leaks but would
                have negative impact on memory usage and code size.
 
-  Title:       KERNEL MODE PAGE ALLOCATOR
-  Description: The KERNEL mode build for platforms with an MMU really needs
-               a page-oriented allocator and support for sbrk() and brk()
-  Status:      Open
-  Priority:    Low
-
 o Signals (sched/, arch/)
   ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -238,7 +246,7 @@ o Signals (sched/, arch/)
   Description: 'Standard' signals and signal actions are not supported.
                (e.g., SIGINT, SIGSEGV, etc).
 
-               Update:  SIG_CHLD is supported if so configured.
+               Update:  SIGCHLD is supported if so configured.
   Status:      Open.  No changes are planned.
   Priority:    Low, required by standards but not so critical for an
                embedded system.
@@ -317,7 +325,7 @@ o pthreads (sched/)
                would have to know the priority of every semaphore held by
                every thread.
 
-               "Providing the HLS capability on a simple phread mutex would not
+               "Providing the HLS capability on a simple pthread mutex would not
                be such quite such a complex job if you allow only one mutex per
                thread. However, the more general case seems almost as complex
                as priority inheritance. I decided that the implementation does
@@ -396,7 +404,7 @@ o Kernel/Protected Build
   Description: There are a few syscalls that operate very often in user space.
                Since syscalls are (relatively) time consuming this could be
                a performance issue.  Here is some numbers that I collected
-               in an application that was doing mostly printf outout:
+               in an application that was doing mostly printf output:
 
                  sem_post - 18% of syscalls
                  sem_wait - 18% of syscalls
@@ -496,7 +504,7 @@ o C++ Support
                this will provide the model for all solutions.  Basically, if
                CONFIG_HAVE_CXXINITIALIZE=y is defined in the configuration, then
                board-specific code must provide the interface up_cxxinitialize().
-               up_cxxinitialize() is called from aplication logic to initialize
+               up_cxxinitialize() is called from application logic to initialize
                all static class instances.  This TODO item probably has to stay
                open because this solution is only available on STM32 F4.
   Status:      Open
@@ -586,8 +594,8 @@ o C++ Support
                uClibc++ and NuttX would need some extensions. I am thinking
                along the lines of the following:
 
-               1) There is a per-task group storage are withing the RTOS (see
-                  include/nuttx/sched.h). If we add some new, nonstandard APIs
+               1) There is a per-task group storage are within the RTOS (see
+                  include/nuttx/sched.h). If we add some new, non-standard APIs
                   then uClibc++ could get access to per-task group storage (in
                   the spirit of pthread_getspecific() which gives you access to
                   per-thread storage).
@@ -632,7 +640,7 @@ o Binary loaders (binfmt/)
   Status:      Open
   Priority:    Medium-High
 
-  Title:       READ-ONLY DATA IN RAM
+  Title:       NXFLAT READ-ONLY DATA IN RAM
   Description: At present, all .rodata must be put into RAM.  There is a
                tentative design change that might allow .rodata to be placed
                in FLASH (see Documentation/NuttXNxFlat.html).
@@ -721,38 +729,6 @@ o Binary loaders (binfmt/)
 
 o Network (net/, drivers/net)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-  Title:       MULTIPLE NETWORK INTERFACE SUPPORT
-  Description: uIP polling issues / Multiple network interface support:
-
-               (1) Current logic will not support multiple Ethernet drivers.
-                  Each driver should poll on TCP connections connect on the
-                  network supported by the driver; UDP polling should respond
-                  with TX data only if the UDP packet is intended for the
-                  the network supported by the driver.
-
-               (2) If there were multiple drivers, polling would occur at
-                  double the rate.  Fix by using bound IP address in TCP
-                  connection (lipaddr) and verifying that it is in the subnet
-                  served by the driver.
-
-               Another issue:  When sending packets to another subnet, the
-               current logic falls back and uses ETH0 if it cannot find the
-               device for the subnet.  That lookup would need to be smarter...
-               perhaps it needs a routing table.
-
-  Status:      Open.  Nothing will probably be done until I have a platform
-               with two network interfaces that I need to support.
-  Priority:    Medium, The feature is not important, but it is important
-               for NuttX to resolve the architectural issues.
-
-  Title:       SENDTO() AND MULTIPLE NETWORK INTERFACE SUPPORT
-  Description: sendto() and multiple network interface support:
-               When polled, would have to assure that the destination IP
-               is on the subnet served by the polling driver.
-  Status:      Open.  This is really part of the above issue.
-  Priority:    Medium, The feature is not important, but it is important
-               for NuttX to resolve the architectural issues.
 
   Title:       IPv6
   Description: IPv6 support is incomplete.  Adam Dunkels has recently announced
@@ -852,6 +828,33 @@ o Network (net/, drivers/net)
   Status:      Open
   Priority:    Medium.  Important on slow applications that will not accept
                connections promptly.
+
+  Title:       INTERRUPT LEVEL PROCESSING IN ETHERNET DRIVERS
+  Description: Too many Ethernet drivers do interrupt-level processing with
+               the network stack.  The network stack supports either interrupt
+               level processing or normal task level processing (depending on
+               CONFIG_NET_NOINTS).  This is really a very bad use of CPU
+               resources;  All of the network stack processing should be more
+               to a work queue (and, all use of CONFIG_NET_NOINTS=n should
+               be eliminated).
+  Status:      Open
+  Priority:    Pretty high if you want a well behaved system.
+
+  Title:       UDP MULTICAST RECEPTION
+  Description: The logic in udp_input() expects either a single receive socket or
+               none at all.  However, multiple sockets should be capable of
+               receiving a UDP datagram (multicast reception).  This could be
+               handled easily by something like:
+
+                for (conn = NULL; conn = udp_active (pbuf, conn); )
+
+               If the callback logic that receives a packet responds with an
+               outgoing packet, then it will over-write the received buffer,
+               however.  recvfrom() will not do that, however.  We would have
+               to make that the rule: Recipients of a UDP packet must treat
+               the packet as read-only.
+  Status:      Open
+  Priority:    Low, unless your logic depends on that behavior.
 
 o USB (drivers/usbdev, drivers/usbhost)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1038,7 +1041,7 @@ o Libraries (libc/)
                 time error, and some, such as sdcc, do. AFAIK, C implementations
                 are not even required to support infinity. In C99 the macro isinf()
                 could replace the first use of division by zero. Unfortunately, the
-                macro INFINITY from math.h probably can't replce the second division
+                macro INFINITY from math.h probably can't replace the second division
                 by zero, since it will result in a compile-time diagnostic, if the
                 implementation does not support infinity."
   Status:       Open
@@ -1112,7 +1115,7 @@ o File system / Generic drivers (fs/, drivers/)
 
   Title:       POLLHUP SUPPORT
   Description: All drivers that support the poll method should also report
-               POLLHUP event when the driver is closedd.
+               POLLHUP event when the driver is closed.
   Status:      Open
   Priority:    Medium-Low
 
@@ -1122,14 +1125,6 @@ o File system / Generic drivers (fs/, drivers/)
                may be an assertion that is occurring before we have a console.
   Status:      Open
   Priority:    Medium
-
-  Title :      USE VFS TO MANAGE NAMED MESSAGE QUEUES AND NAMED SEMAPHORES
-  Description: Currently redundant namespace management logic is use for named
-               message queues and semaphores.  Named semaphore management should
-               be consolidated in the VFS.  Perhaps in /ipc/mqueue and /ipc/sem.
-  Status:      Open
-  Priority:    Low.  Nothing is broken.  This is an enhancement that would
-               improve the OS design and possibly reduce some FLASH usage
 
   Title:       UNIFIED DESCRIPTOR REPRESENTATION
   Descripton:  There are two separate ranges of descriptors for file and
@@ -1142,7 +1137,7 @@ o File system / Generic drivers (fs/, drivers/)
                On an array of file structures and the other an array of
                socket structures.  There really should be one array that
                is a union of file and socket descriptors.  Then socket and
-               file decriptors could lie in the same range.
+               file descriptors could lie in the same range.
   Status:      Open
   Priority:    Low
 
@@ -1177,7 +1172,7 @@ o File system / Generic drivers (fs/, drivers/)
   Status:      Open
   Priority:    Medium
 
-o Graphics subystem (graphics/)
+o Graphics subsystem (graphics/)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
   See also the NxWidgets TODO list file for related issues.
@@ -1239,6 +1234,31 @@ o Graphics subystem (graphics/)
   Status:      Open
   Priority:    Low, the need has not yet arisen.
 
+  Title:       ANTI-ALIASING
+  Description: Needed for proper rendering.  After some analysis, I believe
+               this change would only be required in the the trapezoid
+               rendering logic.  Essentially, it would need to blend the
+               fractional pixels at ends of each run with the underlying
+               pixel.
+
+               Hmmm.. graphics are sometimes erased by just redrawing them
+               with the background color.  Would this approach leave ghost
+               images around where the erase image was?
+  Status:      Open
+  Priority:    Medium-ish.  This would definitely improve graphics rendering
+               and line drawing.
+
+  Title:       LINE JOINS
+  Description: Lines are currently draw as rectangles with the width of the
+               rectangle being the line width.  So when shapes, like circles,
+               are drawn with fat lines, they do not join cleanly from
+               segment to segment.
+
+               The fix would be to draw a circle at each endpoint that has a
+               radius equal to the width of the line.
+  Status:      Open
+  Priority:    Medium-ish.  This would definitely improve line drawing.
+
 o Pascal Add-On (pcode/)
   ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1253,6 +1273,12 @@ o Pascal Add-On (pcode/)
   Status:      Open
   Priority:    Medium
 
+  Title:       PDBG
+  Description: Move the the pascal p-code debugger into the NuttX apps/ tree
+               where it can be used from the NSH command line.
+  Status:      Open
+  Priority:    Low
+
 o Documentation (Documentation/)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1265,27 +1291,6 @@ o Documentation (Documentation/)
 o Build system
   ^^^^^^^^^^^^
 
-  Title:       NUTTX CONFIGURATION TOOL
-  Description: Need a NuttX configuration tool.  The number of configuration
-               settings has become quite large and difficult to manage manually.
-               Update:  This task is essentially completed.  But probably not for
-               all platforms and all features.  When do we know that the feature
-               is complete and that we can switch to exclusive use of the tool?
-  Status:      Open
-  Priority:    Medium-low
-
-  Title:       NATIVE WINDOWS BUILD
-  Description: This effort is underway using MinGW-GCC and GNUWin32 tools
-               for (coreutils+make+grep+sed+uname).  Current status:
-
-               1. configs/stm32f4discovery/winbuild - builds okay natively
-               2. configs/ez80f910200kitg - Can be reconfigured to build natively.
-                  Requires some manual intervention to get a clean build.
-                  See configs/ez80f910200kitg/README.txt.
-
-  Status:      Open
-  Priority:    Low
-
   Title:       WINDOWS DEPENDENCY GENERATION
   Description: Dependency generation is currently disabled when a Windows native
                toolchain is used in a POSIX-like environment (like Cygwin).  The
@@ -1295,29 +1300,6 @@ o Build system
                dependencies needed to be quoted in the Make.dep files.
   Status:      Open
   Priority:    Low -- unless some dependency-related build issues is discovered.
-
-  Title:       SETENV.H
-  Description: Logic in most setenv.sh files can create the following problem
-               on many platforms:
-
-                 $ . ./setenv.sh
-                 basename: invalid option -- 'b'
-                 Try `basename --help' for more information.
-
-               The problem is that $0 is the current running shell which may include
-               a dash in front:
-
-                 $ echo $0
-                 -bash
-
-               But often is just /bin/bash (and the problem does not occur.  The fix
-               is:
-
-                 -if [ "$(basename $0)" = "setenv.sh" ]; then
-                 +if [ "$_" = "$0" ] ; then
-  Status:      Open
-  Priority:    Low.  Use of setenv.sh is optional and most platforms do not have
-               this problem.  Scripts will be fixed one-at-a-time as is appropriate.
 
   Title:       MAKE EXPORT LIMITATIONS
   Description: The top-level Makefile 'export' target that will bundle up all of the
@@ -1335,15 +1317,6 @@ o Build system
 o Linux/Cywgin simulation (arch/sim)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-  Title:       SIMULATED SERIAL DRIVER
-  Description: The simulated serial driver has some odd behavior.  It
-               will stall for a long time on reads when the C stdio buffers are
-               being refilled. This only effects the behavior of things like
-               fgetc().  Workaround: Set CONFIG_STDIO_BUFFER_SIZE=0, suppressing
-               all C buffered I/O.
-  Status:      Open
-  Priority:    Low (because the simulator is only a test/development platform)
-
   Title:       SIMULATOR NETWORKING SUPPORT
   Description: I never did get networking to work on the sim Linux target.  On Linux,
                it tries to use the tap device (/dev/net/tun) to emulate an Ethernet
@@ -1352,6 +1325,20 @@ o Linux/Cywgin simulation (arch/sim)
                least, partially functional (it has never been rigorously tested).
   Status:      Open
   Priority:    Low (unless you want to test networking features on the simulation).
+
+  Title:       SIMULATOR HAS NO INTERRUPTS (NON-PREMPTIBLE)
+  Description: The current simulator implementation is has no interrupts and, hence,
+               is non-preemptible.  Also, without simulated interrupt, there can
+               be no high-fidelity simulated device drivers.
+
+               Currently, all timing and serial input is simulated in the IDLE loop:
+               When nothing is going on in the simulation, the IDLE loop runs and
+               fakes timer and UART events.
+  Status:      Open
+  Priority:    Low, unless there is a need for developing a higher fidelity simulation
+               I have been thinking about how to implement simulated interrupts in
+               the simulation.  I think a solution would work like this:
+               http://www.nuttx.org/doku.php?id=wiki:nxinternal:simulator
 
   Title:       ROUND-ROBIN SCHEDULING IN THE SIMULATOR
   Description: Since the simulation is not pre-emptible, you can't use round-robin
@@ -1363,27 +1350,6 @@ o Linux/Cywgin simulation (arch/sim)
                irqrestore() to block and (conditionally) unblock the signal.
   Status:      Open
   Priority:    Low
-
-  Title:       NSH ISSUES ON THE SIMULATOR
-  Descripion:  The NSH example has some odd behaviors.  Mult-tasking -- for example,
-               execution of commands in background -- does not work normally.  This
-               is due to the fact that NSH uses the system standard input for the
-               console.  This means that the simulation is actually "frozen" all of
-               the time when NSH is waiting for input and background commands never
-               get the chance to run.
-  Status:      Open
-  Priority:    This will not be fixed.  This is the normal behavior in the current
-               design of the simulator.  "Real" platforms will behave correctly
-               because NSH will "sleep" when it waits for console inpu and other
-               tasks can run freely.
-
-  Title:       DOUBLE COMMAND ECHO
-  Description: In the NSH example, the host HOST echoes each command so after you
-               you enter a command, the command is repeated on the next line.  This
-               is an artifact of the simulator only.
-  Status:      Open
-  Priority:    This will not be fixed.  This is the normal behavior in the current
-               design of the simulator.  "Real" platforms will behave correctly.
 
 o ARM (arch/arm/)
   ^^^^^^^^^^^^^^^
@@ -1435,7 +1401,7 @@ o ARM (arch/arm/)
                interrupt, the stack pointer may increment and possibly overflow.
 
                This can happen only under conditions of continuous interrupts.
-               See this email thread: http://tech.groups.yahoo.com/group/nuttx/message/1261
+               See this email thread: https://groups.yahoo.com/neo/groups/nuttx/conversations/messages/1261
                On suggested change is:
 
                  ldr  r1, [r0, #(4*REG_CPSR)] /* Fetch the stored CPSR value */
@@ -1475,6 +1441,27 @@ o ARM (arch/arm/)
   Status:      Open
   Priority:    Low for me because I never do floating point operations in
                interrupt handlers.
+
+  Title:       IMPROVED TASK START-UP AND SYSCALL RETURN
+  Description: Couldn't up_start_task and up_start_pthread syscalls be
+               eliminated.  Wouldn't this work to get us from kernel-
+               to user-mode with a system trap:
+
+                 lda r13, #address
+                 str rn, [r13]
+                 msr spsr_SVC, rm
+                 ld r13,{r15}^
+
+               Would also need to set r13_USER and r14_USER. For new SYS_context_switch... couldn't we do he same thing?
+
+               Also... System calls use traps to get from user- to kernel-
+               mode to perform OS services.  That is necessary to get from
+               user- to kernel-mode.  But then another trap is used to get
+               from kernel- back to user-mode.  It seems like this second
+               trap should be unnecessary.  We should be able to do the
+               same kind of logic to do this.
+  Status:      Open
+  Priority:    Low-ish, but a good opportunity for performance improvement.
 
 o ARM/C5471 (arch/arm/src/c5471/)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1649,6 +1636,8 @@ o ARM/LPC31xx (arch/arm/src/lpc31xx/)
 o ARM/LPC43x (arch/arm/src/lpc43xx/)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+  See comments in configs/lpc4330-xplorer/README.txt
+
 o ARM/STR71x (arch/arm/src/str71x/)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -1659,24 +1648,13 @@ o ARM/STR71x (arch/arm/src/str71x/)
   Status:      Open
   Priority:    Medium
 
-  Title:       NO USB DRIVER
-  Description: Develop a USB driver and integrate with existing USB serial and storage
-               class drivers.
-  Status:      Open
-  Priority:    Medium
-
   Title:       SPI METHODS ARE NOT THREAD SAFE
   Description: SPI methods are not thread safe.  Needs a semaphore to protect from re-entrancy.
   Status:      Open
   Priority:    Medium -- Will be very high if you do SPI access from multiple threads.
 
-o ARM/LM3S6918 (arch/arm/src/lm/)
+o ARM/LM3S6918 (arch/arm/src/tiva/)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-  Title:       I2C DRIVER
-  Description: Still need to implement I2C
-  Status:      Open
-  Priority:    Low
 
   Title:       SSI OVERRUNS
   Description: Should terminate SSI/SPI transfer if an Rx FIFO overrun occurs.
@@ -1692,7 +1670,7 @@ o ARM/LM3S6918 (arch/arm/src/lm/)
   Status:      Open.
                UPDATE: I have found that increasing the size of the CGI program stack
                from 1024 to 2048 (on the LM3S) eliminates the problem.  So the most
-               likely cause is probably a stack overflow, not a hard sofware bug.
+               likely cause is probably a stack overflow, not a hard software bug.
   Priority:    Probably Low
 
 o ARM/SAMA5D3 ((arch/arm/src/sama5/)
@@ -1785,7 +1763,7 @@ o AVR (arch/avr)
                 into the more abundant FLASH memory, but this would require modification
                 to the printf logic to access the strings from program memory.
   Status:       Open
-  Priority:     Low.  The AVR is probably not the architecuture that you want to use
+  Priority:     Low.  The AVR is probably not the architecture that you want to use
                 for extensive string operations.
 
   Title:        SPI AND USB DRIVERS UNTESTED
@@ -1853,7 +1831,7 @@ o MIPS/PIC32(arch/mips)
 
   Title:       PIC32 USB MASS STORAGE DEVICE FAILS TO RE-CONNECT
   Description: Found using configuration configs/pic32mx7mmb/nsh.
-               In this configuratin, the NSH 'msconn' command will connect the
+               In this configuration, the NSH 'msconn' command will connect the
                mass storage device to the host; the 'msdis' command will
                disconnect the device.  The first 'msconn' works perfectly.
                However, when attempting to re-connect, the second 'msconn'
@@ -1942,7 +1920,7 @@ o Renesas M16C/26 (arch/sh/src/m16c)
   Priority:    Low
 
   Title:       UNIMPLEMENTED M16C DRIVERS
-  Description: Should implement SPI, I2C, Virual EEPROM, FLASH, RTC drivers
+  Description: Should implement SPI, I2C, Virtual EEPROM, FLASH, RTC drivers
   Status:      Open
   Priority:    Medium
 
@@ -1953,7 +1931,7 @@ o z80/z8/ez80/z180 (arch/z80)
   Description: The SDCC version the same problems with integer overflow during
                compilation for certain 8-bit platform.  At typical cause is code like
                usleep(500*1000) which exceeds the range of a 16-bit integer.
-  Status:      These have probably been fixed but have not yet been verified on thes
+  Status:      These have probably been fixed but have not yet been verified on these
                affected platforms.
   Priority:    Low for now
 
@@ -2014,7 +1992,7 @@ o z80/z8/ez80/z180 (arch/z80)
                rule removes .asm files.  This works because there are no .asm
                files except in sub-directories that are provided from 'make clean' --
                except for XTRS:  It has a .asm file in its src/ directory that
-               gets removed every time clean is performd.
+               gets removed every time clean is performed.
   Status:      Open
   Priority:    High if you happen to be working with XTRS.
 
@@ -2179,6 +2157,7 @@ o mc68hc1x (arch/hc)
   Priority:    Medium/Low
 
 o Network Utilities (apps/netutils/)
+  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
   Title:       PPP PORT
   Description: Port PPP support from http://contiki.cvs.sourceforge.net/contiki/contiki-2.x/backyard/core/net/ppp/
@@ -2194,7 +2173,7 @@ o Network Utilities (apps/netutils/)
 
   Title:       THE ARP ISSUES AGAIN
   Description: The first GET received by THTTPD is not responded to.  Refreshing the page
-               from the browser solves the problem and THTTPD works fine after thatg.  I
+               from the browser solves the problem and THTTPD works fine after that.  I
                believe that this is the duplicate of another bug: "Outgoing
                [uIP] packets are dropped and overwritten by ARP packets if the
                destination IP has not been mapped to a MAC."
@@ -2210,17 +2189,28 @@ o Network Utilities (apps/netutils/)
   Status:      Open.  An annoyance, but not a real problem.
   Priority:    Low
 
+  Title:       DHCPD ACCESSES KERNEL PRIVATE INTERFACE
+  Description: arp_update() is referenced outside of nuttx/net.  It is used in
+               in the netutils/ DHCPD logic to set entries in the ARP table.
+               That is violation of the separation of kernel and OS
+               functionality.  As a consequence, dhcpd will not work with the
+               NuttX kernel built.
+
+               This direct OS call needs to be replaced with a network ioctl()
+               call.
+  Status:      Open
+  Priority:    Medium.  Important for full functionality with kernel build.
+
+  Title:       NETWORK MONITOR NOT GENERALLY AVAILABLE
+  Description: The NSH network management logic has generally applicability
+               but is currently useful only because it is embedded in the NSH
+               module.  It should be moved to apps/system or, better,
+               apps/netutils.
+  Status:      Open
+  Priority:    Low
+
 o NuttShell (NSH) (apps/nshlib)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-  Title:       WGET UNTESTED
-  Description: The wget command has been incorporated into NSH, however
-               it is still untested as of this writing (only because I
-               have not had the correct network setup for the testing
-               yet).  Since wget depends on the also untest uIP resolv/
-               logic, it is like non-functional.
-  Status:      Open
-  Priority:    Med-High
 
   Title:       IFCONFIG AND MULTIPLE NETWORK INTERFACES
   Descripton:  The ifconfig command will not behave correctly if an interface
@@ -2242,7 +2232,7 @@ o System libraries apps/system (apps/system)
   Title:       READLINE IMPLEMENTATION
   Description: readline implementation does not use C-buffered I/O, but rather
                talks to serial driver directly via read().  It includes VT-100
-               specific editting commands.  A more generic readline() should be
+               specific editing commands.  A more generic readline() should be
                implemented using termios' tcsetattr() to put the serial driver
                into a "raw" mode.
   Status:      Open
@@ -2259,12 +2249,6 @@ o Other Applications & Tests (apps/examples/)
   Status:      Open
   Priority:    Low
 
-  Title:       EXAMPLES/WGET UNTESTED
-  Description: examples/wget is untested on the target (it has been tested
-               on the host, but not in the target using the uIP resolv logic).
-  Status:      Open
-  Priority:    Med
-
   Title:       EXAMPLES/SENDMAIL UNTESTED
   Description: examples/sendmail is untested on the target (it has been tested
                on the host, but not on the target).
@@ -2279,7 +2263,7 @@ o Other Applications & Tests (apps/examples/)
                leveraged for more general purposes, it would be a problem.
                Update: see examples/nxtext for some improved font cache handling.
   Status:      Open
-  Priority:    Low.  This is not really a problem becauses examples/nx works
+  Priority:    Low.  This is not really a problem because examples/nx works
                fine with its bogus font caching.
 
   Title:       EXAMPLES/NXTEXT ARTIFACTS

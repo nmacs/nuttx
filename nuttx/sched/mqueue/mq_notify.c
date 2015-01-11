@@ -44,11 +44,13 @@
 #include <sched.h>
 #include <errno.h>
 
+#include <nuttx/sched.h>
+
 #include "sched/sched.h"
 #include "mqueue/mqueue.h"
 
 /************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ************************************************************************/
 
 /************************************************************************
@@ -56,7 +58,7 @@
  ************************************************************************/
 
 /************************************************************************
- * Global Variables
+ * Public Variables
  ************************************************************************/
 
 /************************************************************************
@@ -127,7 +129,7 @@
 int mq_notify(mqd_t mqdes, const struct sigevent *notification)
 {
   struct tcb_s *rtcb;
-  msgq_t *msgq;
+  struct mqueue_inode_s *msgq;
   int errval;
 
   /* Was a valid message queue descriptor provided? */

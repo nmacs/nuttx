@@ -53,12 +53,19 @@ ifeq ($(CONFIG_ARCH_FPU),y)
 CSRCS += fpu.c
 endif
 
+ifeq ($(CONFIG_EXAMPLES_OSTEST_AIO),y)
+CSRCS += aio.c
+endif
+
 ifeq ($(CONFIG_SCHED_WAITPID),y)
 CSRCS += waitpid.c
 endif
 
 ifneq ($(CONFIG_DISABLE_PTHREAD),y)
 CSRCS += cancel.c cond.c mutex.c sem.c semtimed.c barrier.c
+ifeq ($(CONFIG_FS_NAMED_SEMAPHORES),y)
+CSRCS += nsem.c
+endif
 ifneq ($(CONFIG_RR_INTERVAL),0)
 CSRCS += roundrobin.c
 endif # CONFIG_RR_INTERVAL

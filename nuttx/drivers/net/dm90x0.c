@@ -891,8 +891,6 @@ static void dm9x_receive(struct dm9x_driver_s *dm9x)
 {
   union rx_desc_u rx;
   bool bchecksumready;
-  uint8_t mdrah;
-  uint8_t mdral;
   uint8_t rxbyte;
 
   nvdbg("Packet received\n");
@@ -901,8 +899,8 @@ static void dm9x_receive(struct dm9x_driver_s *dm9x)
     {
       /* Store the value of memory data read address register */
 
-      mdrah = getreg(DM9X_MDRAH);
-      mdral = getreg(DM9X_MDRAL);
+      (void)getreg(DM9X_MDRAH);
+      (void)getreg(DM9X_MDRAL);
 
       getreg(DM9X_MRCMDX);         /* Dummy read */
       rxbyte = (uint8_t)DM9X_DATA; /* Get the most up-to-date data */
@@ -963,7 +961,7 @@ static void dm9x_receive(struct dm9x_driver_s *dm9x)
 
       /* Also check if the packet is a valid size for the uIP configuration */
 
-      else if (rx.desc.rx_len < NET_LL_HDRLEN || rx.desc.rx_len > (CONFIG_NET_BUFSIZE + 2))
+      else if (rx.desc.rx_len < ETH_HDRLEN || rx.desc.rx_len > (CONFIG_NET_ETH_MTU + 2))
         {
 #if defined(CONFIG_DM9X_STATS)
           dm9x->dm_nrxlengtherrors++;
@@ -1803,7 +1801,7 @@ int dm9x_initialize(void)
 
   /* Register the device with the OS so that socket IOCTLs can be performed */
 
-  (void)netdev_register(&g_dm9x[0].dm_dev);
+  (void)netdev_register(&g_dm9x[0].dm_dev, NET_LL_ETHERNET);
   return OK;
 }
 

@@ -2,7 +2,8 @@
  * arch/arm/src/lpc43xx/lpc43_rit.h
  *
  *   Copyright (C) 2012 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ *   Author: Brandon Warhurst <warhurst_002@yahoo.com>
+ *   Original Author: Gregory Nutt
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,6 +42,7 @@
  ************************************************************************************/
 
 #include <nuttx/config.h>
+#include "chip/lpc4310203050_memorymap.h"
 
 /************************************************************************************
  * Pre-processor Definitions

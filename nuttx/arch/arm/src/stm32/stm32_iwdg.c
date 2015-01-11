@@ -67,7 +67,7 @@
  *
  *   1000 * IWDG_RLR_MAX / Fmin
  *
- * For example, if Flsi = 30Khz (the nominal, uncalibrathed value), then the
+ * For example, if Flsi = 30Khz (the nominal, uncalibrated value), then the
  * maximum delay is:
  *
  *   Fmin = 117.1875
@@ -205,7 +205,7 @@ static uint16_t stm32_getreg(uint32_t addr)
 
   uint16_t val = getreg16(addr);
 
-  /* Is this the same value that we read from the same registe last time?  Are
+  /* Is this the same value that we read from the same register last time?  Are
    * we polling the register?  If so, suppress some of the output.
    */
 
@@ -279,7 +279,7 @@ static void stm32_putreg(uint16_t val, uint32_t addr)
  * Input Parameters:
  *   priv   - A pointer the internal representation of the "lower-half"
  *             driver state structure.
- *   timeout - The new timeout value in millisecnds.
+ *   timeout - The new timeout value in milliseconds.
  *
  * Returned Values:
  *   Zero on success; a negated errno value on failure.
@@ -401,7 +401,7 @@ static int stm32_stop(FAR struct watchdog_lowerhalf_s *lower)
  * Description:
  *   Reset the watchdog timer to the current timeout value, prevent any
  *   imminent watchdog timeouts.  This is sometimes referred as "pinging"
- *   the atchdog timer or "petting the dog".
+ *   the watchdog timer or "petting the dog".
  *
  * Input Parameters:
  *   lower - A pointer the publicly visible representation of the "lower-half"
@@ -436,9 +436,9 @@ static int stm32_keepalive(FAR struct watchdog_lowerhalf_s *lower)
  *   Get the current watchdog timer status
  *
  * Input Parameters:
- *   lower   - A pointer the publicly visible representation of the "lower-half"
- *             driver state structure.
- *   stawtus - The location to return the watchdog status information.
+ *   lower  - A pointer the publicly visible representation of the "lower-half"
+ *            driver state structure.
+ *   status - The location to return the watchdog status information.
  *
  * Returned Values:
  *   Zero on success; a negated errno value on failure.
@@ -497,7 +497,7 @@ static int stm32_getstatus(FAR struct watchdog_lowerhalf_s *lower,
  * Input Parameters:
  *   lower   - A pointer the publicly visible representation of the "lower-half"
  *             driver state structure.
- *   timeout - The new timeout value in millisecnds.
+ *   timeout - The new timeout value in milliseconds.
  *
  * Returned Values:
  *   Zero on success; a negated errno value on failure.
@@ -577,7 +577,7 @@ static int stm32_settimeout(FAR struct watchdog_lowerhalf_s *lower,
 
       if (reload <= IWDG_RLR_MAX || prescaler == 6)
         {
-          /* Note that we explicity break out of the loop rather than using
+          /* Note that we explicitly break out of the loop rather than using
            * the 'for' loop termination logic because we do not want the
            * value of prescaler to be incremented.
            */
@@ -671,7 +671,7 @@ void stm32_iwdginitialize(FAR const char *devpath, uint32_t lsifreq)
   priv->lsifreq = lsifreq;
   priv->started = false;
 
-  /* Make sure that the LSI ocsillator is enabled.  NOTE:  The LSI oscillator
+  /* Make sure that the LSI oscillator is enabled.  NOTE:  The LSI oscillator
    * is enabled here but is not disabled by this file (because this file does
    * not know the global usage of the oscillator.  Any clock management
    * logic (say, as part of a power management scheme) needs handle other
@@ -701,9 +701,16 @@ void stm32_iwdginitialize(FAR const char *devpath, uint32_t lsifreq)
     defined(CONFIG_STM32_JTAG_NOJNTRST_ENABLE) || \
     defined(CONFIG_STM32_JTAG_SW_ENABLE)
     {
+#if defined(CONFIG_STM32_STM32F20XX) || defined(CONFIG_STM32_STM32F30XX) || \
+    defined(CONFIG_STM32_STM32F40XX)
+      uint32_t cr = getreg32(STM32_DBGMCU_APB1_FZ);
+      cr |= DBGMCU_APB1_IWDGSTOP;
+      putreg32(cr, STM32_DBGMCU_APB1_FZ);
+#else /* if defined(CONFIG_STM32_STM32F10XX) */
       uint32_t cr = getreg32(STM32_DBGMCU_CR);
       cr |= DBGMCU_CR_IWDGSTOP;
       putreg32(cr, STM32_DBGMCU_CR);
+#endif
     }
 #endif
 }

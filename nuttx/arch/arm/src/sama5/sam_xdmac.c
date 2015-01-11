@@ -136,7 +136,7 @@ struct sam_xdmach_s
   struct chnext_view1_s *lltail;  /* DMA link list head */
 };
 
-/* This structure describes the stae of one DMA controller */
+/* This structure describes the state of one DMA controller */
 
 struct sam_xdmac_s
 {
@@ -1721,7 +1721,7 @@ static inline int sam_multiple(struct sam_xdmach_s *xdmach)
     {
       regval |= XDMACH_CNDC_NDSUP;
     }
-    
+
   /* Update the destination address if this is a *-to-memory transfer.
    *
    *   TYPE = 0 -> memory-to-memory
@@ -1887,7 +1887,7 @@ static int sam_xdmac_interrupt(struct sam_xdmac_s *xdmac)
           gpending &= !bit;
         }
     }
- 
+
   return OK;
 }
 

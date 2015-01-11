@@ -56,15 +56,24 @@ SYSCALL_LOOKUP(sched_setparam,            2, STUB_sched_setparam)
 SYSCALL_LOOKUP(sched_setscheduler,        3, STUB_sched_setscheduler)
 SYSCALL_LOOKUP(sched_unlock,              0, STUB_sched_unlock)
 SYSCALL_LOOKUP(sched_yield,               0, STUB_sched_yield)
-SYSCALL_LOOKUP(sem_close,                 1, STUB_sem_close)
+SYSCALL_LOOKUP(set_errno,                 1, STUB_set_errno)
+
+/* Semaphores */
+
 SYSCALL_LOOKUP(sem_destroy,               2, STUB_sem_destroy)
-SYSCALL_LOOKUP(sem_open,                  6, STUB_sem_open)
 SYSCALL_LOOKUP(sem_post,                  1, STUB_sem_post)
 SYSCALL_LOOKUP(sem_timedwait,             2, STUB_sem_timedwait)
 SYSCALL_LOOKUP(sem_trywait,               1, STUB_sem_trywait)
-SYSCALL_LOOKUP(sem_unlink,                1, STUB_sem_unlink)
 SYSCALL_LOOKUP(sem_wait,                  1, STUB_sem_wait)
-SYSCALL_LOOKUP(set_errno,                 1, STUB_set_errno)
+
+/* Named semaphores */
+
+#ifdef CONFIG_FS_NAMED_SEMAPHORES
+SYSCALL_LOOKUP(sem_open,                  6, STUB_sem_open)
+SYSCALL_LOOKUP(sem_close,                 1, STUB_sem_close)
+SYSCALL_LOOKUP(sem_unlink,                1, STUB_sem_unlink)
+#endif
+
 #ifndef CONFIG_BUILD_KERNEL
 SYSCALL_LOOKUP(task_create,               5, STUB_task_create)
 #else
@@ -154,6 +163,14 @@ SYSCALL_LOOKUP(up_assert,                 2, STUB_up_assert)
   SYSCALL_LOOKUP(ioctl,                   3, STUB_ioctl)
   SYSCALL_LOOKUP(read,                    3, STUB_read)
   SYSCALL_LOOKUP(write,                   3, STUB_write)
+  SYSCALL_LOOKUP(pread,                   4, STUB_pread)
+  SYSCALL_LOOKUP(pwrite,                  4, STUB_pwrite)
+#  ifdef CONFIG_FS_AIO
+  SYSCALL_LOOKUP(aio_read,                1, SYS_aio_read)
+  SYSCALL_LOOKUP(aio_write,               1, SYS_aio_write)
+  SYSCALL_LOOKUP(aio_fsync,               2, SYS_aio_fsync)
+  SYSCALL_LOOKUP(aio_cancel,              2, SYS_aio_cancel)
+#  endif
 #  ifndef CONFIG_DISABLE_POLL
   SYSCALL_LOOKUP(poll,                    3, STUB_poll)
   SYSCALL_LOOKUP(select,                  5, STUB_select)

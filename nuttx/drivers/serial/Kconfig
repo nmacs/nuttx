@@ -434,6 +434,11 @@ config ARCH_HAVE_USART8
 	bool
 	default n
 
+config ARCH_HAVE_OTHER_UART
+	bool
+	default n
+	select MCU_SERIAL
+
 #
 # USARTn configuration.  Is the USART configured to behave like a UART?
 #
@@ -529,14 +534,28 @@ config SERIAL_TIOCSERGSTRUCT
 		supports the TIOCSERGSTRUCT ioctl, and (2) this option is selected, then
 		support for the TIOCSERGSTRUCT will be enabled.
 
+config ARCH_HAVE_SERIAL_TERMIOS
+	bool
+	default n
+
+config SERIAL_TERMIOS
+	bool "Serial TERMIOS support"
+	depends on ARCH_HAVE_SERIAL_TERMIOS
+	default n
+	---help---
+		Serial driver supports termios.h interfaces (tcsetattr, tcflush, etc.).
+		If this is not defined, then the terminal settings (baud, parity, etc).
+		are not configurable at runtime; serial streams cannot be flushed, etc..
+
 #
 # Serial console selection
 #
 
 choice
 	prompt "Serial console"
+	default NO_SERIAL_CONSOLE if !ARCH_HAVE_OTHER_UART
+	default OTHER_SERIAL_CONSOLE if ARCH_HAVE_OTHER_UART
 	depends on MCU_SERIAL
-	default NO_SERIAL_CONSOLE
 	depends on DEV_CONSOLE
 
 config UART_SERIAL_CONSOLE
@@ -622,6 +641,9 @@ config SCI0_SERIAL_CONSOLE
 config SCI1_SERIAL_CONSOLE
 	bool "SCI1"
 	depends on ARCH_HAVE_SCI1
+
+config OTHER_SERIAL_CONSOLE
+	bool "Other serial console"
 
 config NO_SERIAL_CONSOLE
 	bool "No serial console"
@@ -1829,4 +1851,3 @@ config SERIAL_IFLOWCONTROL
 config SERIAL_OFLOWCONTROL
 	bool
 	default n
-

@@ -40,13 +40,20 @@
 #include <nuttx/config.h>
 
 #include <stdarg.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <errno.h>
 
 #ifdef CONFIG_LIBC_EXECFUNCS
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+/* This is an artificial limit to detect error conditions where an argv[]
+ * list is not properly terminated.
+ */
+
+#define MAX_EXECL_ARGS 256
 
 /****************************************************************************
  * Global Variables
@@ -119,28 +126,68 @@
 
 int execl(FAR const char *path, ...)
 {
-  FAR char *argv[CONFIG_MAX_TASK_ARGS+1];
+  FAR char **argv = (FAR char **)NULL;
+  size_t nargs;
   va_list ap;
   int argc;
+  int ret;
 
-  /* Collect the arguments into the argv[] array */
+  /* Count the number of arguments */
 
   va_start(ap, path);
-  for (argc = 0; argc < CONFIG_MAX_TASK_ARGS; argc++)
+  for (nargs = 0, argc = 0; argv[argc]; argc++)
     {
-      argv[argc] = va_arg(ap, FAR char *);
-      if (argv[argc] == NULL)
+      /* Increment the number of args.  Here is a sanity check to prevent
+       * running away with an unterminated argv[] list.  MAX_EXECL_ARGS
+       * should be sufficiently large that this never happens in normal
+       * usage.
+       */
+
+      if (++nargs > MAX_EXECL_ARGS)
         {
-          break;
+          set_errno(E2BIG);
+          va_end(ap);
+          return ERROR;
         }
     }
 
-  argv[CONFIG_MAX_TASK_ARGS] = NULL;
   va_end(ap);
+
+  /* Allocate a temporary argv[] array */
+
+  if (nargs > 0)
+    {
+      argv = (FAR char **)malloc((nargs + 1) * sizeof(FAR char *));
+      if (argv == (FAR char **)NULL)
+        {
+          set_errno(ENOMEM);
+          return ERROR;
+        }
+
+      /* Collect the arguments into the argv[] array */
+
+      va_start(ap, path);
+      for (argc = 0; argc < nargs; argc++)
+        {
+          argv[argc] = va_arg(ap, FAR char *);
+        }
+
+      argv[nargs] = NULL;
+      va_end(ap);
+    }
 
   /* Then let execv() do the real work */
 
-  return execv(path, (char * const *)&argv);
+  ret = execv(path, (FAR char * const *)argv);
+
+  /* Free the allocated argv[] list */
+
+  if (argv)
+    {
+      free(argv);
+    }
+
+  return ret;
 }
 
 #endif /* CONFIG_LIBC_EXECFUNCS */

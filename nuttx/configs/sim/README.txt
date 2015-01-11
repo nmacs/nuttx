@@ -12,9 +12,9 @@ Contents
     - 64-bit Issues
     - Compiler differences
     - Stack Size Issues
-    - Buffered I/O Issues
     - Networking Issues
     - X11 Issues
+  o BASIC
   o Configurations
 
 Overview
@@ -87,26 +87,18 @@ Issues
 
 64-Bit Issues
 -------------
-As mentioned above, context switching is based on logic like setjmp and longjmp.
-This context switching is only available for 32-bit targets.  On 64-bit machines,
-this context switching will fail.
+As mentioned above, context switching is based on logic like setjmp() and
+longjmp().  This context switching is available for 32-bit and 64-bit
+targets.  You must, however, set the correct target in the configuration
+before you build: HOST_X86_64 or HOST_X86 for 62- and 32-bit targets,
+respectively.  On a 64-bit machine, you can also force the 32-bit build
+with CONFIG_SIM_M32=y.
 
 There are other 64-bit issues as well.  For example, addresses are retained in
 32-bit unsigned integer types in a few places.  On a 64-bit machine, the 32-bit
 address storage may correcupt 64-bit addressing.  NOTE:  This is really a bug --
 addresses should not be retained in uint32_t types but rather in uintptr_t types
 to avoid issues just like this.
-
-The workaround on 64-bit machines for now is to build for a 32-bit target on the
-64-bit machine.  The workaround for this issue has been included in NuttX 6.15 and
-beyond.  For thoses versions, you must add CONFIG_SIM_M32=y to the .config file in
-order to enable building a 32-bit image on a 64-bit platform.
-
-For older versions of NuttX, a patch also exists.  The patch the Make.defs file in the
-appropriate places so that -m32 is included in the CFLAGS and -m32 and -melf_386
-are included in the LDFLAGS. See the patch
-0001-Quick-hacks-to-build-sim-nsh-ostest-on-x86_64-as-32-.patch that can be found at
-http://tech.groups.yahoo.com/group/nuttx/files.
 
 Compiler differences
 --------------------
@@ -115,12 +107,6 @@ operator new:
 
   Problem:     "'operator new' takes size_t ('...') as first parameter"
   Workaround:   Add -fpermissive to the compilation flags
-
-Continue up_setjmp() issues:
-
-  With some newer compilers, I am now getting segmentation faults in
-  up_setjmp.S (even when built with the -m32 option).  I have not looked into
-  this yet.
 
 Stack Size Issues
 -----------------
@@ -152,13 +138,6 @@ steps for increasing the stack size in that case:
   vi builtin_list.h     # Edit this file and increase the stack size of the add-on
   rm .built *.o         # This will force the builtin apps logic to rebuild
 
-Buffered I/O Issues
--------------------
-The simulated serial driver has some odd behavior.  It will stall for a long time
-on reads when the C stdio buffers are being refilled. This only effects the behavior
-of things like fgetc().  Workaround: Set CONFIG_STDIO_BUFFER_SIZE=0, suppressing
-all C buffered I/O.
-
 Networking Issues
 -----------------
 I never did get networking to work on the sim target.  It tries to use the tap device
@@ -187,6 +166,96 @@ The X11 examples builds on Cygwin, but does not run.  The last time I tried it,
 XOpenDisplay() aborted the program.  UPDATE:  This was caused by the small stack
 size and can be fixed by increasing the size of the NuttX stack that calls into
 X11.  See the discussion "Stack Size Issues" above.
+
+BASIC
+^^^^^
+
+BASIC
+=====
+  I have used the sim/nsh configuration to test Michael Haardt's BASIC interpreter
+  that you can find at apps/interpreters/bas.
+
+    Bas is an interpreter for the classic dialect of the programming language
+    BASIC.  It is pretty compatible to typical BASIC interpreters of the 1980s,
+    unlike some other UNIX BASIC interpreters, that implement a different
+    syntax, breaking compatibility to existing programs.  Bas offers many ANSI
+    BASIC statements for structured programming, such as procedures, local
+    variables and various loop types.  Further there are matrix operations,
+    automatic LIST indentation and many statements and functions found in
+    specific classic dialects.  Line numbers are not required.
+
+  There is also a test suite for the interpreter that can be found at
+  apps/examples/bastest.
+
+  Configuration
+  -------------
+  Below are the recommended configuration changes to use BAS with the
+  stm32f4discovery/nsh configuration:
+
+  Dependencies:
+    CONFIG_LIBC_EXECFUNCS=y      : exec*() functions are required
+    CONFIG_LIBM=y                : Some floating point library is required
+    CONFIG_LIBC_FLOATINGPOINT=y  : Floating point printing support is required
+    CONFIG_LIBC_TMPDIR="/tmp"    : Writable temporary files needed for some commands
+
+  Enable the BASIC interpreter.  Other default options should be okay:
+    CONFIG_INTERPRETERS_BAS=y    : Enables the interpreter
+    CONFIG_INTERPREPTER_BAS_VT100=y
+
+  The BASIC test suite can be included:
+     CONFIG_FS_ROMFS=y           : ROMFS support is needed
+     CONFIG_EXAMPLES_BASTEST=y   : Enables the BASIC test setup
+     CONFIG_EXAMPLES_BASTEST_DEVMINOR=6
+     CONFIG_EXAMPLES_BASTEST_DEVPATH="/dev/ram6"
+
+  Usage
+  -----
+  This setup will initialize the BASIC test (optional):  This will mount
+  a ROMFS file system at /mnt/romfs that contains the BASIC test files:
+
+  nsh> bastest
+  Registering romdisk at /dev/ram6
+  Mounting ROMFS filesystem at target=/mnt/romfs with source=/dev/ram6
+  nsh>
+
+  The interactive interpreter is started like:
+
+  nsh> bas
+  bas 2.4
+  Copyright 1999-2014 Michael Haardt.
+  This is free software with ABSOLUTELY NO WARRANTY.
+  >
+
+  Ctrl-D exits the interpreter.
+
+  The test programs can be ran like this:
+
+  nsh> bastest
+  Registering romdisk at /dev/ram0
+  Mounting ROMFS filesystem at target=/mnt/romfs with source=/dev/ram0
+  nsh> bas /mnt/romfs/test01.bas
+   1
+  hello
+   0.0002
+   0.0000020
+   0.0000002
+
+  nsh>
+
+  Or you can load a test into memory and execute it interactively:
+
+  nsh> bas
+  bas 2.4
+  Copyright 1999-2014 Michael Haardt.
+  This is free software with ABSOLUTELY NO WARRANTY.
+  > load "/mnt/romfs/test01.bas"
+  > run
+   1
+  hello
+   0.0002
+   0.0000020
+   0.0000002
+  >
 
 Configurations
 ^^^^^^^^^^^^^^
@@ -275,13 +344,13 @@ nettest
   NOTES:
 
   1. The NuttX network is not, however, functional on the Linux TAP
-    device yet.
+     device yet.
 
-    UPDATE:  The TAP device does apparently work according to a NuttX
-    user (provided that it is not used with NSH: NSH waits on readline()
-    for console input.  When it calls readline(), the whole system blocks
-    waiting from input from the host OS).  My failure to get the TAP
-    device working appears to have been a cockpit error.
+     UPDATE:  The TAP device does apparently work according to a NuttX
+     user (provided that it is not used with NSH: NSH waits on readline()
+     for console input.  When it calls readline(), the whole system blocks
+     waiting from input from the host OS).  My failure to get the TAP
+     device working appears to have been a cockpit error.
 
   2. As of NuttX-5.18, when built on Windows, this test does not try
      to use the TAP device (which is not available on Cygwin anyway),
@@ -544,6 +613,12 @@ nxwm
           }
 
         /* Clean up */
+
+     UPDATE:  I recently implemented a good UART simulation to driver
+     the serial console.  So I do not believe that problem exists and
+     I think that the above workaround should no longer be necessary.
+     However, I will leave the above text in place until I get then
+     oppotunity to verify that the new UART simulation fixes the problem.
 
 ostest
 

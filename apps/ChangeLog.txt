@@ -1068,5 +1068,76 @@
 	  example to test MTD R/W buffering (2014-9-25).
 	* apps/examples/ostest:  Add a trivial test of sem_timedwait (2014-9-16).
 
-7.6 2014-xx-xx Gregory Nutt <gnutt@nuttx.org>
+7.6 2014-11-26 Gregory Nutt <gnutt@nuttx.org>
 
+	* apps/examples/ostest:  Add a simple test of named semaphores
+	  (2014-9-23).
+	* apps/netutils/webclient/Kconfig and webclient.c: Add implementation of
+	  timeouts for the apps/netutils/webclient.  From Brennan Ashton
+	* apps/nshlib/Kconfig and nsh_romfsetc.c: Add support for a custom NSH
+	  ROMFS startup image header file location.  From Martin Lederhilger
+	  (2014-9-30).
+	* apps/nshlib/nsh_fscmds.c:  Fix ls -l output for regular files (14-9-30).
+	* apps/nshlib/nsh_ddcmd.c: Fix reversed in/out file closing when an
+	  error occurs.  From Ken Pettit (2014-10-2).
+	* apps/examples/ostest/aio.c, Kconfig, Makefile, and ostest_main.c: Add
+	  AIO test case in OS test (2014-10-5).
+	* apps/examples and system:  Remove non-portable uses of syslog
+	  (014-10-8).
+	* apps/: Correct everything under apps to use the corrected syslog
+	  interfaces (2014-10-8).
+	* apps/netutils/netlib/netlib_gethostaddr.c: Fix memcpy of host address
+	  in netlib_gethostaddr().  From Brennan Ashton (2014-10-17).
+	* apps/system/stackmonitor.c and stackmonitor/Makefile: Fix compile
+	  problems introduced when the syslog() prototype changed; Also update
+	  Makefile for kernel build From Radoslaw Adamczyk (2014-10-23).
+	* apps/examples/nxterm/Makefile: Update makefile for kernel-build
+	  issues. From Radoslaw Adamczyk (2014-10-23).
+	* apps/examples/keypadtest/keypadtest_main.c: Fixes to keypadtest from
+	  Pierre-Noel Bouteville (2014-10-23).
+	* apps/nshlib/nsh_parse.c, nsh.h, and Kconfig: Move CONFIG_NSH_TMPDIR
+	  to CONFIG_LIBC_TMPDIR (2014-11-05).
+	* apps/interpreter/bas:  Merged in the Michael Haardt's BAS 2.4 adapted
+	  for use by NuttX by Alan Carvalho de Assis.  The bas24 branch was merged
+	  into the master branch on this date (2014-11-7).
+	* apps/examples/bastest:  This is a special version of Michael
+	  Haardt's BAS 2.4 test files adapted for use by NuttX on a ROMFS file
+	  system (2014-11-7).
+	* apps/interpreter/bas: Add VT100 support for color command (2014-11-10).
+	* nshlib/: Remove use of CONFIG_MAX_TASKS in ps command and in range
+	  checkout (2014-11-13).
+	* netutils/thttpd:  Remove use of CONFIG_MAX_TASKS in in 'task' CGI
+	  example (2014-11-13).
+	* sysm/i2c: Remove use of CONFIG_MAX_TASKS for maximum argument I2C
+	  tool size (2014-11-13).
+	* apps/netutils/dnsclient/dns_socket.c:  Right now if you make a DNS
+	  request before the dns address it set you will get an assertion. The
+	  state of the IP setting is not something the application should be
+	  aware of, it should only be concerned with whether or not the name
+	  was resolved.  From Brennan Ashton (2014-11-13).
+	* apps/nshlib/, apps/netutils, and apps/include/netutils:  Misc
+	  changes to support multiple networks with different link layers.  For
+	  example, ETHERNET + SLIP (2014-11-15).
+	* apps/nshlib/nsh_usbconsole.c:  Add logic to restart the console wait
+	  if an error occurs while reading from the console.In USB console
+	  startup, the logic must be able to open the USB serial and receive 3
+	  newlines.  However, it the USB driver is disconnected or otherwise
+	  fails before the 3 newlines are received, the receive loop becomes a
+	  killer, infinite loop, CPU hog.  Noted by spasbyspas (2014-11-16).
+	* examples/, netutils/, nshlib/, various files:  Rename
+	  CONFIG_NET_BUFSIZE to CONFIG_NET_ETH_MTU; Add CONFIG_NET_SLIP_MTU.
+	  Modify logic to handle different MTUs when both Ethernet and SLIP
+	  are enabled (2014-11-16).
+	* apps/examples/discover, tcpecho, webserver, xmlrpc:  These examples
+	  all set the IP address of eth1 but the netmask and gateway of eth0
+	  if DHCP is enabled.  That can't be right???? (2014-11-17).
+	* apps/examples/bridge:  Add a simple UDP relay bridge for testing
+	  configurations with multiple networks.  Initial checkin is not
+	  very usuable because it lacks a host-side test driver for the
+	  bridge (2014-11-17).
+	* apps/netutils/codecs/md5.c: Fix md5 hashing when digest[$i] lower
+	  that 16. From Sergey (2015-11-20).
+	* apps/examples/bridge/host_main.c, host_net1.c, host_net2.c, Kconfig,
+	  and Makefile:  Add host-side test driver (2014-11-21).
+
+7.7 2015-xx-xx Gregory Nutt <gnutt@nuttx.org>

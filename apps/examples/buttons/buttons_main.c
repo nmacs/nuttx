@@ -305,7 +305,8 @@ static void show_buttons(uint8_t oldset, uint8_t newset)
            * interrupt handler.
            */
 
-          lowsyslog("  %s %s\n", g_buttoninfo[BUTTON_INDEX(i)].name, state);
+          lowsyslog(LOG_INFO, "  %s %s\n",
+                    g_buttoninfo[BUTTON_INDEX(i)].name, state);
         }
     }
 }
@@ -315,8 +316,9 @@ static void button_handler(int id, int irq)
 {
   uint8_t newset = board_buttons();
 
-  lowsyslog("IRQ:%d Button %d:%s SET:%02x:\n",
+  lowsyslog(LOG_INFO, "IRQ:%d Button %d:%s SET:%02x:\n",
             irq, id, g_buttoninfo[BUTTON_INDEX(id)].name, newset);
+
   show_buttons(g_oldset, newset);
   g_oldset = newset;
 }
@@ -402,7 +404,9 @@ int buttons_main(int argc, char *argv[])
 {
   uint8_t newset;
   irqstate_t flags;
+#ifdef CONFIG_ARCH_IRQBUTTONS
   int i;
+#endif
 
   /* If this example is configured as an NX add-on, then limit the number of
    * samples that we collect before returning.  Otherwise, we never return
@@ -416,23 +420,23 @@ int buttons_main(int argc, char *argv[])
       maxbuttons = strtol(argv[1], NULL, 10);
     }
 
-  lowsyslog("maxbuttons: %d\n", maxbuttons);
+  lowsyslog(LOG_INFO, "maxbuttons: %d\n", maxbuttons);
 #endif
 
   /* Initialize the button GPIOs */
 
   board_button_initialize();
 
-  /* Register to recieve button interrupts */
+  /* Register to receive button interrupts */
 
 #ifdef CONFIG_ARCH_IRQBUTTONS
   for (i = CONFIG_EXAMPLES_IRQBUTTONS_MIN; i <= CONFIG_EXAMPLES_IRQBUTTONS_MAX; i++)
     {
       xcpt_t oldhandler = board_button_irq(i, g_buttoninfo[BUTTON_INDEX(i)].handler);
 
-      /* Use lowsyslog() for compatibility with interrrupt handler output. */
+      /* Use lowsyslog() for compatibility with interrupt handler output. */
 
-      lowsyslog("Attached handler at %p to button %d [%s], oldhandler:%p\n",
+      lowsyslog(LOG_INFO, "Attached handler at %p to button %d [%s], oldhandler:%p\n",
                 g_buttoninfo[BUTTON_INDEX(i)].handler, i,
                 g_buttoninfo[BUTTON_INDEX(i)].name, oldhandler);
 
@@ -445,7 +449,7 @@ int buttons_main(int argc, char *argv[])
 
       if (oldhandler != NULL)
         {
-          lowsyslog("WARNING: oldhandler:%p is not NULL!  "
+          lowsyslog(LOG_INFO, "WARNING: oldhandler:%p is not NULL!  "
                     "Button events may be lost or aliased!\n",
                     oldhandler);
         }
@@ -475,11 +479,11 @@ int buttons_main(int argc, char *argv[])
 
           flags = irqsave();
 
-          /* Use lowsyslog() for compatibility with interrrupt handler
+          /* Use lowsyslog() for compatibility with interrupt handler
            * output.
            */
 
-          lowsyslog("POLL SET:%02x:\n", newset);
+          lowsyslog(LOG_INFO, "POLL SET:%02x:\n", newset);
           show_buttons(g_oldset, newset);
           g_oldset = newset;
           irqrestore(flags);
@@ -494,7 +498,7 @@ int buttons_main(int argc, char *argv[])
 
   /* Un-register button handlers */
 
-#if defined(CONFIG_ARCH_IRQBUTTONS) && defined(CONFIG_NSH_BUILTIN_APPS)
+#ifdef CONFIG_ARCH_IRQBUTTONS
   for (i = CONFIG_EXAMPLES_IRQBUTTONS_MIN; i <= CONFIG_EXAMPLES_IRQBUTTONS_MAX; i++)
     {
       (void)board_button_irq(i, NULL);

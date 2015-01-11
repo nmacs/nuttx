@@ -56,6 +56,7 @@
 #include <stdint.h>
 
 #include <nuttx/net/netconfig.h>
+#include <nuttx/net/arp.h>
 #include <nuttx/net/ip.h>
 
 /****************************************************************************
@@ -94,12 +95,6 @@
 #  define TCP_STOPPED     0x10 /* Bit 4: stopped */
                                /* Bit 5-7: Unused, but not available */
 
-/* Flag bits in 16-bit flags+ipoffset IPv4 TCP header field */
-
-#define TCPFLAG_RESERVED  0x8000
-#define TCPFLAG_DONTFRAG  0x4000
-#define TCPFLAG_MOREFRAGS 0x2000
-
 /* TCP header sizes */
 
 #define TCP_HDRLEN        20                       /* Size of TCP header */
@@ -117,11 +112,10 @@
  * This is a long established rule.
  */
 
-#if TCP_MSS > 576
-#  define TCP_INITIAL_MSS 576
-#else
-#  define TCP_INITIAL_MSS TCP_MSS
-#endif
+#define TCP_INITIAL_MSS(d)  (TCP_MSS(d) > 576 ? 576 : TCP_MSS(d))
+
+#define MIN_TCP_INITIAL_MSS (MIN_TCP_MSS > 576 ? 576 : MIN_TCP_MSS)
+#define MAX_TCP_INITIAL_MSS (MAX_TCP_MSS > 576 ? 576 : MAX_TCP_MSS)
 
 /****************************************************************************
  * Public Type Definitions

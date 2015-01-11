@@ -81,22 +81,8 @@
 #include "cgi.h"
 
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
-
-#ifdef CONFIG_CPP_HAVE_VARARGS
-#  ifdef CONFIG_DEBUG
-#    define message(...) lowsyslog(__VA_ARGS__)
-#  else
-#    define message(...) printf(__VA_ARGS__)
-#  endif
-#else
-#  ifdef CONFIG_DEBUG
-#    define message lowsyslog
-#  else
-#    define message (void)
-#  endif
-#endif
 
 /****************************************************************************
  * Private Data
@@ -177,7 +163,7 @@ int webserver_main(int argc, char *argv[])
     {
         struct dhcpc_state ds;
         (void)dhcpc_request(handle, &ds);
-        netlib_sethostaddr("eth1", &ds.ipaddr);
+        netlib_sethostaddr("eth0", &ds.ipaddr);
 
         if (ds.netmask.s_addr != 0)
           {

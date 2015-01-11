@@ -41,9 +41,10 @@
 
 #include <sys/wait.h>
 #include <stdint.h>
+#include <string.h>
 #include <assert.h>
-#include <queue.h>
 #include <errno.h>
+#include <queue.h>
 #include <debug.h>
 
 #include <nuttx/sched.h>
@@ -59,9 +60,137 @@
 
 #if defined(CONFIG_ARCH_HAVE_VFORK) && defined(CONFIG_SCHED_WAITPID)
 
+/* This is an artificial limit to detect error conditions where an argv[]
+ * list is not properly terminated.
+ */
+
+#define MAX_VFORK_ARGS 256
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: vfork_namesetup
+ *
+ * Description:
+ *   Copy the task name.
+ *
+ * Input Parameters:
+ *   tcb        - Address of the new task's TCB
+ *   name       - Name of the new task
+ *
+ * Return Value:
+ *  None
+ *
+ ****************************************************************************/
+
+#if CONFIG_TASK_NAME_SIZE > 0
+static inline void vfork_namesetup(FAR struct tcb_s *parent,
+                                   FAR struct task_tcb_s *child)
+{
+  /* Copy the name from the parent into the child TCB */
+
+  strncpy(child->cmn.name, parent->name, CONFIG_TASK_NAME_SIZE);
+}
+#else
+#  define vfork_namesetup(p,c)
+#endif /* CONFIG_TASK_NAME_SIZE */
+
+/****************************************************************************
+ * Name: vfork_stackargsetup
+ *
+ * Description:
+ *   Clone the task arguments in the same relative positions on the child's
+ *   stack.
+ *
+ * Input Parameters:
+ *   parent - Address of the parent task's TCB
+ *   child  - Address of the child task's TCB
+ *
+ * Return Value:
+ *   Zero (OK) on success; a negated errno on failure.
+ *
+ ****************************************************************************/
+
+static inline int vfork_stackargsetup(FAR struct tcb_s *parent,
+                                      FAR struct task_tcb_s *child)
+{
+  /* Is the parent a task? or a pthread?  Only tasks (and kernel threads)
+   * have command line arguments.
+   */
+
+  child->argv = NULL;
+  if ((parent->flags & TCB_FLAG_TTYPE_MASK) != TCB_FLAG_TTYPE_PTHREAD)
+    {
+      FAR struct task_tcb_s *ptcb = (FAR struct task_tcb_s *)parent;
+      uintptr_t offset;
+      int argc;
+
+      /* Get the address correction */
+
+      offset = child->cmn.xcp.regs[REG_SP] - parent->xcp.regs[REG_SP];
+
+      /* Change the child argv[] to point into its stack (instead of its
+       * parent's stack).
+       */
+
+      child->argv = (FAR char **)((uintptr_t)ptcb->argv + offset);
+
+      /* Copy the adjusted address for each argument */
+
+      argc = 0;
+      while (ptcb->argv[argc])
+        {
+          uintptr_t newaddr = (uintptr_t)ptcb->argv[argc] + offset;
+          child->argv[argc] = (FAR char *)newaddr;
+
+          /* Increment the number of args.  Here is a sanity check to
+           * prevent running away with an unterminated argv[] list.
+           * MAX_VFORK_ARGS should be sufficiently large that this never
+           * happens in normal usage.
+           */
+
+          if (++argc > MAX_VFORK_ARGS)
+            {
+              return -E2BIG;
+            }
+        }
+
+      /* Put a terminator entry at the end of the child argv[] array. */
+
+      child->argv[argc] = NULL;
+    }
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: vfork_argsetup
+ *
+ * Description:
+ *   Clone the argument list from the parent to the child.
+ *
+ * Input Parameters:
+ *   parent - Address of the parent task's TCB
+ *   child  - Address of the child task's TCB
+ *
+ * Return Value:
+ *   Zero (OK) on success; a negated errno on failure.
+ *
+ ****************************************************************************/
+
+static inline int vfork_argsetup(FAR struct tcb_s *parent,
+                                 FAR struct task_tcb_s *child)
+{
+  /* Clone the task name */
+
+  vfork_namesetup(parent, child);
+
+  /* Adjust and copy the argv[] array. */
+
+  return vfork_stackargsetup(parent, child);
+}
 
 /****************************************************************************
  * Public Functions
@@ -78,7 +207,7 @@
  *   called, or calls any other function before successfully calling _exit()
  *   or one of the exec family of functions.
  *
- *   This functin provides one step in the overall vfork() sequence:  It
+ *   This function provides one step in the overall vfork() sequence:  It
  *   Allocates and initializes the child task's TCB.  The overall sequence is:
  *
  *   1) User code calls vfork().  vfork() is provided in architecture-specific
@@ -89,7 +218,7 @@
  *      - Allocation of the child task's TCB.
  *      - Initialization of file descriptors and streams
  *      - Configuration of environment variables
- *      - Setup the intput parameters for the task.
+ *      - Setup the input parameters for the task.
  *      - Initialization of the TCB (including call to up_initial_state()
  *   4) up_vfork() provides any additional operating context. up_vfork must:
  *      - Allocate and initialize the stack
@@ -98,13 +227,13 @@
  *   5) up_vfork() then calls task_vforkstart()
  *   6) task_vforkstart() then executes the child thread.
  *
- * Input Paremeters:
- *   retaddr - The return address from vfork() where the child task
- *     will be started.
+ * Input Parameters:
+ *   parent - Address of the parent task's TCB
+ *   child  - Address of the child task's TCB
  *
  * Returned Value:
  *   Upon successful completion, task_vforksetup() returns a pointer to
- *   newly allocated and initalized child task's TCB.  NULL is returned
+ *   newly allocated and initialized child task's TCB.  NULL is returned
  *   on any failure and the errno is set appropriately.
  *
  ****************************************************************************/
@@ -201,7 +330,7 @@ errout_with_tcb:
  *   called, or calls any other function before successfully calling _exit()
  *   or one of the exec family of functions.
  *
- *   This functin provides one step in the overall vfork() sequence:  It
+ *   This function provides one step in the overall vfork() sequence:  It
  *   starts execution of the previously initialized TCB.  The overall
  *   sequence is:
  *
@@ -212,7 +341,7 @@ errout_with_tcb:
  *      - Allocation of the child task's TCB.
  *      - Initialization of file descriptors and streams
  *      - Configuration of environment variables
- *      - Setup the intput parameters for the task.
+ *      - Setup the input parameters for the task.
  *      - Initialization of the TCB (including call to up_initial_state()
  *   4) vfork() provides any additional operating context. vfork must:
  *      - Allocate and initialize the stack
@@ -221,7 +350,7 @@ errout_with_tcb:
  *   5) vfork() then calls task_vforkstart()
  *   6) task_vforkstart() then executes the child thread.
  *
- * Input Paremeters:
+ * Input Parameters:
  *   retaddr - The return address from vfork() where the child task
  *     will be started.
  *
@@ -235,10 +364,7 @@ errout_with_tcb:
 
 pid_t task_vforkstart(FAR struct task_tcb_s *child)
 {
-#if CONFIG_TASK_NAME_SIZE > 0
   struct tcb_s *parent = (FAR struct tcb_s *)g_readytorun.head;
-#endif
-  FAR const char *name;
   pid_t pid;
   int rc;
   int ret;
@@ -246,15 +372,14 @@ pid_t task_vforkstart(FAR struct task_tcb_s *child)
   svdbg("Starting Child TCB=%p, parent=%p\n", child, g_readytorun.head);
   DEBUGASSERT(child);
 
-  /* Setup to pass parameters to the new task */
+  /* Duplicate the original argument list in the forked child TCB */
 
-#if CONFIG_TASK_NAME_SIZE > 0
-  name = parent->name;
-#else
-  name = NULL;
-#endif
-
-  (void)task_argsetup(child, name, (FAR char * const *)NULL);
+  ret = vfork_argsetup(parent, child);
+  if (ret < 0)
+    {
+      task_vforkabort(child, -ret);
+      return ERROR;
+    }
 
   /* Now we have enough in place that we can join the group */
 
@@ -282,7 +407,7 @@ pid_t task_vforkstart(FAR struct task_tcb_s *child)
 
   /* Since the child task has the same priority as the parent task, it is
    * now ready to run, but has not yet ran.  It is a requirement that
-   * the parent enivornment be stable while vfork runs; the child thread
+   * the parent environment be stable while vfork runs; the child thread
    * is still dependent on things in the parent thread... like the pointers
    * into parent thread's stack which will still appear in the child's
    * registers and environment.
@@ -293,7 +418,7 @@ pid_t task_vforkstart(FAR struct task_tcb_s *child)
    * execv/l(), that should be all that is needed.
    *
    * Hmmm.. this is probably not sufficient.  What if we are running
-   * SCHED_RR?  What if the child thread is suspeneded and rescheduled
+   * SCHED_RR?  What if the child thread is suspended and rescheduled
    * after the parent thread again?
    */
 

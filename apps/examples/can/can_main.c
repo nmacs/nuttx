@@ -146,31 +146,32 @@ int can_main(int argc, char *argv[])
     {
       nmsgs = strtol(argv[1], NULL, 10);
     }
-  message("can_main: nmsgs: %d\n", nmsgs);
+
+  printf("can_main: nmsgs: %ld\n", nmsgs);
 #elif defined(CONFIG_EXAMPLES_CAN_NMSGS)
-  message("can_main: nmsgs: %d\n", CONFIG_EXAMPLES_CAN_NMSGS);
+  printf("can_main: nmsgs: %d\n", CONFIG_EXAMPLES_CAN_NMSGS);
 #endif
 
   /* Initialization of the CAN hardware is performed by logic external to
    * this test.
    */
 
-  message("can_main: Initializing external CAN device\n");
+  printf("can_main: Initializing external CAN device\n");
   ret = can_devinit();
   if (ret != OK)
     {
-      message("can_main: can_devinit failed: %d\n", ret);
+      printf("can_main: can_devinit failed: %d\n", ret);
       errval = 1;
       goto errout;
     }
 
   /* Open the CAN device for reading */
 
-  message("can_main: Hardware initialized. Opening the CAN device\n");
+  printf("can_main: Hardware initialized. Opening the CAN device\n");
   fd = open(CONFIG_EXAMPLES_CAN_DEVPATH, CAN_OFLAGS);
   if (fd < 0)
     {
-      message("can_main: open %s failed: %d\n",
+      printf("can_main: open %s failed: %d\n",
               CONFIG_EXAMPLES_CAN_DEVPATH, errno);
       errval = 2;
       goto errout_with_dev;
@@ -198,7 +199,7 @@ int can_main(int argc, char *argv[])
      * through the loop.
      */
 
-    msgflush();
+    fflush(stdout);
 
     /* Construct the next TX message */
 
@@ -221,14 +222,14 @@ int can_main(int argc, char *argv[])
     nbytes = write(fd, &txmsg, msgsize);
     if (nbytes != msgsize)
       {
-        message("ERROR: write(%ld) returned %ld\n", (long)msgsize, (long)nbytes);
+        printf("ERROR: write(%ld) returned %ld\n", (long)msgsize, (long)nbytes);
         errval = 3;
         goto errout_with_dev;
       }
 #endif
 
 #ifdef CONFIG_EXAMPLES_CAN_WRITEONLY
-    message("  ID: %4d DLC: %d\n", msgid, msgdlc);
+    printf("  ID: %4u DLC: %d\n", msgid, msgdlc);
 #endif
 
     /* Read the RX message */
@@ -238,14 +239,14 @@ int can_main(int argc, char *argv[])
     nbytes = read(fd, &rxmsg, msgsize);
     if (nbytes < CAN_MSGLEN(0) || nbytes > msgsize)
       {
-        message("ERROR: read(%ld) returned %ld\n", (long)msgsize, (long)nbytes);
+        printf("ERROR: read(%ld) returned %ld\n", (long)msgsize, (long)nbytes);
         errval = 4;
         goto errout_with_dev;
       }
 #endif
 
 #ifndef CONFIG_EXAMPLES_CAN_READONLY
-    message("  ID: %4d DLC: %d\n", rxmsg.cm_hdr.ch_id, rxmsg.cm_hdr.ch_dlc);
+    printf("  ID: %4u DLC: %u\n", rxmsg.cm_hdr.ch_id, rxmsg.cm_hdr.ch_dlc);
 #endif
 
     /* Verify that the received messages are the same */
@@ -253,7 +254,7 @@ int can_main(int argc, char *argv[])
 #ifdef CONFIG_EXAMPLES_CAN_READWRITE
     if (memcmp(&txmsg.cm_hdr, &rxmsg.cm_hdr, sizeof(struct can_hdr_s)) != 0)
       {
-        message("ERROR: Sent header does not match received header:\n");
+        printf("ERROR: Sent header does not match received header:\n");
         lib_dumpbuffer("Sent header", (FAR const uint8_t*)&txmsg.cm_hdr,
                        sizeof(struct can_hdr_s));
         lib_dumpbuffer("Received header", (FAR const uint8_t*)&rxmsg.cm_hdr,
@@ -264,10 +265,10 @@ int can_main(int argc, char *argv[])
 
     if (memcmp(txmsg.cm_data, rxmsg.cm_data, msgdlc) != 0)
       {
-        message("ERROR: Data does not match. DLC=%d\n", msgdlc);
+        printf("ERROR: Data does not match. DLC=%d\n", msgdlc);
         for (i = 0; i < msgdlc; i++)
           {
-            message("  %d: TX %02x RX %02x\n", i, txmsg.cm_data[i], rxmsg.cm_data[i]);
+            printf("  %d: TX %02x RX %02x\n", i, txmsg.cm_data[i], rxmsg.cm_data[i]);
             errval = 5;
             goto errout_with_dev;
           }
@@ -275,7 +276,7 @@ int can_main(int argc, char *argv[])
 
     /* Report success */
 
-    message("  ID: %4d DLC: %d -- OK\n", msgid, msgdlc);
+    printf("  ID: %4u DLC: %d -- OK\n", msgid, msgdlc);
 #endif
 
     /* Set up for the next pass */
@@ -299,7 +300,7 @@ errout_with_dev:
   close(fd);
 
 errout:
-  message("Terminating!\n");
-  msgflush();
+  printf("Terminating!\n");
+  fflush(stdout);
   return errval;
 }

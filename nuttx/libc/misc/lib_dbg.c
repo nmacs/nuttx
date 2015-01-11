@@ -44,34 +44,15 @@
 
 #include "lib_internal.h"
 
-/****************************************************************************
- * Global Variables
- ****************************************************************************/
-
-/* Debug output is initially disabled */
-
-#ifdef CONFIG_SYSLOG_ENABLE
-bool g_syslogenable;
-#endif
+#ifndef CONFIG_CPP_HAVE_VARARGS
 
 /****************************************************************************
- * Global Functions
+ * Public Data
  ****************************************************************************/
 
 /****************************************************************************
- * Name: syslog_enable
- *
- * Description:
- *  Enable or disable debug output.
- *
+ * Public Functions
  ****************************************************************************/
-
-#ifdef CONFIG_SYSLOG_ENABLE
-void syslog_enable(bool enable)
-{
-  g_syslogenable = enable;
-}
-#endif
 
 /****************************************************************************
  * Name: dbg, lldbg, vdbg
@@ -82,22 +63,15 @@ void syslog_enable(bool enable)
  *
  ****************************************************************************/
 
-#ifndef CONFIG_CPP_HAVE_VARARGS
 #ifdef CONFIG_DEBUG
 int dbg(const char *format, ...)
 {
   va_list ap;
   int     ret;
 
-#ifdef CONFIG_SYSLOG_ENABLE
-  ret = 0;
-  if (g_syslogenable)
-#endif
-    {
-      va_start(ap, format);
-      ret = vsyslog(format, ap);
-      va_end(ap);
-    }
+  va_start(ap, format);
+  ret = vsyslog(LOG_DEBUG, format, ap);
+  va_end(ap);
 
   return ret;
 }
@@ -108,15 +82,9 @@ int lldbg(const char *format, ...)
   va_list ap;
   int     ret;
 
-#ifdef CONFIG_SYSLOG_ENABLE
-  ret = 0;
-  if (g_syslogenable)
-#endif
-    {
-      va_start(ap, format);
-      ret = lowvsyslog(format, ap);
-      va_end(ap);
-    }
+  va_start(ap, format);
+  ret = lowvsyslog(LOG_DEBUG, format, ap);
+  va_end(ap);
 
   return ret;
 }
@@ -128,15 +96,9 @@ int vdbg(const char *format, ...)
   va_list ap;
   int     ret;
 
-#ifdef CONFIG_SYSLOG_ENABLE
-  ret = 0;
-  if (g_syslogenable)
-#endif
-    {
-      va_start(ap, format);
-      ret = vsyslog(format, ap);
-      va_end(ap);
-    }
+  va_start(ap, format);
+  ret = vsyslog(LOG_DEBUG, format, ap);
+  va_end(ap);
 
   return ret;
 }
@@ -147,15 +109,9 @@ int llvdbg(const char *format, ...)
   va_list ap;
   int     ret;
 
-#ifdef CONFIG_SYSLOG_ENABLE
-  ret = 0;
-  if (g_syslogenable)
-#endif
-    {
-      va_start(ap, format);
-      ret = lowvsyslog(format, ap);
-      va_end(ap);
-    }
+  va_start(ap, format);
+  ret = lowvsyslog(LOG_DEBUG, format, ap);
+  va_end(ap);
 
   return ret;
 }

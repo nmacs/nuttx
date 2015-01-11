@@ -56,7 +56,7 @@
 #if CONFIG_MQ_MAXMSGSIZE > 0
 
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
 #define MQ_MAX_BYTES   CONFIG_MQ_MAXMSGSIZE
@@ -76,7 +76,7 @@
 #define NUM_INTERRUPT_MSGS   8
 
 /****************************************************************************
- * Global Type Declarations
+ * Public Type Definitions
  ****************************************************************************/
 
 enum mqalloc_e
@@ -86,27 +86,23 @@ enum mqalloc_e
   MQ_ALLOC_IRQ         /* Preallocated, reserved for interrupt handling */
 };
 
-typedef enum mqalloc_e mqalloc_t;
-
 /* This structure describes one buffered POSIX message. */
 
-struct mqmsg
+struct mqueue_msg_s
 {
-  FAR struct mqmsg  *next;    /* Forward link to next message */
-  uint8_t      type;          /* (Used to manage allocations) */
-  uint8_t      priority;      /* priority of message          */
+  FAR struct mqueue_msg_s  *next;    /* Forward link to next message */
+  uint8_t type;                      /* (Used to manage allocations) */
+  uint8_t priority;                  /* priority of message */
 #if MQ_MAX_BYTES < 256
-  uint8_t      msglen;        /* Message data length          */
+  uint8_t msglen;                    /* Message data length */
 #else
-  uint16_t     msglen;        /* Message data length          */
+  uint16_t msglen;                   /* Message data length */
 #endif
-  uint8_t      mail[MQ_MAX_BYTES]; /* Message data            */
+  uint8_t mail[MQ_MAX_BYTES];        /* Message data */
 };
 
-typedef struct mqmsg mqmsg_t;
-
 /****************************************************************************
- * Global Variables
+ * Public Variables
  ****************************************************************************/
 
 #ifdef __cplusplus
@@ -116,10 +112,6 @@ extern "C"
 #else
 #define EXTERN extern
 #endif
-
-/* This is a list of all opened message queues */
-
-EXTERN sq_queue_t  g_msgqueues;
 
 /* The g_msgfree is a list of messages that are available for general use.
  * The number of messages in this list is a system configuration item.
@@ -141,7 +133,7 @@ EXTERN sq_queue_t  g_msgfreeirq;
 EXTERN sq_queue_t  g_desfree;
 
 /****************************************************************************
- * Global Function Prototypes
+ * Public Function Prototypes
  ****************************************************************************/
 
 /* Functions defined in mq_initialize.c ************************************/
@@ -149,10 +141,8 @@ EXTERN sq_queue_t  g_desfree;
 void weak_function mq_initialize(void);
 void mq_desblockalloc(void);
 
-mqd_t mq_descreate(FAR struct tcb_s* mtcb, FAR msgq_t* msgq, int oflags);
-FAR msgq_t  *mq_findnamed(const char *mq_name);
-void mq_msgfree(FAR mqmsg_t *mqmsg);
-void mq_msgqfree(FAR msgq_t *msgq);
+FAR struct mqueue_inode_s *mq_findnamed(FAR const char *mq_name);
+void mq_msgfree(FAR struct mqueue_msg_s *mqmsg);
 
 /* mq_waitirq.c ************************************************************/
 
@@ -161,16 +151,17 @@ void mq_waitirq(FAR struct tcb_s *wtcb, int errcode);
 /* mq_rcvinternal.c ********************************************************/
 
 int mq_verifyreceive(mqd_t mqdes, void *msg, size_t msglen);
-FAR mqmsg_t *mq_waitreceive(mqd_t mqdes);
-ssize_t mq_doreceive(mqd_t mqdes, mqmsg_t *mqmsg, void *ubuffer, int *prio);
+FAR struct mqueue_msg_s *mq_waitreceive(mqd_t mqdes);
+ssize_t mq_doreceive(mqd_t mqdes, FAR struct mqueue_msg_s *mqmsg,
+                     FAR void *ubuffer, FAR int *prio);
 
 /* mq_sndinternal.c ********************************************************/
 
-int mq_verifysend(mqd_t mqdes, const void *msg, size_t msglen, int prio);
-FAR mqmsg_t *mq_msgalloc(void);
+int mq_verifysend(mqd_t mqdes, FAR const void *msg, size_t msglen, int prio);
+FAR struct mqueue_msg_s *mq_msgalloc(void);
 int mq_waitsend(mqd_t mqdes);
-int mq_dosend(mqd_t mqdes, FAR mqmsg_t *mqmsg, const void *msg,
-              size_t msglen, int prio);
+int mq_dosend(mqd_t mqdes, FAR struct mqueue_msg_s *mqmsg,
+              FAR const void *msg, size_t msglen, int prio);
 
 /* mq_release.c ************************************************************/
 

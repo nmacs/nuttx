@@ -37,7 +37,18 @@
 
 CFLAGS += -I$(TOPDIR)/sched
 
-ASRCS = up_setjmp.S
+ASRCS =
+
+ifeq ($(CONFIG_HOST_X86_64),y)
+ifeq ($(CONFIG_SIM_M32),y)
+  ASRCS += up_setjmp32.S
+else
+  ASRCS += up_setjmp64.S
+endif
+else
+  ASRCS += up_setjmp32.S
+endif
+
 AOBJS = $(ASRCS:.S=$(OBJEXT))
 
 CSRCS  = up_initialize.c up_idle.c up_interruptcontext.c up_initialstate.c
@@ -46,10 +57,15 @@ CSRCS += up_unblocktask.c up_blocktask.c up_releasepending.c
 CSRCS += up_reprioritizertr.c up_exit.c up_schedulesigaction.c up_spiflash.c
 CSRCS += up_allocateheap.c up_devconsole.c
 
-HOSTSRCS = up_stdio.c up_hostusleep.c
+HOSTSRCS = up_hostusleep.c
 
 ifeq ($(CONFIG_SCHED_TICKLESS),y)
-CSRCS += up_tickless.c
+  CSRCS += up_tickless.c
+endif
+
+ifeq ($(CONFIG_DEV_CONSOLE),y)
+  CSRCS += up_uartwait.c
+  HOSTSRCS += up_simuart.c
 endif
 
 ifeq ($(CONFIG_NX_LCDDRIVER),y)
@@ -79,7 +95,7 @@ endif
 
 ifeq ($(CONFIG_NET),y)
 CSRCS += up_netdriver.c
-HOSTCFLAGS += -DNETDEV_BUFSIZE=$(CONFIG_NET_BUFSIZE)
+HOSTCFLAGS += -DNETDEV_BUFSIZE=$(CONFIG_NET_ETH_MTU)
 ifneq ($(HOSTOS),Cygwin)
 HOSTSRCS += up_tapdev.c up_netdev.c
 else
@@ -100,9 +116,6 @@ OBJS = $(AOBJS) $(COBJS) $(HOSTOBJS)
 
 ifeq ($(CONFIG_SIM_X11FB),y)
   STDLIBS += -lX11 -lXext
-ifeq ($(CONFIG_SIM_TOUCHSCREEN),y)
-  STDLIBS += -lpthread
-endif
 endif
 
 EXTRA_LIBS ?=
@@ -113,6 +126,7 @@ STDLIBS += -lz
 endif
 
 STDLIBS += -lc
+STDLIBS += -lpthread
 
 # Determine which objects are required in the link.  The
 # up_head object normally draws in all that is needed, but
@@ -122,9 +136,13 @@ STDLIBS += -lc
 LINKOBJS = up_head$(OBJEXT)
 REQUIREDOBJS = $(LINKOBJS)
 
+ifeq ($(CONFIG_DEV_CONSOLE),y)
+  REQUIREDOBJS += up_uartwait$(OBJEXT)
+endif
+
 ifeq ($(CONFIG_SIM_X11FB),y)
 ifeq ($(CONFIG_SIM_TOUCHSCREEN),y)
-  REQUIREDOBJS += up_touchscreen.o
+  REQUIREDOBJS += up_touchscreen$(OBJEXT)
 endif
 endif
 

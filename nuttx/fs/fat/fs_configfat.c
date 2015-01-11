@@ -48,7 +48,7 @@
 #include <nuttx/fs/fat.h>
 #include <nuttx/fs/mkfatfs.h>
 
-#include "fs_internal.h"
+#include "inode/inode.h"
 #include "fs_fat32.h"
 #include "fs_mkfatfs.h"
 
@@ -950,7 +950,7 @@ int mkfatfs_configfatfs(FAR struct fat_format_s *fmt,
         {
           /* There must be reserved sectors in order to have a backup boot sector */
 
-          if (fmt->ff_rsvdseccount > 0 && fmt->ff_rsvdseccount >= 2)
+          if (fmt->ff_rsvdseccount >= 2)
             {
               /* Sector 0 is the MBR; 1... ff_rsvdseccount are reserved.  Try the next
                * the last reserved sector.

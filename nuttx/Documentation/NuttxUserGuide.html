@@ -13,7 +13,7 @@
       <h1><big><font color="#3c34ec"><i>NuttX Operating System<p>User's Manual</i></font></big></h1>
       <p><small>by</small></p>
       <p>Gregory Nutt<p>
-      <p>Last Updated: September 22, 2014</p>
+      <p>Last Updated: November 5, 2014</p>
     </td>
   </tr>
 </table>
@@ -29,7 +29,8 @@
 
 <p>
   This manual provides general usage information for the NuttX RTOS from the
-    perspective of the firmware developer.
+  perspective of the firmware developer.
+</p>
 
 <table width ="100%">
   <tr bgcolor="#e4e4e4">
@@ -270,8 +271,7 @@ int task_create(char *name, int priority, int stack_size, main_t entry, char * c
 </P>
 <p>
    Note that an arbitrary number of arguments may be passed to the
-   spawned functions.  The maximum umber of arguments is an OS
-   configuration parameter (<code>CONFIG_MAX_TASK_ARGS</code>).
+   spawned functions.
 </p>
 <p>
    The arguments are copied (via <code>strdup</code>) so that the
@@ -7628,10 +7628,12 @@ interface of the same name.
   <li><a href="#directoryoperations">2.10.3 Directory Operations</a></li>
   <li><a href="#dirunistdops">2.10.4 UNIX Standard Operations</a></li>
   <li><a href="#standardio">2.10.5 Standard I/O</a></li>
-  <li><a href="#stdstrings">2.10.6 Standard String Operations</a></li>
-  <li><a href="#PipesNFifos">2.10.7 Pipes and FIFOs</a></li>
-  <li><a href="#fatsupport">2.10.8 FAT File System Support</a></li>
-  <li><a href="#mmapxip">2.10.9 <code>mmap()</code> and eXecute In Place (XIP)</a></li>
+  <li><a href="#standardlib">2.10.6 Standard Library</a></li>
+  <li><a href="#aio">2.10.7 Asynchronous I/O</a></li>
+  <li><a href="#stdstrings">2.10.8 Standard String Operations</a></li>
+  <li><a href="#PipesNFifos">2.10.9 Pipes and FIFOs</a></li>
+  <li><a href="#fatsupport">2.10.10 FAT File System Support</a></li>
+  <li><a href="#mmapxip">2.10.11 <code>mmap()</code> and eXecute In Place (XIP)</a></li>
 </ul>
 
 <h3><a name="FileSystemOverview">2.10.1 NuttX File System Overview</a></h3>
@@ -7707,7 +7709,9 @@ interface of the same name.
 
 <ul><pre>
   #include &lt;fcntl.h&gt;
+  int creat(const char *path, mode_t mode);
   int open(const char *path, int oflag, ...);
+  int fcntl(int fd, int cmd, ...);
 </pre></ul>
 
 <h4><a name="drvrunistdops">2.10.2.2 unistd.h</a></h4>
@@ -7718,6 +7722,8 @@ interface of the same name.
   int     dup(int fd);
   int     dup2(int fd1, int fd2);
   off_t   lseek(int fd, off_t offset, int whence);
+  ssize_t pread(int fd, void *buf, size_t nbytes, off_t offset);
+  ssize_t pwrite(int fd, const void *buf, size_t nbytes, off_t offset);
   ssize_t read(int fd, void *buf, size_t nbytes);
   int     unlink(const char *path);
   ssize_t write(int fd, const void *buf, size_t nbytes);
@@ -7947,6 +7953,8 @@ int    dprintf(int fd, FAR const char *fmt, ...);
 int    vdprintf(int fd, FAR const char *fmt, va_list ap);
 
 int    statfs(FAR const char *path, FAR struct statfs *buf);
+FAR char *tmpnam(FAR char *s);
+FAR char *tempnam(FAR const char *dir, FAR const char *pfx);
 
 #include &lt;sys/stat.h&gt;
 
@@ -7961,7 +7969,35 @@ int statfs(const char *path, struct statfs *buf);
 int fstatfs(int fd, struct statfs *buf);
 </pre></ul>
 
-<h3><a name="stdstrings">2.10.6 Standard String Operations</a></h3>
+<h3><a name="standardlib">2.10.6 Standard Library</a></h3>
+<p>
+  <code>stdlib.h</code> generally addresses other operating system interfaces.
+  However, the following may also be considered as file system interfaces:
+</p>
+<ul><pre>
+#include &lt;stdlib.h&gt;
+
+int mktemp(FAR char *template);
+int mkstemp(FAR char *template);
+</pre></ul>
+
+<h3><a name="aio">2.10.7 Asynchronous I/O</a></h3>
+<ul><pre>
+#include &lt;aio.h&gt;
+
+int aio_cancel(int, FAR struct aiocb *aiocbp);
+int aio_error(FAR const struct aiocb *aiocbp);
+int aio_fsync(int, FAR struct aiocb *aiocbp);
+int aio_read(FAR struct aiocb *aiocbp);
+ssize_t aio_return(FAR struct aiocb *aiocbp);
+int aio_suspend(FAR const struct aiocb *const list[], int nent,
+                FAR const struct timespec *timeout);
+int aio_write(FAR struct aiocb *aiocbp);
+int lio_listio(int mode, FAR struct aiocb *const list[], int nent,
+               FAR struct sigevent *sig);
+</pre></ul>
+
+<h3><a name="stdstrings">2.10.8 Standard String Operations</a></h3>
 <ul><pre>
 #include &lt;string.h&gt;
 
@@ -7995,9 +8031,9 @@ void  *memmove(void *dest, const void *src, size_t count);
 # define bzero(s,n) (void)memset(s,0,n)
 </pre></ul>
 
-<h3><a name="PipesNFifos">2.10.7 Pipes and FIFOs</a></h3>
+<h3><a name="PipesNFifos">2.10.9 Pipes and FIFOs</a></h3>
 
-<h3>2.10.7.1 <a name="pipe"><code>pipe</code></a></h3>
+<h3>2.10.9.1 <a name="pipe"><code>pipe</code></a></h3>
 <p>
   <b>Function Prototype:</b>
 </p>
@@ -8031,7 +8067,7 @@ int pipe(int fd[2]);
   </ul>
 </p>
 
-<h3>2.10.7.2 <a name="mkfifo"><code>mkfifo</code></a></h3>
+<h3>2.10.9.2 <a name="mkfifo"><code>mkfifo</code></a></h3>
 <p>
   <b>Function Prototype:</b>
 </p>
@@ -8078,8 +8114,8 @@ int mkfifo(FAR const char *pathname, mode_t mode);
   </ul>
 </p>
 
-<h3><a name="fatsupport">2.10.8 FAT File System Support</a></h3>
-<h3>2.10.8.1 <a name="mkfatfs"><code>mkfatfs</code></a></h3>
+<h3><a name="fatsupport">2.10.10 FAT File System Support</a></h3>
+<h3>2.10.10.1 <a name="mkfatfs"><code>mkfatfs</code></a></h3>
 <p>
   <b>Function Prototype:</b>
 </p>
@@ -8156,7 +8192,7 @@ struct fat_format_s
   </ul>
 </p>
 
-<h3><a name="mmapxip">2.10.9 <code>mmap()</code> and eXecute In Place (XIP)</a></h3>
+<h3><a name="mmapxip">2.10.11 <code>mmap()</code> and eXecute In Place (XIP)</a></h3>
 <p>
   NuttX operates in a flat open address space and is focused on MCUs that do
   support Memory Management Units (MMUs).  Therefore, NuttX generally does not
@@ -8285,7 +8321,7 @@ struct fat_format_s
   </li>
 </ol>
 
-<h3><a name="mmap">2.10.9.1 <code>mmap</code></a></h3>
+<h3><a name="mmap">2.10.11.1 <code>mmap</code></a></h3>
 <p>
   <b>Function Prototype:</b>
 </p>
@@ -9603,6 +9639,14 @@ notify a task when a message is available on a queue.
 <tr>
 <td valign="top" width="34%">
   <li><a href="#accept">accept</a></li>
+  <li><a href="#aio">aio.h</a></li>
+  <li><a href="#aio">aio_cancel</a></li>
+  <li><a href="#aio">aio_error</a></li>
+  <li><a href="#aio">aio_fsync</a></li>
+  <li><a href="#aio">aio_read</a></li>
+  <li><a href="#aio">aio_return</a></li>
+  <li><a href="#aio">aio_suspend</a></li>
+  <li><a href="#aio">aio_write</a></li>
   <li><a href="#atexit">atexit</a>
   <li><a href="#bind">bind</a></li>
   <li><a href="#mmapxip">BIOC_XIPBASE</a></li>
@@ -9614,6 +9658,7 @@ notify a task when a message is available on a queue.
   <li><a href="#drvrunistdops">close</a></li>
   <li><a href="#dirdirentops">closedir</a></li>
   <li><a href="#connect">connect</a></li>
+  <li><a href="#drvrfcntlops">creat</a></li>
   <li><a href="#Data_Structures">Data structures</a></li>
   <li><a href="#directoryoperations">Directory operations</a></li>
   <li><a href="#dirdirentops">dirent.h</a></li>
@@ -9626,6 +9671,7 @@ notify a task when a message is available on a queue.
   <li><a href="#exit">exit</a></li>
   <li><a href="#fatsupport">FAT File System Support</a></li>
   <li><a href="#standardio">fclose</a></li>
+  <li><a href="#drvrfcntlops">fcntl</a></li>
   <li><a href="#drvrfcntlops">fcntl.h</a></li>
   <li><a href="#standardio">fdopen</a></li>
   <li><a href="#standardio">feof</a></li>
@@ -9656,6 +9702,7 @@ notify a task when a message is available on a queue.
   <li><a href="#Introduction">Introduction</a>
   <li><a href="#drvrioctlops">ioctl</a></li>
   <li><a href="#kill">kill</a></li>
+  <li><a href="#aio">lio_listio</a></li>
   <li><a href="#listen">listen</a></li>
   <li><a href="#localtimer">localtime_r</a></li>
   <li><a href="#drvrunistdops">lseek</a></li>
@@ -9677,6 +9724,8 @@ notify a task when a message is available on a queue.
   <li><a href="#mmap">mmap</a></li>
   <li><a href="#Network">Network Interfaces</a></li>
   <li><a href="#onexit">on_exit</a>
+</td>
+<td valign="top" width="33%">
   <li><a href="#drvrfcntlops">open</a></li>
   <li><a href="#dirdirentops">opendir</a></li>
   <li><a href="#OS_Interfaces">OS Interfaces</a></li>
@@ -9684,8 +9733,6 @@ notify a task when a message is available on a queue.
   <li><a href="#pipe">pipe</a></li>
   <li><a href="#poll">poll</a></li>
   <li><a href="#drvrpollops">poll.h</a></li>
-</td>
-<td valign="top" width="33%">
   <li><a href="#posix_spawn">posix_spawn</a></li>
   <li><a href="#posix_spawn_file_actions_addclose">posix_spawn_file_actions_addclose</a></li>
   <li><a href="#posix_spawn_file_actions_adddup2">posix_spawn_file_actions_adddup2</a></li>
@@ -9703,7 +9750,9 @@ notify a task when a message is available on a queue.
   <li><a href="#posix_spawnattr_setschedpolicy">posix_spawnattr_setschedpolicy</a></li>
   <li><a href="#posix_spawnattr_setsigmask">posix_spawnattr_setsigmask</a></li>
   <li><a href="#posix_spawn">posix_spawnp</a></li>
+  <li><a href="#drvrunistdops">pread</a></li>
   <li><a href="#standardio">printf</a></li>
+  <li><a href="#drvrunistdops">pwrite</a></li>
   <li><a href="#Pthread">Pthread Interfaces</a>
   <li><a href="#pthreadattrdestroy">pthread_attr_destroy</a></li>
   <li><a href="#pthreadattrgetinheritsched">pthread_attr_getinheritsched</a></li>
@@ -9763,13 +9812,13 @@ notify a task when a message is available on a queue.
   <li><a href="#standardio">puts</a></li>
   <li><a href="#mmapxip">RAM disk driver</a></li>
   <li><a href="#drvrunistdops">read</a></li>
+</td>
+<td valign="top">
   <li><a href="#dirdirentops">readdir</a></li>
   <li><a href="#dirdirentops">readdir_r</a></li>
   <li><a href="#recv">recv</a></li>
   <li><a href="#recvfrom">recvfrom</a></li>
   <li><a href="#standardio">rename</a></li>
-</td>
-<td valign="top">
   <li><a href="#standardio">rmdir</a></li>
   <li><a href="#dirdirentops">rewinddir</a></li>
   <li><a href="#mmapxip">ROM disk driver</a></li>

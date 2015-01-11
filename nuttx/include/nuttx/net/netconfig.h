@@ -80,27 +80,82 @@
  * The "link level header" is the offset into the d_buf where the IP header
  * can be found. For Ethernet, this should be set to 14. For SLIP, this
  * should be set to 0.
+ *
+ * If CONFIG_NET_MULTILINK is defined, then multiple link protocols are
+ * supported concurrently.  In this case, the size of link layer header
+ * varies and is obtained from the network device structure.
+ *
+ * There are other device-specific features that at tied to the link layer:
+ *
+ *   - Maximum Transfer Unit (MTU)
+ *   - TCP Receive Window size (See TCP configuration options below)
+ * 
+ * A better solution would be to support device-by-device MTU and receive
+ * window sizes.  This minimum support is require to support the optimal
+ * SLIP MTU of 296 bytes and the standard Ethernet MTU of 1500
+ * bytes.
  */
 
-#undef CONFIG_NET_ETHERNET
-#undef CONFIG_NET_ARP
+#ifdef CONFIG_NET_SLIP
+#  ifndef CONFIG_NET_SLIP_MTU
+#    define CONFIG_NET_SLIP_MTU 296
+#  endif
+#endif
+
+#ifdef CONFIG_NET_ETHERNET
+#  ifndef CONFIG_NET_ETH_MTU
+#    define CONFIG_NET_ETH_MTU 590
+#  endif
+#endif
+
+#if defined(CONFIG_NET_MULTILINK)
+   /* We are supporting multiple network devices using different link layer
+    * protocols.  Get the size of the link layer header from the device
+    * structure.
+    */
+
+#  define NET_LL_HDRLEN(d) ((d)->d_llhdrlen)
+#  define NET_DEV_MTU(d)   ((d)->d_mtu)
+
+#  ifdef CONFIG_NET_ETHERNET
+#    define _MIN_ETH_MTU   CONFIG_NET_ETH_MTU
+#    define _MAX_ETH_MTU   CONFIG_NET_ETH_MTU
+#  else
+#    define _MIN_ETH_MTU   UINT16_MAX
+#    define _MAX_ETH_MTU   0
+#  endif
 
 #ifdef CONFIG_NET_SLIP
-#  ifdef CONFIG_NET_IPv6
-#    error "SLIP is not implemented for IPv6"
-#  endif
-#  define NET_LL_HDRLEN         0
-#elif defined(CONFIG_WIRELESS)
-#  ifdef CONFIG_OMEGA_RF
-#    define NET_LL_HDRLEN       24
+#    define _MIN_SLIP_MTU  MIN(_MIN_ETH_MTU,CONFIG_NET_SLIP_MTU)
+#    define _MAX_SLIP_MTU  MAX(_MAX_ETH_MTU,CONFIG_NET_SLIP_MTU)
 #  else
-#    define NET_LL_HDRLEN       0
+#    define _MIN_SLIP_MTU  _MIN_ETH_MTU
+#    define _MAX_SLIP_MTU  _MAX_ETH_MTU
 #  endif
-#else
-#  define CONFIG_NET_ETHERNET 1
-#  define CONFIG_NET_ARP      1
-#  define NET_LL_HDRLEN         14
-#endif
+
+#  define MIN_NET_DEV_MTU  _MIN_SLIP_MTU
+#  define MAX_NET_DEV_MTU  _MAX_SLIP_MTU
+
+#elif defined(CONFIG_NET_SLIP)
+   /* There is no link layer header with SLIP */
+
+#  ifdef CONFIG_NET_IPv6
+#    error SLIP is not available for IPv6
+#  endif
+#  define NET_LL_HDRLEN(d)  0
+#  define NET_DEV_MTU(d)    CONFIG_NET_SLIP_MTU
+#  define MIN_NET_DEV_MTU   CONFIG_NET_SLIP_MTU
+#  define MAX_NET_DEV_MTU   CONFIG_NET_SLIP_MTU
+
+#else /* if defined(CONFIG_NET_ETHERNET) */
+   /* Assume standard Ethernet link layer header */
+
+#  define NET_LL_HDRLEN(d)  14
+#  define NET_DEV_MTU(d)    CONFIG_NET_ETH_MTU
+#  define MIN_NET_DEV_MTU   CONFIG_NET_ETH_MTU
+#  define MAX_NET_DEV_MTU   CONFIG_NET_ETH_MTU
+
+#endif /* MULTILINK or SLIP or ETHERNET */
 
 /* Layer 3/4 Configuration Options ******************************************/
 
@@ -115,10 +170,10 @@
 
 #ifdef CONFIG_NET_TCP_REASSEMBLY
 #  ifndef CONFIG_NET_TCP_REASS_MAXAGE
-/* The maximum time an IP fragment should wait in the reassembly
- * buffer before it is dropped.  Units are deci-seconds, the range
- * of the timer is 8-bits.
- */
+  /* The maximum time an IP fragment should wait in the reassembly
+   * buffer before it is dropped.  Units are deci-seconds, the range
+   * of the timer is 8-bits.
+   */
 
 #    define CONFIG_NET_TCP_REASS_MAXAGE (20*10) /* 20 seconds */
 #  endif
@@ -155,10 +210,22 @@
 #endif
 
 /* The UDP maximum packet size. This is should not be to set to more
- * than CONFIG_NET_BUFSIZE - NET_LL_HDRLEN - IPUDP_HDRLEN.
+ * than NET_DEV_MTU(d) - NET_LL_HDRLEN(dev) - IPUDP_HDRLEN.
  */
 
-#define UDP_MSS (CONFIG_NET_BUFSIZE - NET_LL_HDRLEN - IPUDP_HDRLEN)
+#define UDP_MSS(d)    (NET_DEV_MTU(d) - NET_LL_HDRLEN(d) - IPUDP_HDRLEN)
+
+#ifdef CONFIG_NET_ETHERNET
+#  define MIN_UDP_MSS (CONFIG_NET_ETH_MTU - ETH_HDRLEN - IPUDP_HDRLEN)
+#else /* if defined(CONFIG_NET_SLIP) */
+#  define MIN_UDP_MSS (CONFIG_NET_SLIP_MTU - IPUDP_HDRLEN)
+#endif
+
+#ifdef CONFIG_NET_SLIP
+#  define MAX_UDP_MSS (CONFIG_NET_SLIP_MTU - IPUDP_HDRLEN)
+#else /* if defined(CONFIG_NET_ETHERNET) */
+#  define MAX_UDP_MSS (CONFIG_NET_ETH_MTU - ETH_HDRLEN - IPUDP_HDRLEN)
+#endif
 
 /* TCP configuration options */
 
@@ -220,21 +287,69 @@
 #define TCP_MAXSYNRTX 5
 
 /* The TCP maximum segment size. This is should not be set to more
- * than CONFIG_NET_BUFSIZE - NET_LL_HDRLEN - IPTCP_HDRLEN.
+ * than NET_DEV_MTU(dev) - NET_LL_HDRLEN(dev) - IPTCP_HDRLEN.
+ *
+ * In the case where there are multiple network devices with different
+ * link layer protocols (CONFIG_NET_MULTILINK), each network device
+ * may support a different UDP MSS value.  Here we arbitrarily select
+ * the minimum MSS for that case.
  */
 
-#define TCP_MSS (CONFIG_NET_BUFSIZE - NET_LL_HDRLEN - IPTCP_HDRLEN)
+#define TCP_MSS(d)    (NET_DEV_MTU(d) - NET_LL_HDRLEN(d) - IPTCP_HDRLEN)
+
+#ifdef CONFIG_NET_ETHERNET
+#  define ETH_TCP_MSS  (CONFIG_NET_ETH_MTU - ETH_HDRLEN - IPTCP_HDRLEN)
+#  define MIN_TCP_MSS  ETH_TCP_MSS
+#elif defined(CONFIG_NET_SLIP)
+#  define SLIP_TCP_MSS (CONFIG_NET_SLIP_MTU - IPTCP_HDRLEN)
+#  define MIN_TCP_MSS  SLIP_TCP_MSS
+#endif
+
+#ifdef CONFIG_NET_SLIP
+#  define MAX_TCP_MSS  SLIP_TCP_MSS
+#elif defined(CONFIG_NET_ETHERNET)
+#  define MAX_TCP_MSS  ETH_TCP_MSS
+#endif
 
 /* The size of the advertised receiver's window.
  *
  * Should be set low (i.e., to the size of the d_buf buffer) is the
  * application is slow to process incoming data, or high (32768 bytes)
  * if the application processes data quickly.
+ *
+ * See the note above regarding the TCP MSS and CONFIG_NET_MULTILINK.
  */
 
-#ifndef CONFIG_NET_RECEIVE_WINDOW
-# define CONFIG_NET_RECEIVE_WINDOW TCP_MSS
+#ifdef CONFIG_NET_SLIP
+#  ifndef CONFIG_NET_SLIP_TCP_RECVWNDO
+#    define CONFIG_NET_SLIP_TCP_RECVWNDO SLIP_TCP_MSS
+#  endif
 #endif
+
+#ifdef CONFIG_NET_ETHERNET
+#  ifndef CONFIG_NET_ETH_TCP_RECVWNDO
+#    define CONFIG_NET_ETH_TCP_RECVWNDO ETH_TCP_MSS
+#  endif
+#endif
+
+#if defined(CONFIG_NET_MULTILINK)
+   /* We are supporting multiple network devices using different link layer
+    * protocols.  Get the size of the receive window from the device structure.
+    */
+
+#  define NET_DEV_RCVWNDO(d)  ((d)->d_recvwndo)
+
+#elif defined(CONFIG_NET_SLIP)
+   /* Only SLIP.. use the configured SLIP receive window size */
+
+#  define NET_DEV_RCVWNDO(d)  CONFIG_NET_SLIP_TCP_RECVWNDO
+
+#else /* if defined(CONFIG_NET_ETHERNET) */
+   /* Only Ethernet.. use the configured SLIP receive window size */
+
+#  define NET_DEV_RCVWNDO(d)  CONFIG_NET_ETH_TCP_RECVWNDO
+
+#endif /* MULTILINK or SLIP or ETHERNET */
 
 /* How long a connection should stay in the TIME_WAIT state.
  *
@@ -268,17 +383,6 @@
 
 /* General configuration options */
 
-/* The size of the uIP packet buffer.
- *
- * The uIP packet buffer should not be smaller than 60 bytes, and does
- * not need to be larger than 1500 bytes. Lower size results in lower
- * TCP throughput, larger size results in higher TCP throughput.
- */
-
-#ifndef CONFIG_NET_BUFSIZE
-# define CONFIG_NET_BUFSIZE 400
-#endif
-
 /* Delay after receive to catch a following packet.  No delay should be
  * required if TCP/IP read-ahead buffering is enabled.
  */
@@ -304,3 +408,4 @@
 typedef uint16_t net_stats_t;
 
 #endif /* __INCLUDE_NUTTX_NET_NETCONFG_H */
+

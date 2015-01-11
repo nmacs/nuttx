@@ -321,6 +321,13 @@ config ARCH_CHIP_STM32F103RE
 	select STM32_PERFORMANCELINE
 	select STM32_HIGHDENSITY
 
+config ARCH_CHIP_STM32F103RG
+	bool "STM32F103RG"
+	select ARCH_CORTEXM3
+	select STM32_STM32F10XX
+	select STM32_PERFORMANCELINE
+	select STM32_HIGHDENSITY
+
 config ARCH_CHIP_STM32F103V8
 	bool "STM32F103V8"
 	select ARCH_CORTEXM3
@@ -459,6 +466,13 @@ config ARCH_CHIP_STM32F401RE
 	select STM32_STM32F401
 	select ARCH_HAVE_FPU
 
+config ARCH_CHIP_STM32F411RE
+	bool "STM32F411RE"
+	select ARCH_CORTEXM4
+	select STM32_STM32F40XX
+	select STM32_STM32F411
+	select ARCH_HAVE_FPU
+
 config ARCH_CHIP_STM32F405RG
 	bool "STM32F405RG"
 	select ARCH_CORTEXM4
@@ -584,6 +598,8 @@ endchoice
 config STM32_STM32L15XX
 	bool
 	default n
+	select STM32_HAVE_SPI2
+	select STM32_HAVE_SPI3
 
 config STM32_ENERGYLITE
 	bool
@@ -600,13 +616,15 @@ config STM32_ENERGYLITE
 config STM32_STM32F10XX
 	bool
 	default n
+	select STM32_HAVE_SPI2 if STM32_HIGHDENSITY || STM32_MEDIUMDENSITY
+	select STM32_HAVE_SPI3 if STM32_HIGHDENSITY || STM32_MEDIUMDENSITY
 
 config STM32_VALUELINE
 	bool
 	default n
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
 	select STM32_HAVE_TIM6
@@ -618,14 +636,16 @@ config STM32_VALUELINE
 	select STM32_HAVE_TIM16
 	select STM32_HAVE_TIM17
 	select STM32_HAVE_ADC2
+	select STM32_HAVE_SPI2 if STM32_HIGHDENSITY
+	select STM32_HAVE_SPI3 if STM32_HIGHDENSITY
 
 config STM32_CONNECTIVITYLINE
 	bool
 	default n
 	select STM32_HAVE_OTGFS
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
 	select STM32_HAVE_TIM6
@@ -635,14 +655,16 @@ config STM32_CONNECTIVITYLINE
 	select STM32_HAVE_CAN1
 	select STM32_HAVE_CAN2
 	select STM32_HAVE_ETHMAC
+	select STM32_HAVE_SPI2
+	select STM32_HAVE_SPI3
 
 config STM32_PERFORMANCELINE
 	bool
 	default n
 	select STM32_HAVE_USBDEV
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
 	select STM32_HAVE_TIM6
@@ -656,8 +678,8 @@ config STM32_HIGHDENSITY
 	default n
 	select STM32_HAVE_FSMC
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
 	select STM32_HAVE_TIM6
@@ -671,8 +693,8 @@ config STM32_MEDIUMDENSITY
 	bool
 	default n
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
 	select STM32_HAVE_TIM6
@@ -686,8 +708,8 @@ config STM32_LOWDENSITY
 	bool
 	default n
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
 	select STM32_HAVE_TIM6
@@ -706,8 +728,8 @@ config STM32_STM32F207
 	select STM32_HAVE_OTGFS
 	select STM32_HAVE_FSMC
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_USART6
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
@@ -726,6 +748,8 @@ config STM32_STM32F207
 	select STM32_HAVE_CAN2
 	select STM32_HAVE_RNG
 	select STM32_HAVE_ETHMAC
+	select STM32_HAVE_SPI2
+	select STM32_HAVE_SPI3
 
 config STM32_STM32F30XX
 	bool
@@ -743,11 +767,14 @@ config STM32_STM32F30XX
 	select STM32_HAVE_ADC3
 	select STM32_HAVE_ADC4
 	select STM32_HAVE_CAN1
+	select STM32_HAVE_SPI2
 
 config STM32_STM32F40XX
 	bool
 	default n
 	select STM32_HAVE_OTGFS
+	select STM32_HAVE_SPI2
+	select STM32_HAVE_SPI3
 
 config STM32_STM32F401
 	bool
@@ -758,6 +785,22 @@ config STM32_STM32F401
 	select STM32_HAVE_TIM9
 	select STM32_HAVE_TIM10
 	select STM32_HAVE_TIM11
+	select STM32_HAVE_SPI2
+	select STM32_HAVE_SPI3
+
+config STM32_STM32F411
+	bool
+	default n
+	select STM32_HAVE_USART6
+	select STM32_HAVE_TIM1
+	select STM32_HAVE_TIM5
+	select STM32_HAVE_TIM9
+	select STM32_HAVE_TIM10
+	select STM32_HAVE_TIM11
+	select STM32_HAVE_SPI2
+	select STM32_HAVE_SPI3
+	select STM32_HAVE_SPI4
+	select STM32_HAVE_SPI5
 
 config STM32_STM32F405
 	bool
@@ -765,8 +808,8 @@ config STM32_STM32F405
 	select STM32_HAVE_FSMC
 	select STM32_HAVE_CCM
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_USART6
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
@@ -791,8 +834,8 @@ config STM32_STM32F407
 	select STM32_HAVE_FSMC
 	select STM32_HAVE_CCM
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_USART6
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
@@ -819,11 +862,11 @@ config STM32_STM32F427
 	select STM32_HAVE_FSMC
 	select STM32_HAVE_CCM
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_USART6
-	select STM32_HAVE_USART7
-	select STM32_HAVE_USART8
+	select STM32_HAVE_UART7
+	select STM32_HAVE_UART8
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM5
 	select STM32_HAVE_TIM6
@@ -841,6 +884,10 @@ config STM32_STM32F427
 	select STM32_HAVE_CAN2
 	select STM32_HAVE_RNG
 	select STM32_HAVE_ETHMAC
+	select STM32_HAVE_SPI2
+	select STM32_HAVE_SPI3
+	select STM32_HAVE_SPI4
+	select STM32_HAVE_SPI5
 
 # This is really 429/439, but we treat the two the same.
 config STM32_STM32F429
@@ -849,11 +896,11 @@ config STM32_STM32F429
 	select STM32_HAVE_FSMC
 	select STM32_HAVE_CCM
 	select STM32_HAVE_USART3
-	select STM32_HAVE_USART4
-	select STM32_HAVE_USART5
+	select STM32_HAVE_UART4
+	select STM32_HAVE_UART5
 	select STM32_HAVE_USART6
-	select STM32_HAVE_USART7
-	select STM32_HAVE_USART8
+	select STM32_HAVE_UART7
+	select STM32_HAVE_UART8
 	select STM32_HAVE_TIM1
 	select STM32_HAVE_TIM6
 	select STM32_HAVE_TIM7
@@ -870,6 +917,10 @@ config STM32_STM32F429
 	select STM32_HAVE_CAN2
 	select STM32_HAVE_RNG
 	select STM32_HAVE_ETHMAC
+	select STM32_HAVE_SPI2
+	select STM32_HAVE_SPI3
+	select STM32_HAVE_SPI4
+	select STM32_HAVE_SPI5
 
 config STM32_DFU
 	bool "DFU bootloader"
@@ -904,11 +955,11 @@ config STM32_HAVE_USART3
 	bool
 	default n
 
-config STM32_HAVE_USART4
+config STM32_HAVE_UART4
 	bool
 	default n
 
-config STM32_HAVE_USART5
+config STM32_HAVE_UART5
 	bool
 	default n
 
@@ -916,11 +967,11 @@ config STM32_HAVE_USART6
 	bool
 	default n
 
-config STM32_HAVE_USART7
+config STM32_HAVE_UART7
 	bool
 	default n
 
-config STM32_HAVE_USART8
+config STM32_HAVE_UART8
 	bool
 	default n
 
@@ -1005,6 +1056,22 @@ config STM32_HAVE_RNG
 	default n
 
 config STM32_HAVE_ETHMAC
+	bool
+	default n
+
+config STM32_HAVE_SPI2
+	bool
+	default n
+
+config STM32_HAVE_SPI3
+	bool
+	default n
+
+config STM32_HAVE_SPI4
+	bool
+	default n
+
+config STM32_HAVE_SPI5
 	bool
 	default n
 
@@ -1161,19 +1228,6 @@ config STM32_OTGHS
 	default n
 	depends on STM32_STM32F207 || STM32_STM32F40XX || STM32_STM32F429
 
-config STM32_OTGHS_FS_MODE
-	bool "Use OTG HS in FS mode"
-	default n
-	depends on STM32_OTGHS && !STM32_OTGFS
-	select STM32_OTGFS2
-	---help---
-		The STM32 USB HS module can operate in legacy FS mode using the
-		built-in FS PHY in the HS module.  This mode can only be used if
-		the OTG FS block is not being used since they use on the same
-		driver, and all the base address are different (the driver
-		uses #define defined addresses which are re-mapped when this
-		option is selected).
-
 config STM32_PWR
 	bool "PWR"
 	default n
@@ -1200,28 +1254,28 @@ config STM32_SPI1
 config STM32_SPI2
 	bool "SPI2"
 	default n
-	depends on STM32_CONNECTIVITYLINE || STM32_STM32F207 || STM32_STM32F40XX || (STM32_VALUELINE && STM32_HIGHDENSITY) || (STM32_STM32F10XX && (STM32_HIGHDENSITY || STM32_MEDIUMDENSITY)) || STM32_STM32F30XX
+	depends on STM32_HAVE_SPI2
 	select SPI
 	select STM32_SPI
 
 config STM32_SPI3
 	bool "SPI3"
 	default n
-	depends on STM32_CONNECTIVITYLINE || STM32_STM32L15XX || STM32_STM32F207 || STM32_STM32F40XX || (STM32_VALUELINE && STM32_HIGHDENSITY) || (STM32_STM32F10XX && STM32_HIGHDENSITY)
+	depends on STM32_HAVE_SPI3
 	select SPI
 	select STM32_SPI
 
 config STM32_SPI4
 	bool "SPI4"
 	default n
-	depends on STM32_STM32F427 || STM32_STM32F429
+	depends on STM32_HAVE_SPI4
 	select SPI
 	select STM32_SPI
 
 config STM32_SPI5
 	bool "SPI5"
 	default n
-	depends on STM32_STM32F427 || STM32_STM32F429
+	depends on STM32_HAVE_SPI5
 	select SPI
 	select STM32_SPI
 
@@ -1328,32 +1382,37 @@ config STM32_USART1
 	bool "USART1"
 	default n
 	select ARCH_HAVE_USART1
+	select ARCH_HAVE_SERIAL_TERMIOS
 	select STM32_USART
 
 config STM32_USART2
 	bool "USART2"
 	default n
 	select ARCH_HAVE_USART2
+	select ARCH_HAVE_SERIAL_TERMIOS
 	select STM32_USART
 
 config STM32_USART3
 	bool "USART3"
 	default n
 	depends on STM32_HAVE_USART3
+	select ARCH_HAVE_SERIAL_TERMIOS
 	select ARCH_HAVE_USART3
 	select STM32_USART
 
 config STM32_UART4
 	bool "UART4"
 	default n
-	depends on STM32_HAVE_USART4
+	depends on STM32_HAVE_UART4
+	select ARCH_HAVE_SERIAL_TERMIOS
 	select ARCH_HAVE_UART4
 	select STM32_USART
 
 config STM32_UART5
 	bool "UART5"
 	default n
-	depends on STM32_HAVE_USART5
+	depends on STM32_HAVE_UART5
+	select ARCH_HAVE_SERIAL_TERMIOS
 	select ARCH_HAVE_UART5
 	select STM32_USART
 
@@ -1361,20 +1420,23 @@ config STM32_USART6
 	bool "USART6"
 	default n
 	depends on STM32_HAVE_USART6
+	select ARCH_HAVE_SERIAL_TERMIOS
 	select ARCH_HAVE_USART6
 	select STM32_USART
 
 config STM32_UART7
 	bool "UART7"
 	default n
-	depends on STM32_HAVE_USART7
+	depends on STM32_HAVE_UART7
+	select ARCH_HAVE_SERIAL_TERMIOS
 	select ARCH_HAVE_UART7
 	select STM32_USART
 
 config STM32_UART8
 	bool "UART8"
 	default n
-	depends on STM32_HAVE_USART7
+	depends on STM32_HAVE_UART8
+	select ARCH_HAVE_SERIAL_TERMIOS
 	select ARCH_HAVE_UART8
 	select STM32_USART
 
@@ -1414,9 +1476,6 @@ config STM32_I2C
 	bool
 
 config STM32_CAN
-	bool
-
-config STM32_OTGFS2
 	bool
 
 menu "Alternate Pin Mapping"
@@ -3013,15 +3072,6 @@ config UART8_RXDMA
 	---help---
 		In high data rate usage, Rx DMA may eliminate Rx overrun errors
 
-config SERIAL_TERMIOS
-	bool "Serial driver TERMIOS supported"
-	depends on STM32_USART1 || STM32_USART2 || STM32_USART3 || STM32_UART4 || STM32_UART5 || STM32_USART6 || STM32_UART7 || STM32_UART8
-	default n
-	---help---
-		Serial driver supports termios.h interfaces (tcsetattr, tcflush, etc.).
-		If this is not defined, then the terminal settings (baud, parity, etc).
-		are not configurable at runtime; serial streams cannot be flushed, etc..
-
 config SERIAL_DISABLE_REORDERING
 	bool "Disable reordering of ttySx devices."
 	depends on STM32_USART1 || STM32_USART2 || STM32_USART3 || STM32_UART4 || STM32_UART5 || STM32_USART6 || STM32_UART7 || STM32_UART8
@@ -3370,7 +3420,7 @@ config STM32_ETHMAC_REGDEBUG
 endmenu
 endif
 
-menu "USB Host Configuration"
+menu "USB FS Host Configuration"
 
 config STM32_OTGFS_RXFIFO_SIZE
 	int "Rx Packet Size"
@@ -3407,17 +3457,60 @@ config STM32_OTGFS_SOFINTR
 	---help---
 		Enable SOF interrupts.  Why would you ever want to do that?
 
+endmenu
+
+menu "USB HS Host Configuration"
+
+config STM32_OTGHS_RXFIFO_SIZE
+	int "Rx Packet Size"
+	default 128
+	depends on USBHOST && STM32_OTGHS
+	---help---
+		Size of the RX FIFO in 32-bit words. Default 128 (512 bytes)
+
+config STM32_OTGHS_NPTXFIFO_SIZE
+	int "Non-periodic Tx FIFO Size"
+	default 96
+	depends on USBHOST && STM32_OTGHS
+	---help---
+		Size of the non-periodic Tx FIFO in 32-bit words.  Default 96 (384 bytes)
+
+config STM32_OTGHS_PTXFIFO_SIZE
+	int "Periodic Tx FIFO size"
+	default 128
+	depends on USBHOST && STM32_OTGHS
+	---help---
+		Size of the periodic Tx FIFO in 32-bit words.  Default 96 (384 bytes)
+
+config STM32_OTGHS_DESCSIZE
+	int "Descriptor Size"
+	default 128
+	depends on USBHOST && STM32_OTGHS
+	---help---
+		Maximum size to allocate for descriptor memory descriptor.  Default: 128
+
+config STM32_OTGHS_SOFINTR
+	bool "Enable SOF interrupts"
+	default n
+	depends on USBHOST && STM32_OTGHS
+	---help---
+		Enable SOF interrupts.  Why would you ever want to do that?
+
+endmenu
+
+menu "USB Host Debug Configuration"
+
 config STM32_USBHOST_REGDEBUG
 	bool "Register-Level Debug"
 	default n
-	depends on USBHOST && STM32_OTGFS
+	depends on USBHOST && (STM32_OTGFS || STM32_OTGHS)
 	---help---
 		Enable very low-level register access debug.  Depends on DEBUG.
 
 config STM32_USBHOST_PKTDUMP
 	bool "Packet Dump Debug"
 	default n
-	depends on USBHOST && STM32_OTGFS
+	depends on USBHOST && (STM32_OTGFS || STM32_OTGHS)
 	---help---
 		Dump all incoming and outgoing USB packets. Depends on DEBUG.
 

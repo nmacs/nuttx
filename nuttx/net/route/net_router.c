@@ -1,7 +1,7 @@
 /****************************************************************************
  * net/route/net_router.c
  *
- *   Copyright (C) 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,6 +45,7 @@
 
 #include <nuttx/net/ip.h>
 
+#include "devif/devif.h"
 #include "route/route.h"
 
 #if defined(CONFIG_NET) && defined(CONFIG_NET_ROUTE)
@@ -83,7 +84,7 @@ static int net_match(FAR struct net_route_s *route, FAR void *arg)
   FAR struct route_match_s *match = (FAR struct route_match_s *)arg;
 
   /* To match, the masked target addresses must be the same.  In the event
-   * of multiple matches, only the first is returned.  There not (yet) any
+   * of multiple matches, only the first is returned.  There is not (yet) any
    * concept for the precedence of networks.
    */
 
@@ -131,6 +132,13 @@ int net_router(net_ipaddr_t target, FAR net_ipaddr_t *router)
   struct route_match_s match;
   int ret;
 
+  /* Do not route the special broadcast IP address */
+
+  if (net_ipaddr_cmp(target, g_alloneaddr))
+    {
+      return -ENOENT;
+    }
+
   /* Set up the comparison structure */
 
   memset(&match, 0, sizeof(struct route_match_s));
@@ -146,9 +154,9 @@ int net_router(net_ipaddr_t target, FAR net_ipaddr_t *router)
       /* We found a route.  Return the router address. */
 
 #ifdef CONFIG_NET_IPv6
-      net_ipaddr_copy(router, match.target);
+      net_ipaddr_copy(router, match.router);
 #else
-      net_ipaddr_copy(*router, match.target);
+      net_ipaddr_copy(*router, match.router);
 #endif
       ret = OK;
     }

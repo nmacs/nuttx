@@ -59,7 +59,7 @@
 #include "up_internal.h"
 
 /****************************************************************************
- * Private Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
 #define BUF ((struct ether_header*)g_sim_dev.d_buf)
@@ -141,7 +141,7 @@ void netdriver_loop(void)
 {
   /* netdev_read will return 0 on a timeout event and >0 on a data received event */
 
-  g_sim_dev.d_len = netdev_read((unsigned char*)g_sim_dev.d_buf, CONFIG_NET_BUFSIZE);
+  g_sim_dev.d_len = netdev_read((unsigned char*)g_sim_dev.d_buf, CONFIG_NET_ETH_MTU);
 
   /* Disable preemption through to the following so that it behaves a little more
    * like an interrupt (otherwise, the following logic gets pre-empted an behaves
@@ -155,7 +155,7 @@ void netdriver_loop(void)
        * MAC address
        */
 
-      if (g_sim_dev.d_len > NET_LL_HDRLEN && up_comparemac(BUF->ether_dhost, &g_sim_dev.d_mac) == 0)
+      if (g_sim_dev.d_len > ETH_HDRLEN && up_comparemac(BUF->ether_dhost, &g_sim_dev.d_mac) == 0)
         {
           /* We only accept IP packets of the configured type and ARP packets */
 
@@ -215,7 +215,7 @@ int netdriver_init(void)
 
   /* Register the device with the OS so that socket IOCTLs can be performed */
 
-  (void)netdev_register(&g_sim_dev);
+  (void)netdev_register(&g_sim_dev, NET_LL_ETHERNET);
   return OK;
 }
 

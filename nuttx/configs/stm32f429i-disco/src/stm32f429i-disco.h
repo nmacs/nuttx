@@ -2,7 +2,8 @@
  * configs/stm32f429i-disco/src/stm32f429i-disco.h
  *
  *   Copyright (C) 2011-2012 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ *   Authors: Gregory Nutt <gnutt@nuttx.org>
+ *            Marco Krahl <ocram.lhark@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,6 +44,10 @@
 #include <nuttx/config.h>
 #include <nuttx/compiler.h>
 #include <stdint.h>
+
+#ifdef CONFIG_STM32F429I_DISCO_ILI9341
+#include <nuttx/lcd/ili9341.h>
+#endif
 
 /****************************************************************************************************
  * Definitions
@@ -149,7 +154,7 @@ void weak_function stm32_spiinitialize(void);
  *
  ****************************************************************************************************/
 
-#ifdef CONFIG_STM32_OTGFS2
+#ifdef CONFIG_STM32_OTGHS
 void weak_function stm32_usbinitialize(void);
 #endif
 
@@ -162,7 +167,7 @@ void weak_function stm32_usbinitialize(void);
  *
  ****************************************************************************************************/
 
-#if defined(CONFIG_STM32_OTGFS2) && defined(CONFIG_USBHOST)
+#if defined(CONFIG_STM32_OTGHS) && defined(CONFIG_USBHOST)
 int stm32_usbhost_initialize(void);
 #endif
 
@@ -232,6 +237,50 @@ void stm32_pmbuttons(void);
 
 #ifdef CONFIG_NSH_LIBRARY
 int nsh_archinitialize(void);
+#endif
+
+#ifdef CONFIG_STM32F429I_DISCO_ILI9341
+/****************************************************************************
+ * Name:  stm32_ili93414ws_initialize
+ *
+ * Description:
+ *   Initialize the device structure to control the LCD Single chip driver.
+ *
+ * Input Parameters:
+ *
+ * Returned Value:
+ *   On success, this function returns a reference to the LCD control object
+ *   for the specified ILI9341 LCD Single chip driver connected as 4 wire serial
+ *   (spi). NULL is returned on any failure.
+ *
+ ******************************************************************************/
+
+FAR struct ili9341_lcd_s *stm32_ili93414ws_initialize(void);
+#endif
+
+#ifdef CONFIG_STM32_SPI5
+/******************************************************************************
+ * Name: stm32_spi5initialize
+ *
+ * Description:
+ *   Initialize the selected SPI port.
+ *   As long as the method up_spiinitialize recognized the initialized state of
+ *   the spi device by the spi enable flag of the cr1 register, it isn't safe to
+ *   disable the spi device outside of the nuttx spi interface structure. But
+ *   this has to be done as long as the nuttx spi interface doesn't support
+ *   bidirectional data transfer for multiple devices share one spi bus. This
+ *   wrapper does nothing else than store the initialized state of the spi
+ *   device after the first initializing and should be used by each driver who
+ *   shares the spi5 bus.
+ *
+ * Input Parameter:
+ *
+ * Returned Value:
+ *   Valid SPI device structure reference on succcess; a NULL on failure
+ *
+ ******************************************************************************/
+
+FAR struct spi_dev_s *stm32_spi5initialize(void);
 #endif
 
 #endif /* __ASSEMBLY__ */

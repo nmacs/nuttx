@@ -1,7 +1,7 @@
 /****************************************************************************
  * sched/semaphore/sem_initialize.c
  *
- *   Copyright (C) 2007, 2009, 2012 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007, 2009, 2012, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -39,12 +39,14 @@
 
 #include <nuttx/config.h>
 
-#include <queue.h>
-
 #include "semaphore/semaphore.h"
 
+/* Currently only need to setup priority inheritance logic */
+
+#ifdef CONFIG_PRIORITY_INHERITANCE
+
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
 /****************************************************************************
@@ -54,10 +56,6 @@
 /****************************************************************************
  * Global Variables
  ****************************************************************************/
-
-/* This is a list of dyanamically allocated named semaphores */
-
-dq_queue_t g_nsems;
 
 /****************************************************************************
  * Private Variables
@@ -76,7 +74,7 @@ dq_queue_t g_nsems;
  *
  * Description:
  *   The control structures for all semaphores may be initialized by calling
- *   sem_initialize().  This should be done once at poweron.
+ *   sem_initialize().  This should be done once at power-on.
  *
  * Parameters:
  *   None
@@ -90,11 +88,9 @@ dq_queue_t g_nsems;
 
 void sem_initialize(void)
 {
-  /* Initialize the queue of named semaphores */
-
-  dq_init(&g_nsems);
-
-  /* Initialize holder structures needed to support priority inheritiance */
+  /* Initialize holder structures needed to support priority inheritance */
 
   sem_initholders();
 }
+
+#endif /* CONFIG_PRIORITY_INHERITANCE */

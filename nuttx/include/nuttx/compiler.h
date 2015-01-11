@@ -41,7 +41,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
 /* GCC-specific definitions *************************************************/
@@ -112,7 +112,7 @@
  * indicates that the function should never be inlined.
  */
 
-# define inline_function __attribute__ ((always_inline))
+# define inline_function __attribute__ ((always_inline,no_instrument_function))
 # define noinline_function __attribute__ ((noinline))
 
 /* GCC has does not use storage classes to qualify addressing */

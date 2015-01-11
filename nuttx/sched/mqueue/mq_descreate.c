@@ -50,13 +50,14 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/mqueue.h>
 
 #include "signal/signal.h"
 
 #include "mqueue/mqueue.h"
 
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
 /****************************************************************************
@@ -64,7 +65,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Global Variables
+ * Public Variables
  ****************************************************************************/
 
 /****************************************************************************
@@ -124,8 +125,8 @@ static mqd_t mq_desalloc(void)
  *   Create a message queue descriptor for the specified TCB
  *
  * Inputs:
- *   TCB - task that needs the descriptor.
- *   msgq - Named message queue containing the message
+ *   mtcb   - task that needs the descriptor.
+ *   msgq   - Named message queue containing the message
  *   oflags - access rights for the descriptor
  *
  * Return Value:
@@ -134,11 +135,22 @@ static mqd_t mq_desalloc(void)
  *
  ****************************************************************************/
 
-mqd_t mq_descreate(FAR struct tcb_s* mtcb, FAR msgq_t* msgq, int oflags)
+mqd_t mq_descreate(FAR struct tcb_s *mtcb, FAR struct mqueue_inode_s *msgq,
+                   int oflags)
 {
-  FAR struct task_group_s *group = mtcb->group;
+  FAR struct task_group_s *group;
   mqd_t mqdes;
 
+  /* A NULL TCB pointer means to use the TCB of the currently executing
+   * task/thread.
+   */
+
+  if (!mtcb)
+    {
+      mtcb = sched_self();
+    }
+
+  group = mtcb->group;
   DEBUGASSERT(group);
 
   /* Create a message queue descriptor for the TCB */
@@ -146,13 +158,13 @@ mqd_t mq_descreate(FAR struct tcb_s* mtcb, FAR msgq_t* msgq, int oflags)
   mqdes = mq_desalloc();
   if (mqdes)
     {
-      /* Initialize the MQ descriptor */
+      /* Initialize the message queue descriptor */
 
       memset(mqdes, 0, sizeof(struct mq_des));
       mqdes->msgq   = msgq;
       mqdes->oflags = oflags;
 
-      /* And add it to the specified tasks's TCB */
+      /* And add it to the specified task's TCB */
 
       sq_addlast((FAR sq_entry_t*)mqdes, &group->tg_msgdesq);
     }

@@ -60,7 +60,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
+#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev)])
 
 /****************************************************************************
  * Public Variables
@@ -114,7 +114,7 @@ int udp_input(FAR struct net_driver_s *dev)
 
   dev->d_len    -= IPUDP_HDRLEN;
 #ifdef CONFIG_NET_UDP_CHECKSUMS
-  dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
+  dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN(dev) + IPUDP_HDRLEN];
   if (pbuf->udpchksum != 0 && udp_chksum(dev) != 0xffff)
     {
 #ifdef CONFIG_NET_STATISTICS
@@ -127,7 +127,21 @@ int udp_input(FAR struct net_driver_s *dev)
   else
 #endif
     {
-      /* Demultiplex this UDP packet between the UDP "connections". */
+      /* Demultiplex this UDP packet between the UDP "connections".
+       *
+       * REVISIT:  The logic here expects either a single receive socket or
+       * none at all.  However, multiple sockets should be capable of
+       * receiving a UDP datagram (multicast reception).  This could be
+       * handled easily by something like:
+       *
+       *   for (conn = NULL; conn = udp_active (pbuf, conn); )
+       *
+       * If the callback logic that receives a packet responds with an
+       * outgoing packet, then it will over-write the received buffer,
+       * however.  recvfrom() will not do that, however.  We would have to
+       * make that the rule: Recipients of a UDP packet must treat the
+       * packet as read-only.
+       */
 
       conn = udp_active(pbuf);
       if (conn)
@@ -136,8 +150,8 @@ int udp_input(FAR struct net_driver_s *dev)
 
           /* Set-up for the application callback */
 
-          dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
-          dev->d_snddata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
+          dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN(dev) + IPUDP_HDRLEN];
+          dev->d_snddata = &dev->d_buf[NET_LL_HDRLEN(dev) + IPUDP_HDRLEN];
           dev->d_sndlen  = 0;
 
           /* Perform the application callback */

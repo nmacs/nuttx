@@ -34,6 +34,10 @@
 #
 ############################################################################
 
+ifeq ($(CONFIG_INTERPRETERS_BAS),y)
+CONFIGURED_APPS += interpreters/bas
+endif
+
 ifeq ($(CONFIG_INTERPRETERS_PCODE),y)
 CONFIGURED_APPS += interpreters/pcode
 endif

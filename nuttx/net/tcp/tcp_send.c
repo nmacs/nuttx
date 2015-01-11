@@ -62,7 +62,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BUF ((struct tcp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
+#define BUF ((struct tcp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN(dev)])
 
 /****************************************************************************
  * Public Variables
@@ -201,8 +201,8 @@ static void tcp_sendcommon(FAR struct net_driver_s *dev,
     }
   else
     {
-      pbuf->wnd[0] = ((CONFIG_NET_RECEIVE_WINDOW) >> 8);
-      pbuf->wnd[1] = ((CONFIG_NET_RECEIVE_WINDOW) & 0xff);
+      pbuf->wnd[0] = ((NET_DEV_RCVWNDO(dev)) >> 8);
+      pbuf->wnd[1] = ((NET_DEV_RCVWNDO(dev)) & 0xff);
     }
 
   /* Finish the IP portion of the message, calculate checksums and send
@@ -360,8 +360,8 @@ void tcp_ack(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn,
 
   pbuf->optdata[0] = TCP_OPT_MSS;
   pbuf->optdata[1] = TCP_OPT_MSS_LEN;
-  pbuf->optdata[2] = (TCP_MSS) / 256;
-  pbuf->optdata[3] = (TCP_MSS) & 255;
+  pbuf->optdata[2] = TCP_MSS(dev) / 256;
+  pbuf->optdata[3] = TCP_MSS(dev) & 255;
   dev->d_len       = IPTCP_HDRLEN + TCP_OPT_MSS_LEN;
   pbuf->tcpoffset  = ((TCP_HDRLEN + TCP_OPT_MSS_LEN) / 4) << 4;
 

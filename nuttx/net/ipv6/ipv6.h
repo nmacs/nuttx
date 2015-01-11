@@ -51,6 +51,8 @@
 
 #include <nuttx/net/ip.h>
 
+#ifdef CONFIG_NET_IPv6
+
 /****************************************************************************
  * Public Types
  ****************************************************************************/
@@ -65,6 +67,10 @@ struct net_neighbor_addr_s
 };
 
 /****************************************************************************
+ * Public Data
+ ****************************************************************************/
+
+/****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
 
@@ -74,4 +80,6 @@ void net_neighbor_update(net_ipaddr_t ipaddr);
 struct net_neighbor_addr_s *net_neighbor_lookup(net_ipaddr_t ipaddr);
 void net_neighbor_periodic(void);
 
+#endif /* CONFIG_NET_IPv6 */
 #endif /* __NET_IPV6_IPV6_H */
+

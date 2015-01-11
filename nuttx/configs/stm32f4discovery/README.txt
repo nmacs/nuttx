@@ -10,7 +10,7 @@ memory and 128kbytes. The board features:
   - LIS302DL, ST MEMS motion sensor, 3-axis digital output accelerometer,
   - MP45DT02, ST MEMS audio sensor, omni-directional digital microphone,
   - CS43L22, audio DAC with integrated class D speaker driver,
-  - Eight LEDs and two push-buttons,
+  - Four LEDs and two push-buttons,
   - USB OTG FS with micro-AB connector, and
   - Easy access to most MCU pins.
 
@@ -36,6 +36,7 @@ Contents
   - SSD1289
   - UG-2864AMBAG01 / UG-2864HSWEG01
   - STM32F4Discovery-specific Configuration Options
+  - BASIC
   - Configurations
 
 Development Environment
@@ -221,7 +222,7 @@ NuttX EABI "buildroot" Toolchain
   NOTE:  Unfortunately, the 4.6.3 EABI toolchain is not compatible with the
   the NXFLAT tools.  See the top-level TODO file (under "Binary loaders") for
   more information about this problem. If you plan to use NXFLAT, please do not
-  use the GCC 4.6.3 EABI toochain; instead use the GCC 4.3.3 OABI toolchain.
+  use the GCC 4.6.3 EABI toolchain; instead use the GCC 4.3.3 OABI toolchain.
   See instructions below.
 
 NuttX OABI "buildroot" Toolchain
@@ -279,7 +280,7 @@ NXFLAT Toolchain
 LEDs
 ====
 
-The STM32F4Discovery board has four LEDs; green, organge, red and blue on the
+The STM32F4Discovery board has four LEDs; green, orange, red and blue on the
 board. These LEDs are not used by the board port unless CONFIG_ARCH_LEDS is
 defined.  In that case, the usage by the board port is defined in
 include/board.h and src/up_leds.c. The LEDs are used to encode OS-related
@@ -301,7 +302,7 @@ events as follows:
   * If LED1, LED2, LED3 are statically on, then NuttX probably failed to boot
     and these LEDs will give you some indication of where the failure was
  ** The normal state is LED3 ON and LED1 faintly glowing.  This faint glow
-    is because of timer interupts that result in the LED being illuminated
+    is because of timer interrupts that result in the LED being illuminated
     on a small proportion of the time.
 *** LED2 may also flicker normally if signals are processed.
 
@@ -606,7 +607,7 @@ SSD1289
 
 I purchased an LCD display on eBay from China.  The LCD is 320x240 RGB565 and
 is based on an SSD1289 LCD controller and an XPT2046 touch IC.  The pin out
-from the 2x16 connect on the LCD is labeled as follows:
+from the 2x16 connect on the LCD is labelled as follows:
 
 LCD CONNECTOR:          SSD1289 MPU INTERFACE PINS:
 
@@ -682,9 +683,9 @@ MAPPING TO STM32 F4:
 
 NOTE:  The configuration to test this LCD configuration is available at
 configs/stm32f4discovery/nxlines.  As of this writing, I have not seen the
-LCD working so I probaby have some things wrong.
+LCD working so I probably have some things wrong.
 
-I might need to use a bit-baning interface.  Below is the pin configurationf
+I might need to use a bit-banging interface.  Below is the pin configuration
 of a similar LCD to support a (write-only), bit banging interface:
 
   LCD PIN   BOARD CONNECTION
@@ -699,7 +700,7 @@ of a similar LCD to support a (write-only), bit banging interface:
   CS        Pin configured as output
   RSET      Pin configured as output
 
-The following summarize the bit banging oprations:
+The following summarize the bit banging operations:
 
   /* Rese the LCD */
   void Reset(void)
@@ -776,7 +777,7 @@ that I am using:
   -------------------------------------------------------------------------
 
 Darcy Gong recently added support for the UG-2864HSWEG01 OLED which is also
-an option with this configuratin.  I have little technical information about
+an option with this configuration.  I have little technical information about
 the UG-2864HSWEG01 interface (see configs/stm32f4discovery/src/up_ug2864hsweg01.c).
 
 STM32F4Discovery-specific Configuration Options
@@ -863,7 +864,7 @@ STM32F4Discovery-specific Configuration Options
 
     CONFIG_ARCH_CALIBRATION - Enables some build in instrumentation that
        cause a 100 second delay during boot-up.  This 100 second delay
-       serves no purpose other than it allows you to calibratre
+       serves no purpose other than it allows you to calibrate
        CONFIG_ARCH_LOOPSPERMSEC.  You simply use a stop watch to measure
        the 100 second delay then adjust CONFIG_ARCH_LOOPSPERMSEC until
        the delay actually is 100 seconds.
@@ -1042,6 +1043,104 @@ STM32F4Discovery-specific Configuration Options
    CONFIG_STM32_USBHOST_PKTDUMP - Dump all incoming and outgoing USB
      packets. Depends on CONFIG_DEBUG.
 
+BASIC
+=====
+  I have used the stm32f4discovery/nsh configuration to test Michael Haardt's
+  BASIC interpreter that you can find at apps/interpreters/bas.
+
+    Bas is an interpreter for the classic dialect of the programming language
+    BASIC.  It is pretty compatible to typical BASIC interpreters of the 1980s,
+    unlike some other UNIX BASIC interpreters, that implement a different
+    syntax, breaking compatibility to existing programs.  Bas offers many ANSI
+    BASIC statements for structured programming, such as procedures, local
+    variables and various loop types.  Further there are matrix operations,
+    automatic LIST indentation and many statements and functions found in
+    specific classic dialects.  Line numbers are not required.
+
+  There is also a test suite for the interpreter that can be found at
+  apps/examples/bastest.
+
+  Configuration
+  -------------
+  Below are the recommended configuration changes to use BAS with the
+  stm32f4discovery/nsh configuration:
+
+  Dependencies:
+    CONFIG_LIBC_EXECFUNCS=y      : exec*() functions are required
+    CONFIG_LIBM=y                : Some floating point library is required
+    CONFIG_LIBC_FLOATINGPOINT=y  : Floating point printing support is required
+    CONFIG_LIBC_TMPDIR="/tmp"    : Writable temporary files needed for some commands
+    CONFIG_FS_FAT=y              : With FAT you create a RAMDISK at /tmp
+    CONFIG_FAT_LFN=y             : FAT is difficult to use with long file names
+
+  Enable the BASIC interpreter.  Other default options should be okay:
+    CONFIG_INTERPRETERS_BAS=y    : Enables the interpreter
+    CONFIG_INTERPREPTER_BAS_VT100=y
+
+  The BASIC test suite can be included:
+     CONFIG_FS_ROMFS=y           : ROMFS support is needed
+     CONFIG_EXAMPLES_BASTEST=y   : Enables the BASIC test setup
+     CONFIG_EXAMPLES_BASTEST_DEVMINOR=0
+     CONFIG_EXAMPLES_BASTEST_DEVPATH="/dev/ram0"
+
+  Usage
+  -----
+  This setup will initialize the BASIC test (optional):  This will mount
+  a ROMFS file system at /mnt/romfs that contains the BASIC test files:
+
+  nsh> bastest
+  Registering romdisk at /dev/ram0
+  Mounting ROMFS filesystem at target=/mnt/romfs with source=/dev/ram0
+  nsh>
+
+  These steps will create and mount a RAMDISK at /tmp (required only for a
+  few BASIC commands).  This will create a RAMDISK device at /dev/ram1 with
+  size = 512 * 64 = 32KiB and mount it at /tmp:
+
+  nsh> mkrd -m 1 -s 512 64
+  nsh> mkfatfs /dev/ram1
+  nsh> mount -t vfat /dev/ram1 /tmp
+  nsh>
+
+  The interactive interpreter is started like:
+
+  nsh> bas
+  bas 2.4
+  Copyright 1999-2014 Michael Haardt.
+  This is free software with ABSOLUTELY NO WARRANTY.
+  >
+
+  Ctrl-D exits the interpreter.
+
+  The test programs can be ran like this:
+
+  nsh> bastest
+  Registering romdisk at /dev/ram0
+  Mounting ROMFS filesystem at target=/mnt/romfs with source=/dev/ram0
+  nsh> bas /mnt/romfs/test01.bas
+   1
+  hello
+   0.0002
+   0.0000020
+   0.0000002
+
+  nsh>
+
+  Or you can load a test into memory and execute it interactively:
+
+  nsh> bas
+  bas 2.4
+  Copyright 1999-2014 Michael Haardt.
+  This is free software with ABSOLUTELY NO WARRANTY.
+  > load "/mnt/romfs/test01.bas"
+  > run
+   1
+  hello
+   0.0002
+   0.0000020
+   0.0000002
+  >
+
 Configurations
 ==============
 
@@ -1143,7 +1242,7 @@ Where <subdir> is one of the following:
     3. By default, this project assumes that you are *NOT* using the DFU
        bootloader.
 
-    4. It appears that you cannot excute from CCM RAM.  This is why the
+    4. It appears that you cannot execute from CCM RAM.  This is why the
        following definition appears in the defconfig file:
 
        CONFIG_STM32_CCMEXCLUDE=y
@@ -1156,7 +1255,7 @@ Where <subdir> is one of the following:
   -------
     This is identical to the ostest configuration below except that NuttX
     is built as a kernel-mode, monolithic module and the user applications
-    are built separately.  Is is recommened to use a special make command;
+    are built separately.  Is is recommended to use a special make command;
     not just 'make' but make with the following two arguments:
 
         make pass1 pass2
@@ -1609,7 +1708,7 @@ Where <subdir> is one of the following:
         CONFIG_PM_BUTTONS=y
 
        CONFIG_PM_BUTTONS enables button support for PM testing.  Buttons can
-       drive EXTI interrupts and EXTI interrrupts can be used to wakeup for
+       drive EXTI interrupts and EXTI interrupts can be used to wakeup for
        certain reduced power modes (STOP mode).  The use of the buttons here
        is for PM testing purposes only; buttons would normally be part the
        application code and CONFIG_PM_BUTTONS would not be defined.
@@ -1692,8 +1791,8 @@ Where <subdir> is one of the following:
     4. Enabling USB monitor SYSLOG output.  If tracing is enabled, the USB
        device will save encoded trace output in in-memory buffer; if the
        USB monitor is enabled, that trace buffer will be periodically
-       emptied and dumped to the system loggin device (UART2 in this
-       configuraion):
+       emptied and dumped to the system logging device (UART2 in this
+       configuration):
 
        CONFIG_USBDEV_TRACE=y                   : Enable USB trace feature
        CONFIG_USBDEV_TRACE_NRECORDS=128        : Buffer 128 records in memory

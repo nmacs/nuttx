@@ -75,6 +75,9 @@ uintptr_t STUB_sched_setscheduler(int nbr, uintptr_t parm1, uintptr_t parm2,
             uintptr_t parm3);
 uintptr_t STUB_sched_unlock(int nbr);
 uintptr_t STUB_sched_yield(int nbr);
+
+/* Semaphores */
+
 uintptr_t STUB_sem_close(int nbr, uintptr_t parm1);
 uintptr_t STUB_sem_destroy(int nbr, uintptr_t parm1);
 uintptr_t STUB_sem_open(int nbr, uintptr_t parm1, uintptr_t parm2,
@@ -160,14 +163,23 @@ uintptr_t STUB_timer_settime(int nbr, uintptr_t parm1, uintptr_t parm2,
 uintptr_t STUB_close(int nbr, uintptr_t parm1);
 uintptr_t STUB_ioctl(int nbr, uintptr_t parm1, uintptr_t parm2,
             uintptr_t parm3);
-uintptr_t STUB_poll(int nbr, uintptr_t parm1, uintptr_t parm2,
-            uintptr_t parm3);
 uintptr_t STUB_read(int nbr, uintptr_t parm1, uintptr_t parm2,
+            uintptr_t parm3);
+uintptr_t STUB_write(int nbr, uintptr_t parm1, uintptr_t parm2,
+            uintptr_t parm3);
+uintptr_t STUB_pread(int nbr, uintptr_t parm1, uintptr_t parm2,
+            uintptr_t parm3, uintptr_t parm4);
+uintptr_t STUB_pwrite(int nbr, uintptr_t parm1, uintptr_t parm2,
+            uintptr_t parm3, uintptr_t parm4);
+uintptr_t STUB_poll(int nbr, uintptr_t parm1, uintptr_t parm2,
             uintptr_t parm3);
 uintptr_t STUB_select(int nbr, uintptr_t parm1, uintptr_t parm2,
             uintptr_t parm3, uintptr_t parm4, uintptr_t parm5);
-uintptr_t STUB_write(int nbr, uintptr_t parm1, uintptr_t parm2,
-            uintptr_t parm3);
+
+uintptr_t STUB_aio_read(int nbr, uintptr_t parm1);
+uintptr_t STUB_aio_write(int nbr, uintptr_t parm1);
+uintptr_t STUB_aio_fsync(int nbr, uintptr_t parm1, uintptr_t parm2);
+uintptr_t STUB_aio_cancel(int nbr, uintptr_t parm1, uintptr_t parm2);
 
 /* The following are defined if file descriptors are enabled */
 

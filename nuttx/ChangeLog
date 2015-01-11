@@ -28,7 +28,7 @@
 	* Added strtok() and strtok_r()
 	* Added a simple shell called nsh (see examples/nsh).
 	* Platform support for 8052 is complete but not stable
-	  when the timer interrupt is enabled.	Seems to be an
+	  when the timer interrupt is enabled.  Seems to be an
 	  issue when SP enters indirect address space.
 	* Documentation updates
 
@@ -1278,7 +1278,7 @@
 	  board (Contributed by Dave Marples).
 	* sched/sem_wait.c and sem_waitirq.c: Eliminate a race condition
 	  that can occur when a semaphore wait is interrupt by a signal.
-	  (see email thread: http://tech.groups.yahoo.com/group/nuttx/message/530)
+	  (see email thread: https://groups.yahoo.com/neo/groups/nuttx/conversations/messages/530)
 	* drivers/mtd/at45db.c: Add a driver for the Atmel AT45DB161D 4Mbit
 	  SPI FLASH part (untested on initial check-in).
 	* arch/arm/src/lm3s and arch/arm/include/lm3s: Corrections for the
@@ -8684,5 +8684,376 @@
 	* fs/fs_poll.c:  Re-implemented poll() delay using sem_timedwait()
 	  (2014-9-26).
 
-7.6 2014-xx-xx Gregory Nutt <gnutt@nuttx.org>
+7.6 2014-11-26 Gregory Nutt <gnutt@nuttx.org>
 
+	* fs/fs.h and other files:  Rename fs/fs_internal.h to fs/fs.h (2014-9-28).
+	* include/nuttx/semaphore.h and fs/fs.h:  Add data structures that will
+	  allow us to move name semaphore support out of the OS and into the
+	  VFS (not complete) (2014-9-28).
+	* fs/inode: Move inode and VFS utils from fs/. to fs/inode/. (2014-9-28).
+	* fs/driver: Move driver logic from fs/. to fs/driver/. (2014-9-28).
+	* fs/dirent: Move directory operations from fs/. to fs/dirent/. (2014-9-23).
+	* fs/mount: Move mount-related files from fs/. to fs/mount/. (2014-9-23).
+	* fs/vfs: Move renaming files in fs/. to fs/vfs/. (Don't all belong there)
+	  (2014-9-23).
+	* fs/semaphore: Create a build structure that will (eventually) support
+	  using the VFS to manage named semaphores (2014-9-23).
+	* configs/stm32f4discovery/include/board.h: STM32F4-Discovery: Fix some
+	  backward conditional compilation (2104-9-29).
+	* nuttx/sched/init/os_start.c, semaphore/Make.defs, sem_initialize.c,
+	  and semaphore.h: Semaphore initialization is now only required if
+	  priority inheritance is enabled (2014-9-29).
+	* fs/Makefile and mqueue/: Add build support for messages queues as part
+	  of the VFS (only build logic, no C files yet) (2014-9-29).
+	* fs/inode/inode.h and fs/driver/driver.h:  Move fs/fs.h to fs/inode/inode.h
+	  and some to fs/driver/driver.h (2014-9-29).
+	* sched/task/task_vfork.c: Fix vfork().  Now that arguments are kept on
+	  the stack, the way that arguments are passed from parent to child in
+	  vfork() must change.  This bug has always been present, but was not
+	  visible with the old strdup() way of passing arguments (2014-9-29).
+	* arch/arm/src/common/up_vfork.c: Another vfork() problem: If we get to
+	  vfork() via system call, then we need to clone some system call
+	  information so that the return form the cloned system call works
+	  correctly (2014-9-29).
+	* fs/mqueue: Move mq_open(), mq_close(), and mq_unlink() logic from
+	  sched/mqueue to fs/mqueue.  Convert the logic so that it uses the VFS to
+	  managed the message queue namespace (instead of custom logic).  By
+	  default, now message queues can be seen in /var/mqueue (2014-9-29).
+	* arch/sim/src/up_simuart.c, up_uartwait.c:  Removed old, strange
+	  up_stdio.c and implemented a simulated UART driver to provide the
+	  console input.  Starts a separate, Linux domain pthread to read
+	  the console input in raw mode and provides the incoming data to
+	  NuttX via standard NuttX domain IPCs (2014-9-30).
+	* arch/sim/src/up_setjmp32.S, up_setjmp64.S, Kconfig, Makefile,
+	  up_initialstate.c, up_internal.h, up_stackframe.c, and include/irq.h:
+	  Add support for 64-bit longjmp/setjmp in simulator platform.  This
+	  will permit operation of the simulation natively on a 64-bit platform
+	  (2014-10-2).
+	* include/fcntl.h: Implement create() as a macro (2014-10-4).
+	* fs/vfs/Make.defs,  fs_pread.c fs_pwrite.c, and include/unistd.h: Add
+	  pread() and pwrite() (2014-10-4).
+	* include/sys/syscall.h syscall/syscall.csv, syscall_lookup.h, and
+	  syscall_stublookup.c: Add pread() and pwrite() system calls
+	  (2014-10-4).
+	* include/aio.h:  Add aio.h header file (2014-10-4).
+	* libc/aio/lio_listio.c and Make.defs: Add empty skeleton file where
+	  lio_listio() will eventually be implemented (2014-10-4).
+	* libc/Kconfig, aio/aio_read.c, aio_write.c, aio_return.c, aio_error.c
+	  aio.h, and Make.defs: Initial implementation of aio_read(),
+	  aio_write(), aio_return(), and aio_error() (2014-10-4).
+	* include/signal.h and sched/Kconfig:  Add definitions for SIGPOLL
+	  (2014-9-5).
+	* libc/aio/aio_signal.c, Make.defs, and aio.h: Move AIO signal logic
+	  to a common location in aio_signal.c.  Also fix several typos
+	  (2014-9-5).
+	* libc/aio/aio_suspend.c, aio_cancel.c, aio_fsync.c, lio_listio.c and
+	  Make.defs:  Initial implementation of aio_suspend(), aio_cancel(),
+	  lio_listio.c, and aio_fsync.c.  This completes this implementation
+	  of the asynchronous I/O interfaces but there are still untested
+	  (2014-9-5).
+	* fs/aio/Make.defs, aio.h, aio_cancel.c, aio_fsync.c, aio_read.c,
+	  aio_signal.c, and aio_write.c: Move all file operations from libc/aio
+	  to fs/aio.  These will need to be kernel routines in order to
+	  handler issues with using file descriptors on worker thread
+	  (2014-10-5).
+	* fs/aio/aio.h, Kconfig, aio_initialize.c, aioc_contain.c, Make.defs,
+	  and include/aio.h: Add a AIO control container to increase the
+	  payload with OS internal stuff (2014-10-6).
+	* fs/aio/aio_cancel.c, aio_fsync.c, aio_read.c, aio_signal.c, and
+	  aio_write.c: Modify logic to use AIO control block container
+	  (2014-10-6).
+	* fs/fs_initialize.c, Makefile, fs/inode/fs_inode.c, and inode.h:
+	  Modify FS initialization logic to handle AIO container
+	  initialization (2014-10-6).
+	* Too many files to list:  Major structuring of file system functions
+	  to better support asynchronous I/O.  Repository should not be
+	  trusted until I have a chance to verify everything (2014-10-6).
+	* include/nuttx/mm/mm.h: Fix a place in the memory manager where it
+	  explicitly assumed that the size of a pointer is 4 bytes.  That is OK
+	  if the actual size is smaller but makes the heap unstable when used
+	  with the x86_64 host simulation (2014-10-6).
+	* sched/wqueue, include/nuttx/wqueue.h,  and libc/Kconfig sched/Makefile:
+	  Add support for priority inheritance on the low priority worker queue
+	  (2014-10-7).
+	* sched/Makefile and sched/*/Make.defs: Simplify how C source files are
+	  selected in the build (2014-10-7).
+	* fs/aio/aio_queue.c, Make.defs, aio.h, aio_fsync.c, aio_read.c, and
+	  aio_write.c: The asynch I/O implementation now satisfies POSIX
+	  priority requirements; it uses the new low priority worker thread
+	  interfaces to adjust the priority of the worker thread according to
+	  the priority of the client thread (2014-10-7).
+	* arch/arm/src/stm32/chip/stm32_otghs.hstm32_otghs.c/h and
+	  chip/stm32_otghs.h: Add files that implement true high speed support
+	  for the STM32 OTGHS peripheral.  From Brennan Ashton (2014-10-7).
+	* arch/arm/src/stm32/ (several files):  Integrates OTGHS support into
+	  the STM32; Eliminates the older OTGHS in FS mode logic.  From Brennan
+	  Ashton (2014-10-7).
+	* arch/arm/src/stm32/Kconfig, stm32_otgfsdev.c, chip/stm32f40xxx_pinmap.h,
+	  configs/stm32f429i-disco/ (several files): Remove non-functional
+	  vestiges of OTGHS in FS mode (including OTGFS2); try to convert the
+	  stm32f429i-disco configuration to use OTGHS instead of OTFHS in F
+	  mode (OTGFS2).  But I don't have the boards and can't test (2014-10-7).
+	* include/syslog.h, debug.h, libc/libc.csv, misc/lib_dbg.c,
+	  lib_dumpbuffer.c, stdio/lib_lowsyslog.c, lib_printf.c, lib_syslog.c,
+	  and fs/driver/fs_syslog.c: Make standard syslog and vsyslog POSIX
+	  compliant (also modify non-standard syslog functions for
+	  compatibility).  This will break a lot of things until ALL usage of
+	  syslog is updated to use the modified interfaces (2014-10-8).
+	* drivers/: Correct everything under nuttx/drivers, nuttx/arch, nuttx/net,
+	  nuttx/binfmt, and nuttx/configs to use the corrected syslog interfaces
+	  (2014-10-8).
+	* libc/syslog and fs/syslog: Move syslog logic from libc/misc and
+	  libc/stdio to libc/syslog and fs/syslog.  Also move some syslog logic
+	  from fs/driver to fs/syslog (2014-10-8).
+	* fs/syslog/fs_syslogmask.c:  Implement syslogmask() (2014-10-8).
+	* include/sys/syscall.h, syscall/syscall.csv, syscall_lookup.h, and
+	  syscall_stublookup.c:  Add syslog system calls (2014-10-8).
+	* fs/Kconfig, syslog/fs_syslogenable, and include/syslog.h:  Remove
+	  non-standard, conditional syslog_enable(), instead only the
+	  required, standard setlogmask() (2014-10-9).
+	* arch/arm/src/stm32/chip/stm32_exti.h: Correct STM32 RTC EXTI bit
+	  definition.  From Lazlo (2014-10-9).
+	* include/syscall.h, syscall/, and libc/: Remove syslog interfaces
+	  from the set of system calls (2014-10-9).
+	* libc/syslog: Move syslog back out of the kernel into the C libary
+	  (2014-10-9).
+	* arch/mips/src/pic32mx/pic32mx-devcfg.h: For PIC32MX7, DEVCFG0 bit
+	  2 must be set.  Writing bit 2 as zero can brick the CPU on some
+	  versions.  From Cris Kvist (2014-10-9).
+	* sched/wqueue/, libc/wqueue, and include/nuttx/wqeueue.h:  Separate
+	  kernel- and user-mode work queue logic. Decouple work queue data
+	  structures.  This is part of the preparation to support multiple
+	  low-priority worker threads (2014-10-10).
+	* include/nuttx/wqueue.h, libc/wqueue/Make.defs, work_usrthread.c,
+	  work_usrstart.c sched/init/os_bringup.c wqueue/kwork_hpthread.c,
+	  kwork_lpthread.c, and wqueue.h: Modularize starting of worker
+	  threads to better isolate individual initialization characteristics
+	  (2014-10-10).
+	* arch/arm/src/ stm32_iwdg.c, stm32_wwdg.c, and chip/stm32_dbgmcu.h:
+	  Fix watchdog stop bit usage.  From Lazlo (2014-10-10).
+	* sched/wqueue/, libc/wqueue, and include/nuttx/wqueue.h:  Add support
+	  for multiple low-priority worker threads.  This is a necessary
+	  piece of the support for asynchronous I/O (2014-10-10).
+	* sched/wqueue/work_inherit.c:  Add logic for priority inheritance with
+	  multiple worker threads.  How should this work?  Tentatively, the all
+	  get reprioritized together.  It would be best to just reprioritize the
+	  single thread doing the high priority work, but we don't know which
+	  that will be in advance (2014-10-10).
+	* fs/aio/ and include/aio.h:  Add support for socket-based transfers
+	  (2014-10-11).
+	* arch/arm/include/stm32/chip.h, /src/stm32/Kconfig, and
+	  stm32_allocateheap.c: Support for the STM32 F411RE from Serg Podtynnyi
+	  (2014-10-14).
+	* configs/Kconfig, README.txt, and nucleo-f401re:  Extend this board
+	  configuration to also support the Nucleo-F411RE.  From Serg Podtynnyi
+	  (2014-10-14).
+	* tools/Config.mk:  Add a PRELINK macro to Config.mk.  From Kriegleder
+	  (2014-10-17).
+	* arch/arm/src/efm32 and arch/arm/include/efm32: Add a basic port for
+	  the SiLabs EFM32 family.  Includes many files contributed by Pierre-noel
+	  Bouteville (2104-10-20).
+	* configs/efm32-gxxx-stk:  Add board support for the EFM32 Gecko Starter
+	  Kit (2014-10-20).
+	* configs/olimex-efm32g880f128-stk: Add board support for the Olimex
+	  EFM32G8809128 STK (2014-10-20).
+	* drivers/lcd/Kconfig, ili9341.c, Make.defs, and include/nuttx/lcd/ili9341.h:
+	  Add support for a generic ILI9341 driver.  From Marco Krahl (2014-10-20).
+	* configs/stm32f429i-disco/Kconfig, src/ and lcd/:  Add support for the
+	  STM32F429i Discovery's LCD.  From Marco Krahl (2014-10-20).
+	* arch/arm/src/lpc43xx/lpc43_gpioint.c, .h, lpc43_irq.c, and
+	  chip/lpc43_gpio.h: Fixes to allow compile of lpc43_gpioint.c.  It
+	  likely doesn't work.  From Brandon Warhurst (2014-10-21).
+	* arch/arm/src/stm32/chip/stm32f103r_pinmap.h: Add ADC pinmap
+	  definitions for the STM32 F103R from Martin Lederhilger  (2014-10-21).
+	* arch/arm/src/armv7-m/up_itm.c and itm.h: Add CMSIS ITM header file and
+	  library.  From Pierre-noel Bouteville (2104-10-21).
+	* arch/arm/src/armv7-m/dwt.h and tpi.h: Add CMSIS DWT and TPI header files.
+	  From Pierre-noel Bouteville (2104-10-21).
+	* arch/arm/src/armv7-m/arm_item_syslog.c, itm_syslog.h, and Kconfig: Add
+	  ARMv7 support to use ITM for SYSLOG debug output. Includes logic from
+	  Pierre-noel Bouteville (2014-10-22).
+	* arch/arm/src/efm32/efm32_clockconfig.c, efm32_start.c, and Make.defs:
+	  Add logic to initialize and use ITM for syslog. Includes logic from
+	  Pierre-noel Bouteville (2014-10-22).
+	* sched/sched/sched_timerexpiration.c and include/nuttx/arch.h:  Fixes
+	  to tickless operation code, especially in alarm mode.  From Brandon
+	  Warhurst (2014-10-23).
+	* nuttx/arch/arm/src/lpc43xx/lpc43_rit.c, lpc43_rit.h, and related
+	  files: Add support for tickless operation using the NXP LPC43xx.  From
+	  Brandon Warhurst (2014-10-23).
+	* arch/arm/src/efm32/efm32_gpio.c and efm32_gpioirq.c: EFM32 port and
+	  pin decoding backward in every case.  From  Pierre-Noel Bouteville
+	  (2014-10-23).
+	* arch/arm/src/armv7-m/up_itm_syslog.c:  Correct file naming and fix
+	  compilation errors in up_itm_syslog.c.  From  Pierre-Noel Bouteville
+	  (2014-10-23).
+	* configs/sam4e-ek/src/sam_ethernet.c (and other files):SAM4E-EK: Add
+	  support for PHY interrupt (2014-10-24).
+	* include/wchar.h:  Add a mostly bogus wchar.h header file.  This file
+	  is mostly bogus because none of the wide character operations are
+	  currently supported in the Nuttx C library (2014-10-27).
+	* include/termios.h, libc/termios/lib_isatty.c, and Make.defs: Add
+	  isatty() function. From  Alan Carvalho de Assis (2014-10-27).
+	* arch/arm/include/efm32, src/efm32, and configs/efm32-gxxx-stk:
+	  The EFM32 Gecko Starter Kit port is now functional.  At least
+	  NSH is running over LEUART0 on the board (2014-10-29).
+	* arch/arm/src/sam34/sam_serial.c and Kconfig:  Add support for SAM3/4
+	  basic TERMIOS and flow control.  There are issues with IFLOW control:
+	  PDC or DMAC support is required (2014-10-29).
+	* configs/sam4e-ek/src/sam4e-ek.h: Fix an error in a USART1 pin number
+	  (2014-10-29).
+	* configs/efm32gg-stk3700:  Board support for the SiLbas EFM32GG
+	  Giant Gecko Starter kit.  Current with basic NSH configuration only.
+	  Testing is on hold until I receive hardware (2014-11-03).
+	* libc/Kconfig: Move CONFIG_NSH_TMPDIR to CONFIG_LIBC_TMPDIR (2014-11-05).
+	* libc/stdlib/lib_mkstemp.c, lib_mktemp.c, Make.defs and include/stdlib.h:
+	  Add mktemp() and mkstemp() (2014-11-05).
+	* libc/stdio/lib_tempnam.c, lib_tmpnam.c, Kconfig, Make.defs and
+	  include/stdio.h: Add tmpnam() and tempnam() (2014-11-05).
+	* drivers/rwbuffer.c: Fix typo that can cause compiler error (2014-11-05).
+	* drivers/mtd/m25px.c: Extend MTD support to M25P16. From Sébastien
+	  Lorquet (2014-11-07).
+	* arch/arm/src/stm32/Kconfig, chip.h, and include/stm32/chip.h: Support
+	  for the STM32F103RG.  From Murilo Ponte (2014-11-10).
+	* configs/stm32f100rc_generic:  Removed this generic board configuration.
+	  I have decided to stop support of generic board configurations.  Generic
+	  board configurations do not provide support for any specific hardware
+	  but can be useful only if there are not other examples for the setup
+	  for a particular architecture. Not the case here (2014-11-10).
+	* include/nuttx/vt100.h: Add foreground and background color commands
+	  (2014-11-10).
+	* sched/wdog/wd_create.c: Fix an important bug in the watchdog creation
+	  logic (2014-11-10).
+	* include/unistd.h, libc/unistd/lib_access.c and Make.defs: From Lorenz
+	  Meier: The implementation of access() as vararg macro has the issue that
+	  any function call with the same name (even in a C++ class) will match
+	  with it and result in a compile error. I have replaced it with a small
+	  function, and tried to have decent documentation as well. This resolves
+	  the compile issue, and shouldn’t have negative side effects for users
+	  of the function (2014-11-11).
+	* mm/mm_gran/mm_granrelease.c:  If the INTR granule allocator mode is
+	  enabled, there is no semaphore to destroy.  From Lorenz Meier (2014-11-12).
+	* fs/nxffs/nxffs_dump.c: Fix problems with redefinitions of fdb macro.
+	  With the fix to the syslog prototype, a LOG priority must now be the
+	  first parameter.  Fixed by replacing all occurrences of fdbg with
+	  syslog(LOG_DEBUG, and eliminating the macro redefinitions.  Noted by
+	  Sebastien Lorquet (2014-11-12).
+	* arch/arm/src/common/up_internal.h: Add protection from C++ name
+	  mangling in the ARM up_internal.h.  From Lorenz Meier (2014-11-12).
+	* include/nuttx/compiler.h:  Defines inline functions as not
+	  instrumented - this is relevant for anyone using instrumentation.  From
+	  Lorenz Meier (2014-11-12).
+	* libc/string/lib_strncpy.c:  The definition of strncpy() is that empty
+	  space should be zero-filled, the patch adds the zero filling (I didn’t
+	  know this, see e.g. the POSIX spec here:
+	  http://pubs.opengroup.org/onlinepubs/7908799/xsh/strncpy.html). From
+	  Lorenz Meier (2014-11-12).
+	* arch/arm/include/limits.h:  Remove the definition of INT_FAST32_MIN
+	  which is already defined in stdint.h (the correct location).  From
+	  Lorenz Meier (2014-11-12).
+	* arch/arm/src/efm32/efm32_clockconfig.c, configs/efm32gg-stk3700/README.txt
+	  and include/board.h:  Fixes to get the EFM32GG-STK3700 basic NSH
+	  configuration running.  It works! (2014-11-12).
+	* drivers/bch/bchdev_driver.c: Add support for seeking in BCH.  From
+	  Sébastien Lorquet. (2014-11-13).
+	* sched/Kconfigs and configs/*/*/defconfig:  Remove CONFIG_MAX_TASK_ARGS
+	  (2014-11-13).
+	* binfmt/: Remove use of CONFIG_MAX_TASK_ARGS in exec() and unload_module()
+	  (2014-11-13).
+	* libc/unistd:  Remove use of CONFIG_MAX_TASK_ARGS in execl() (2014-11-13).
+	* sched/: Remove some misc. usage of CONFIG_MAX_TASK_ARGS in task_start(),
+	  task_setup(), and vfork() (2014-11-13).
+	* arch/arm/src/stm32/chip/stm32_otgfs.h: Correct a typo in the STM32 OTGFS
+	  register bit definitions (2014-11-13).
+	* drivers/lcd/st7565.c/.h and include/nuttx/lcd/st7565.h: Add driver for
+	  ST7565 that works with NHD‐C12864KGZ display.  From Pierre-noel
+	  Bouteville (2014-11-13).
+	* net/route/net_router.c:  I don't think that the net_route function has
+	  ever worked correctly.  The source ip was updated in the match struct
+	  instead of the route ip.  From Brennan Ashton (2014-11-14).
+	* net/Kconfig arp/Make.defs, arp_send.c, and drivers/net/slip.c: ARP:
+	  Add support for the case where there are multiple networks:  One being
+	  Ethernet and the other not.  Suggested by Brennan Ashton (2014-11-14).
+	* net/Kconfig, netdev/netdev_register.c, arp/arp_send.c,
+	  include/nuttx/net/net.h, netdev.h and several network drivers in arch/
+	  and drivers/: Add a parameter to netdev_register() to indicate the
+	  link protocol supported by the driver.  Use this value to replace some
+	  logic committed yesterday (2014-11-15).
+	* configs/stm32f4discovery/netnsh/defconfig:  Needs to set MAC address
+	  (2014-11-15).
+	* arch/ and drivers/: Remove use of NET_LL_HDRLEN from Ethernet drivers.
+	  Use ETH_HDRLEN instead (2014-11-15).
+	* net/arp/: Remove use of NET_LL_HDRLEN from net/arp logic.  Use
+	  ETH_HDRLEN instead (2014-11-15).
+	* net/ and include/nuttx/net:  All network logic will now handle
+	  variable length link layer protocol headers within incoming packets.
+	  This permits use of multiple network interfaces with differing data
+	  links.  For example, ETHERNET + SLIP (2014-11-15).
+	* arch/arm/src/sam34/sam4s_periphclks.h:  Add missing SPI0 clock
+	  configuration macro for the SAM4S.  From spasbyspas (2014-11-16).
+	* arch/arm/src/efm32/efm32_lowputc.c: EFM32 USART setup: Computation of
+	  BAUD includes shift; Eliminate additional shift.  From  Pierre-noel
+	  Bouteville (2014-11-16).
+	* net/, include/, drivers/, arch/, various files:  Rename
+	  CONFIG_NET_BUFSIZE to CONFIG_NET_ETH_MTU; Add CONFIG_NET_SLIP_MTU.
+	  Add data structures and logic to handle different MTUs when both
+	  Ethernet and SLIP are enabled (2014-11-16).
+	* net/, include/, various files:  Rename CONFIG_NET_RECEIVE_WINDOW to
+	  CONFIG_NET_ETH_TCP_RECVWNDO and CONFIG_NET_SLIP_TCP_RECVWNDO.  Add
+	  data structures and logic to handler different TCP receive windows
+	  when both Ethernet and SLIP are enabled (2014-11-16).
+	* configs/sama5d4-ek/bridge: Add a simple test for the dual EMACs on
+	  the SAMA5D4 (2014-11-17).
+	* arch/arm/src/sama5/sam_emacb.c:  Fix several typos that will prevent
+	  EMAC1 from initializing properly (2014-11-17).
+	* include/nuttx/net/ip.h and tcp.h, net/icmp/icmp_send.c and
+	  igmp/igmp_send.c: Move IP header flags from tcp.h to ip.h and rename
+	  IP_FLAGS vs TCPFLAGS.  The problem fixed here is that there IP flags
+	  were not available when TCP was disabled.  The IP flags are used in
+	  ICMP and IGMP (2014-11-17).
+	* sched/clock/clock_abstime2ticks.c: Calling mq_timedreceived() with
+	  immediate timeout was getting stuck and not timing out. Immediate
+	  timeout is achieved by setting absolute timeout value to past time,
+	  for example abstime={ .tv_sec=0, .tv_nsec=0 }. However absolute
+	  time was converted to relative time using unsigned integer arithmetic
+	  and resulted large ticks count by clock_abstime2ticks, instead of
+	  expected negative ticks value.  Change corrects clock_abstime2ticks()
+	  to return negative ticks, if absolute time is in the past.  From
+	  Jussi Kivilinna (2014-11-19).
+	* fs/vfs/fs_poll.c: poll() was not waking up from signals (for example
+	  mq_notify() events).  From Jussi Kivilinna (2014-11-19).
+	* arch/arm/src/stm32/stm32_otghs.c, Make.defs,
+	  configs/stm32f429i-disco/src/stm32_usb.c and Makefile: STM32 F4 OTGHS
+	  device controller driver from Brennan Ashton (2014-11-20).
+	* configs/sama5d3-xplained/bridge: Add a simple test for the the EMAC
+	  and GMAC on the SAMA5D3 working together (2014-11-20).
+	* libnx/nxtk/nxtk_drawframe.c: Remove warnings when CONFIG_NXTK_BORDERWIDTH
+	  is set to zero.  From Pierre-Noel Bouteville (2014-11-20).
+	* fs/vfs/fs_poll.c: Add proper handling for sem_timedwait errnos.
+	  From Jussi Kivilinna (2014-11-21).
+	* net/udp/udp_conn.c and udp.h:  Extensions to UDP "connection" structure
+	  for the case of multiple networks.  In this case, assigned port numbers
+	  only have to be unique with respect to the IP address.  So, for
+	  example, you could have multiple port 80's, one on each network
+	  (2014-11-21).
+	* net/tcp/tcp_conn.c and tcp.h: Make tcp_listener static scope; it is
+	  not used outside of tcp_conn.c (2014-11-22).
+	* net/udp/tcp_conn.c and tcp.h:  Extensions to TCP connection structure
+	  for the case of multiple networks.  See the description of the similar
+	  change for UDP above (2014-11-22).
+	* net/route/net_router.c:  Refuse to perform routing table lookups for
+	  the Broadcast IP address.  From Brennan Ashton.
+	* net/netdev/netdev_findbyaddr.c and netdev:  Add logic to netdev_findbyaddr()
+	  to return the correct network device for the case where a broadcast
+	  address is used.  This change caused trivial ripples through other
+	  files because additional parameters are required for netdev_findbyaddr()
+	  when CONFIG_NET_MULTINIC.  Those other file include net/netdev/netdev_rxnotify.c,
+	  netdev_txnotify.c which, in turn, for changes to arp/arp_send.c,
+	  icmp/icmp_ping.c, socket/net_sendfile.c, recvfrom.c, sendto.c,
+	  tcp/tcp_send_buffered.c, and tcp_send_unbuffered.c (2014-11-23).
+	* arch/arm/src/kl/chip/kl_i2c.h:  I2C header file for the Freescale KL
+	  family.  From Alan Carvalho de Assis (2014-11-23).
+	* include/nuttx/fs/fs.h: Fix typo in conditional compilation.  From
+	  Alan Carvalho de Assis (2014-11-23).
+
+7.7 2015-xx-xx Gregory Nutt <gnutt@nuttx.org>

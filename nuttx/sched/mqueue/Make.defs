@@ -35,13 +35,13 @@
 
 ifneq ($(CONFIG_DISABLE_MQUEUE),y)
 
-MQUEUE_SRCS  = mq_open.c mq_close.c mq_unlink.c mq_send.c mq_timedsend.c
-MQUEUE_SRCS += mq_sndinternal.c mq_receive.c mq_timedreceive.c mq_rcvinternal.c
-MQUEUE_SRCS += mq_initialize.c mq_descreate.c mq_findnamed.c mq_msgfree.c
-MQUEUE_SRCS += mq_msgqfree.c mq_release.c mq_recover.c
+CSRCS += mq_send.c mq_timedsend.c mq_sndinternal.c mq_receive.c
+CSRCS += mq_timedreceive.c mq_rcvinternal.c mq_initialize.c
+CSRCS += mq_descreate.c mq_desclose.c mq_msgfree.c mq_msgqalloc.c
+CSRCS += mq_msgqfree.c mq_release.c mq_recover.c
 
 ifneq ($(CONFIG_DISABLE_SIGNALS),y)
-MQUEUE_SRCS += mq_waitirq.c mq_notify.c
+CSRCS += mq_waitirq.c mq_notify.c
 endif
 
 # Include mqueue build support
@@ -50,3 +50,4 @@ DEPPATH += --dep-path mqueue
 VPATH += :mqueue
 
 endif
+
