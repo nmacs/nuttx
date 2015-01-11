@@ -1,0 +1,55 @@
+#
+# For a description of the syntax of this configuration file,
+# see misc/tools/kconfig-language.txt.
+#
+
+comment "C-Implementation of CoAP"
+
+menuconfig LIB_COAP
+	bool "C-Implementation of CoAP"
+	default n
+
+config LIB_COAP_MAX_RESOURCES
+	int "Maximun number of CoAP resources"
+	default 16
+	depends on LIB_COAP
+
+config LIB_COAP_MAX_ATTRIBUTES
+	int "Maximun number of CoAP attributes"
+	default 16
+	depends on LIB_COAP
+
+config LIB_COAP_MAX_SUBSCRIBERS
+	int "Maximun number of CoAP subscribers"
+	default 0
+	depends on LIB_COAP
+
+config LIB_COAP_MAX_PDU_SIZE
+	int "Maximum size of a CoAP PDU"
+	default 128
+	depends on LIB_COAP
+
+config LIB_COAP_PDU_MAXCNT
+	int "Maximum number of CoAP PDUs"
+	default 3
+	depends on LIB_COAP
+
+config LIB_COAP_RESOURCES_NOHASH
+	bool "CoAP Resources no hash"
+	default n
+	depends on LIB_COAP
+
+config LIB_COAP_WITHOUT_ASYNC
+	bool "Disable async feature"
+	default n
+	depends on LIB_COAP
+
+config LIB_COAP_WITHOUT_OBSERVE
+	bool "Disable observe feature"
+	default n
+	depends on LIB_COAP
+
+config LIB_COAP_WITH_MEMB
+	bool "Enable static memory allocator"
+	default n
+	depends on LIB_COAP

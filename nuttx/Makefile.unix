@@ -243,6 +243,11 @@ NUTTXLIBS += lib/libapps$(LIBEXT)
 endif
 endif
 
+ifeq ($(CONFIG_LIB_COAP),y)
+USERLIBS += lib/libcoap$(LIBEXT)
+USERDIRS += libcoap
+endif
+
 # Add libraries for network support
 
 ifeq ($(CONFIG_NET),y)
@@ -637,6 +642,13 @@ $(ARCH_SRC)/libarch$(LIBEXT): context
 lib/libarch$(LIBEXT): $(ARCH_SRC)/libarch$(LIBEXT)
 	$(Q) install $(ARCH_SRC)/libarch$(LIBEXT) lib/libarch$(LIBEXT)
 
+libcoap/libcoap$(LIBEXT): context
+	$(Q) $(MAKE) -C libcoap TOPDIR="$(TOPDIR)" libcoap$(LIBEXT)
+
+lib/libcoap$(LIBEXT): libcoap/libcoap$(LIBEXT)
+	$(Q) install libcoap/libcoap$(LIBEXT) lib/libcoap$(LIBEXT)
+	$(Q) ln -f -s $(TOPDIR)/libcoap/coap include/coap
+
 # pass1 and pass2
 #
 # If the 2 pass build option is selected, then this pass1 target is
@@ -797,6 +809,7 @@ clean: subdir_clean
 	$(call DELFILE, _SAVED_APPS_config)
 	$(call DELFILE, nuttx-export*)
 	$(call DELFILE, nuttx_user*)
+	$(call DELFILE, $(TOPDIR)/include/coap)
 	$(call CLEAN)
 
 subdir_distclean:
