@@ -299,7 +299,7 @@ static inline void recvfrom_newudpdata(FAR struct uip_driver_s *dev,
 #endif /* CONFIG_NET_TCP */
 
 /****************************************************************************
- * Function: recvfrom_readahead
+ * Function: recvfrom_tcpreadahead
  *
  * Description:
  *   Copy the read data from the packet
@@ -317,7 +317,7 @@ static inline void recvfrom_newudpdata(FAR struct uip_driver_s *dev,
  ****************************************************************************/
 
 #if defined(CONFIG_NET_TCP) && defined(CONFIG_NET_TCP_READAHEAD)
-static inline void recvfrom_readahead(struct recvfrom_s *pstate)
+static inline void recvfrom_tcpreadahead(struct recvfrom_s *pstate)
 {
   FAR struct tcp_conn_s *conn = (FAR struct tcp_conn_s *)pstate->rf_sock->s_conn;
   FAR struct iob_s *iob;
@@ -378,6 +378,65 @@ static inline void recvfrom_readahead(struct recvfrom_s *pstate)
     }
 }
 #endif /* CONFIG_NET_UDP || CONFIG_NET_TCP */
+
+#if defined(CONFIG_NET_UDP) && defined(CONFIG_NET_UDP_READAHEAD)
+
+static inline void recvfrom_udpreadahead(struct recvfrom_s *pstate)
+{
+  FAR struct udp_conn_s *conn = (FAR struct udp_conn_s *)pstate->rf_sock->s_conn;
+  FAR struct iob_s *iob;
+  int recvlen;
+
+  /* Check there is any UDP datagram already buffered in a read-ahead
+   * buffer.
+   */
+
+  if ((iob = iob_peek_queue(&conn->readahead)) != NULL &&
+          pstate->rf_buflen > 0)
+    {
+      FAR struct iob_s *tmp;
+#ifdef CONFIG_NET_IPv6
+      struct sockaddr_in6 src_addr;
+#else
+      struct sockaddr_in src_addr;
+#endif
+
+      DEBUGASSERT(iob->io_pktlen > 0);
+
+      /* Transfer that buffered data from the I/O buffer chain into
+       * the user buffer.
+       */
+
+      recvlen = iob_copyout(&src_addr, iob, sizeof(src_addr), 0);
+      if (recvlen != sizeof(src_addr))
+        goto out;
+
+      memcpy(pstate->rf_from, &src_addr, sizeof(src_addr));
+
+      recvlen = iob_copyout(pstate->rf_buffer, iob, pstate->rf_buflen, sizeof(src_addr));
+      nllvdbg("Received %d bytes (of %d)\n", recvlen, iob->io_pktlen);
+
+      /* Update the accumulated size of the data read */
+
+      pstate->rf_recvlen += recvlen;
+      pstate->rf_buffer  += recvlen;
+      pstate->rf_buflen  -= recvlen;
+
+out:
+      /* Remove the I/O buffer chain from the head of the read-ahead
+       * buffer queue.
+       */
+
+      tmp = iob_remove_queue(&conn->readahead);
+      DEBUGASSERT(tmp == iob);
+      UNUSED(tmp);
+
+      /* And free the I/O buffer chain */
+
+      (void)iob_free_chain(iob);
+    }
+}
+#endif
 
 /****************************************************************************
  * Function: recvfrom_timeout
@@ -1170,38 +1229,81 @@ static ssize_t udp_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
       goto errout_with_state;
     }
 
-  /* Set up the callback in the connection */
+#ifdef CONFIG_NET_UDP_READAHEAD
+  recvfrom_udpreadahead(&state);
 
-  state.rf_cb = udp_callbackalloc(conn);
-  if (state.rf_cb)
+  /* The default return value is the number of bytes that we just copied
+   * into the user buffer.  We will return this if the socket has become
+   * disconnected or if the user request was completely satisfied with
+   * data from the readahead buffers.
+   */
+
+  ret = state.rf_recvlen;
+
+#else
+  /* Otherwise, the default return value of zero is used (only for the case
+   * where len == state.rf_buflen is zero).
+   */
+
+  ret = 0;
+#endif
+
+#ifdef CONFIG_NET_UDP_READAHEAD
+  if (_SS_ISNONBLOCK(psock->s_flags))
     {
-      /* Set up the callback in the connection */
-
-      state.rf_cb->flags   = UIP_NEWDATA|UIP_POLL;
-      state.rf_cb->priv    = (void*)&state;
-      state.rf_cb->event   = recvfrom_udpinterrupt;
-
-      /* Notify the device driver of the receive call */
-
-      netdev_rxnotify(conn->ripaddr);
-
-      /* Wait for either the receive to complete or for an error/timeout to occur.
-       * NOTES:  (1) uip_lockedwait will also terminate if a signal is received, (2)
-       * interrupts are disabled!  They will be re-enabled while the task sleeps
-       * and automatically re-enabled when the task restarts.
+      /* Return the number of bytes read from the read-ahead buffer if
+       * something was received (already in 'ret'); EAGAIN if not.
        */
 
-      ret = uip_lockedwait(&state. rf_sem);
+      if (ret <= 0)
+        {
+          /* Nothing was received */
 
-      /* Make sure that no further interrupts are processed */
+          ret = -EAGAIN;
+        }
+    }
 
-      udp_callbackfree(conn, state.rf_cb);
-      ret = recvfrom_result(ret, &state);
-    }
-  else
-    {
-      ret = -EBUSY;
-    }
+  /* It is okay to block if we need to.  If there is space to receive anything
+   * more, then we will wait to receive the data.  Otherwise return the number
+   * of bytes read from the read-ahead buffer (already in 'ret').
+   */
+
+  else if (state.rf_recvlen == 0)
+#endif
+  {
+    /* Set up the callback in the connection */
+
+    state.rf_cb = udp_callbackalloc(conn);
+    if (state.rf_cb)
+      {
+        /* Set up the callback in the connection */
+
+        state.rf_cb->flags   = UIP_NEWDATA|UIP_POLL;
+        state.rf_cb->priv    = (void*)&state;
+        state.rf_cb->event   = recvfrom_udpinterrupt;
+
+        /* Notify the device driver of the receive call */
+
+        netdev_rxnotify(conn->ripaddr);
+
+        /* Wait for either the receive to complete or for an error/timeout to occur.
+         * NOTES:  (1) uip_lockedwait will also terminate if a signal is received, (2)
+         * interrupts are disabled!  They will be re-enabled while the task sleeps
+         * and automatically re-enabled when the task restarts.
+         */
+
+        ret = uip_lockedwait(&state. rf_sem);
+
+        /* Make sure that no further interrupts are processed */
+
+        udp_callbackfree(conn, state.rf_cb);
+        ret = recvfrom_result(ret, &state);
+      }
+    else
+      {
+        ret = -EBUSY;
+      }
+  }
 
 errout_with_state:
   uip_unlock(save);
@@ -1257,7 +1359,7 @@ static ssize_t tcp_recvfrom(FAR struct socket *psock, FAR void *buf, size_t len,
    */
 
 #ifdef CONFIG_NET_TCP_READAHEAD
-  recvfrom_readahead(&state);
+  recvfrom_tcpreadahead(&state);
 
   /* The default return value is the number of bytes that we just copied
    * into the user buffer.  We will return this if the socket has become

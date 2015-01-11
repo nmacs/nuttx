@@ -50,6 +50,8 @@
 #include "uip/uip.h"
 #include "udp/udp.h"
 
+#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+
 /****************************************************************************
  * Private Data
  ****************************************************************************/
@@ -57,6 +59,133 @@
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+#ifdef CONFIG_NET_UDP_READAHEAD
+static uint16_t udp_datahandler(FAR struct uip_driver_s *dev, FAR struct udp_conn_s *conn, 
+                                FAR uint8_t *buffer, uint16_t buflen)
+{
+  FAR struct iob_s *iob;
+  int ret;
+#ifdef CONFIG_NET_IPv6
+  FAR struct sockaddr_in6 src_addr;
+#else
+  FAR struct sockaddr_in src_addr;
+#endif
+
+  /* Allocate on I/O buffer to start the chain (throttling as necessary) */
+
+  iob = iob_alloc(true);
+  if (iob == NULL)
+    {
+      nlldbg("ERROR: Failed to create new I/O buffer chain\n");
+      return 0;
+    }
+
+#ifdef CONFIG_NET_IPv6
+  src_addr.sin6_family = AF_INET6;
+  src_addr.sin6_port   = UDPBUF->srcport;
+#else
+  src_addr.sin_family = AF_INET;
+  src_addr.sin_port   = UDPBUF->srcport;
+#endif
+
+#ifdef CONFIG_NET_IPv6
+  uip_ipaddr_copy(src_addr.sin6_addr.s6_addr, UDPBUF->srcipaddr);
+#else
+  uip_ipaddr_copy(src_addr.sin_addr.s_addr, uip_ip4addr_conv(UDPBUF->srcipaddr));
+#endif
+
+  /* Copy the src address info into the I/O buffer chain */
+
+  ret = iob_copyin(iob, (const uint8_t*)&src_addr, sizeof(src_addr), 0, true);
+  if (ret < 0)
+    {
+      /* On a failure, iob_copyin return a negated error value but does
+       * not free any I/O buffers.
+       */
+
+      nlldbg("ERROR: Failed to add data to the I/O buffer chain: %d\n", ret);
+      (void)iob_free_chain(iob);
+      return 0;
+    }
+
+  /* Copy the new appdata into the I/O buffer chain */
+
+  ret = iob_copyin(iob, buffer, buflen, sizeof(src_addr), true);
+  if (ret < 0)
+    {
+      /* On a failure, iob_copyin return a negated error value but does
+       * not free any I/O buffers.
+       */
+
+      nlldbg("ERROR: Failed to add data to the I/O buffer chain: %d\n", ret);
+      (void)iob_free_chain(iob);
+      return 0;
+    }
+
+  /* Add the new I/O buffer chain to the tail of the read-ahead queue */
+
+  ret = iob_add_queue(iob, &conn->readahead);
+  if (ret < 0)
+    {
+      nlldbg("ERROR: Failed to queue the I/O buffer chain: %d\n", ret);
+      (void)iob_free_chain(iob);
+      return 0;
+    }
+
+  nllvdbg("Buffered %d bytes\n", buflen);
+  return buflen;
+}
+#endif /* CONFIG_NET_UDP_READAHEAD */
+
+static inline uint16_t
+uip_dataevent(FAR struct uip_driver_s *dev, FAR struct udp_conn_s *conn,
+              uint16_t flags)
+{
+  uint16_t ret;
+
+  ret = (flags & ~UIP_NEWDATA);
+
+  /* Is there new data?  With non-zero length?  (Certain connection events
+   * can have zero-length with UIP_NEWDATA set just to cause an ACK).
+   */
+
+  if (dev->d_len > 0)
+    {
+#ifdef CONFIG_NET_UDP_READAHEAD
+      uint8_t *buffer = dev->d_appdata;
+      int      buflen = dev->d_len;
+      uint16_t recvlen;
+#endif
+
+      nllvdbg("No receive on connection\n");
+
+#ifdef CONFIG_NET_UDP_READAHEAD
+      /* Save as the packet data as in the read-ahead buffer.  NOTE that
+       * partial packets will not be buffered.
+       */
+
+      recvlen = udp_datahandler(dev, conn, buffer, buflen);
+      if (recvlen < buflen)
+#endif
+        {
+          /* There is no handler to receive new data and there are no free
+           * read-ahead buffers to retain the data -- drop the packet.
+           */
+
+         nllvdbg("Dropped %d bytes\n", dev->d_len);
+
+ #ifdef CONFIG_NET_STATISTICS
+          uip_stat.udp.drop++;
+#endif
+        }
+    }
+
+  /* In any event, the new data has now been handled */
+
+  dev->d_len = 0;
+  return ret;
+}
 
 /****************************************************************************
  * Public Functions
@@ -88,6 +217,13 @@ uint16_t udp_callback(FAR struct uip_driver_s *dev,
       /* Perform the callback */
 
       flags = uip_callbackexecute(dev, conn, flags, conn->list);
+
+      if ((flags & UIP_NEWDATA) != 0)
+        {
+          /* Data was not handled.. dispose of it appropriately */
+
+          flags = uip_dataevent(dev, conn, flags);
+        }
     }
 
   return flags;

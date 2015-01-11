@@ -180,8 +180,8 @@ static uint16_t poll_interrupt(FAR struct uip_driver_s *dev, FAR void *conn,
  ****************************************************************************/
 
 #ifdef HAVE_NETPOLL
-static inline int net_pollsetup(FAR struct socket *psock,
-                                FAR struct pollfd *fds)
+static inline int net_tcppollsetup(FAR struct socket *psock,
+                                   FAR struct pollfd *fds)
 {
   FAR struct tcp_conn_s *conn = psock->s_conn;
   FAR struct net_poll_s *info;
@@ -322,6 +322,125 @@ errout_with_lock:
   uip_unlock(flags);
   return ret;
 }
+
+static inline int net_udppollsetup(FAR struct socket *psock,
+                                   FAR struct pollfd *fds)
+{
+  FAR struct udp_conn_s *conn = psock->s_conn;
+  FAR struct net_poll_s *info;
+  FAR struct uip_callback_s *cb;
+  uip_lock_t flags;
+  int ret;
+
+  /* Sanity check */
+
+#ifdef CONFIG_DEBUG
+  if (!conn || !fds)
+    {
+      return -EINVAL;
+    }
+#endif
+
+  /* Allocate a container to hold the poll information */
+
+  info = (FAR struct net_poll_s *)kmalloc(sizeof(struct net_poll_s));
+  if (!info)
+    {
+      return -ENOMEM;
+    }
+
+  /* Some of the  following must be atomic */
+
+  flags = uip_lock();
+
+  /* Setup the UDP remote connection */
+
+  ret = udp_connect(conn, NULL);
+  if (ret)
+    {
+      goto errout_with_lock;
+    }
+
+  /* Allocate a TCP/IP callback structure */
+
+  cb = udp_callbackalloc(conn);
+  if (!cb)
+    {
+      ret = -EBUSY;
+      goto errout_with_lock;
+    }
+
+  /* Initialize the poll info container */
+
+  info->psock  = psock;
+  info->fds    = fds;
+  info->cb     = cb;
+
+  /* Initialize the callback structure.  Save the reference to the info
+   * structure as callback private data so that it will be available during
+   * callback processing.
+   */
+
+  cb->flags    = (UIP_ABORT|UIP_TIMEDOUT);
+  cb->priv     = (FAR void *)info;
+  cb->event    = poll_interrupt;
+
+  if (info->fds->events & POLLOUT)
+    cb->flags |= UIP_POLL;
+  if (info->fds->events & POLLIN)
+    cb->flags |= UIP_NEWDATA;
+
+  /* Save the reference in the poll info structure as fds private as well
+   * for use durring poll teardown as well.
+   */
+
+  fds->priv    = (FAR void *)info;
+
+  /* Check for read data availability now */
+
+  if (!IOB_QEMPTY(&conn->readahead))
+    {
+      /* Normal data may be read without blocking. */
+
+      fds->revents |= (POLLRDNORM & fds->events);
+    }
+
+  /* Check if any requested events are already in effect */
+
+  if (fds->revents != 0)
+    {
+      /* Yes.. then signal the poll logic */
+      sem_post(fds->sem);
+    }
+
+  uip_unlock(flags);
+  return OK;
+
+errout_with_lock:
+  kfree(info);
+  uip_unlock(flags);
+  return ret;
+}
+
+static inline int net_pollsetup(FAR struct socket *psock,
+                                FAR struct pollfd *fds)
+{
+#ifdef CONFIG_NET_TCP
+  if (psock->s_type == SOCK_STREAM)
+    {
+      return net_tcppollsetup(psock, fds);
+    }
+#endif
+
+#ifdef CONFIG_NET_UDP
+  if (psock->s_type != SOCK_STREAM)
+    {
+      return net_udppollsetup(psock, fds);
+    }
+#endif
+
+  return -ENOSYS;
+}
 #endif /* HAVE_NETPOLL */
 
 /****************************************************************************
@@ -339,7 +458,7 @@ errout_with_lock:
  ****************************************************************************/
 
 #ifdef HAVE_NETPOLL
-static inline int net_pollteardown(FAR struct socket *psock,
+static inline int net_tcppollteardown(FAR struct socket *psock,
                                    FAR struct pollfd *fds)
 {
   FAR struct tcp_conn_s *conn = psock->s_conn;
@@ -378,6 +497,66 @@ static inline int net_pollteardown(FAR struct socket *psock,
 
   return OK;
 }
+
+static inline int net_udppollteardown(FAR struct socket *psock,
+                                   FAR struct pollfd *fds)
+{
+  FAR struct udp_conn_s *conn = psock->s_conn;
+  FAR struct net_poll_s *info;
+  uip_lock_t flags;
+
+  /* Sanity check */
+
+#ifdef CONFIG_DEBUG
+  if (!conn || !fds->priv)
+    {
+      return -EINVAL;
+    }
+#endif
+
+  /* Recover the socket descriptor poll state info from the poll structure */
+
+  info = (FAR struct net_poll_s *)fds->priv;
+  DEBUGASSERT(info && info->fds && info->cb);
+  if (info)
+    {
+      /* Release the callback */
+
+      flags = uip_lock();
+      udp_callbackfree(conn, info->cb);
+      uip_unlock(flags);
+
+      /* Release the poll/select data slot */
+
+      info->fds->priv = NULL;
+
+      /* Then free the poll info container */
+
+      kfree(info);
+    }
+
+  return OK;
+}
+
+static inline int net_pollteardown(FAR struct socket *psock,
+                                   FAR struct pollfd *fds)
+{
+#ifdef CONFIG_NET_TCP
+  if (psock->s_type == SOCK_STREAM)
+    {
+      return net_tcppollteardown(psock, fds);
+    }
+#endif
+
+#ifdef CONFIG_NET_UDP
+  if (psock->s_type != SOCK_STREAM)
+    {
+      return net_udppollteardown(psock, fds);
+    }
+#endif
+
+  return -ENOSYS;
+}
 #endif /* HAVE_NETPOLL */
 
 /****************************************************************************
@@ -406,15 +585,6 @@ static inline int net_pollteardown(FAR struct socket *psock,
 int psock_poll(FAR struct socket *psock, FAR struct pollfd *fds, bool setup)
 {
   int ret;
-
-#ifdef CONFIG_NET_UDP
-  /* poll() not supported for UDP */
-
-  if (psock->s_type != SOCK_STREAM)
-    {
-      return -ENOSYS;
-    }
-#endif
 
   /* Check if we are setting up or tearing down the poll */
 
