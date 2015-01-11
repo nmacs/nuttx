@@ -5780,7 +5780,7 @@
 	* net/send.c and net_sendfile.c:  Reset the send timeout when the
 	  data is ACKed, not when the data is sent.  Remove conditions on
 	  checking for timeout.  From Max Holtzberg (2013-10-17).
-	* net/net_sendfile.c:  Correct paramter passed to netdev_txnotify()
+	* net/net_sendfile.c:  Correct parameter passed to netdev_txnotify()
 	  from Max Holtzberg (2013-10-17).
 	* include/nuttx/net/uip/uip-tcp.h, net/send.c, uip/uip_tcpconn.c, and
 	  uip/uip_tcpinput.c:  Change how the initial minimum MSS is calculated.
@@ -6455,6 +6455,7 @@
 	  has never done anything (2014-1-15).
 	* All implementations of up_disable_irq() for all Cortex-M3 and M4
 	  architectures:  To enable an interrupt on the Cortex-M3/4 CPU, you
+	  need to set a bit in the ISER registet on the Cortex-M3/4 CPU, you
 	  need to set a bit in the ISER register.  To disable the interrupt, you
 	  need to set a bit in the ICER register.  Existing logic was trying to
 	  disable interrupts by clearing the bit in the ISER register.  That will
@@ -7520,4 +7521,596 @@
 	* arch/arm/src/sam34 and include/sam34:  Add support for the SAM4CM
 	  family.  From Max Neklyudov (2014-6-25).
 
-7.4 2014-xx-xx Gregory Nutt <gnutt@nuttx.org>
+7.4 2014-08-15 Gregory Nutt <gnutt@nuttx.org>
+
+	* arch/arm/src/stm32/stm32_i2c.c:  Fix missing configuration of
+	  GPIO pins in I2C driver.  Fix from Alex D. (2014-6-25).
+	* NET: Fix an include file ordering problem when CONFIG_NET_STATISTICS=y.
+	  (2014-6-26).
+	* include/nuttx/net/netstats.h: Move statistics from uip.h to new netstats.h
+	  to remove nasty circular inclusion problem (2014-6-26).
+	* arch/arm/src/sama5:  Add logic to redirect all SAMA5D4 interrupts to
+	  the AIC (2014-6-26).
+	* net/route: Move routing table functions to net/route (2014-6-26).
+	* net/utils: Move some files into net/utils (2014-6-26).
+	* net/:  Repartition initialization logic so that net/uip is at the bottom
+	  of the food chain, instead of at the top.
+	* apps/include/hex2bin.h:  The hex2bin library did not build with
+	  debug disabled (2014-6-26).
+	* configs/sama5d4-ek/dramboot and src/dram_main.c:  Add a boot loader that
+	  runs from ISRAM and loads an Intel HEX file into DRAM (2014-6-26).
+	* configs/sama5d4-ek/nsh and scripts/: Setup the SAMA5D4-EK NSH
+	  configuration to use the DRAMBOOT loader by default (2014-6-26).
+	* binfmt: Various changes associated with symbol tables.  Most from Pelle
+	  Windestam (2014-6-27).
+	* Networking: Add network device ioctl to access PHY registers. From Daniel
+	  Lazlo Sitzer (2014-6-27).
+	* net/netdev:  Move net/netdev*.c to net/netdev/netdev*.c (2014-6-27).
+	* arch/arm/src/sam34/chip/sam4cm_ipc.h:  Add SAM4CM IPC register header
+	  file.  From Max Neklyudov (2104-6-27).
+	* arch/arm/src/sam34:  Various fixes PMC and clock configuration for the
+	  SAM4CM port from Max Neklyudov (2104-6-27).
+	* configs/sama5d4-ek/src/dram_main.c: SAMA5D4:  Bootloader needs to flush
+	  D-Cache to memory before disabling the caches (2014-6-27).
+	* net/Makefile: Fix a Make.defs inclusion omitted in a previous check-in
+	  (2014-6-17).
+	* net/utils:  Move net/uip/uip_chksum.c to net/utils/net_chksum.c
+	  (2014-6-17).
+	* configs/sama5d4-ek/at25boot and src/at25_main.c:  Add a configuration
+	  that will load a bootloader into AT25 Serial FLASH (2014-6-28).
+	* libc/math: Change double_t to double in rint().  Add rintf() and rintl()
+	  while we are at it (2014-6-28).
+	* net/iob: Fix some errors in recent network I/O buffering when stack runs
+	  from interrupt level.  Reported by Manuel Stühn (2014-6-28).
+	* net/sockets:  Create the net/sockets directory and hook it into the
+	  build system.  Move all socket-related C files into net/socket.  Move
+	  net/net.h to net/socket/socket.h (2014-6-28).
+	* net/ipv6:  Move IPv6 files from net/uip to net/ipv6 (2014-6-28).
+	* net/devif:  Rename net/uip to net/devif.  Rename uip/uip.h to
+	  devif/devif.h (2014-6-28).
+	* net/devif: Rename many functions in net/devif from uip_* to devif_*
+	  (2014-6-28).
+	* configs/sama5d4-ek/src/nsh:  The SAMA5D4-EK NSH configuration now
+	  supports the RTC by default (2014-6-29).
+	* arch/arm/src/sama5/Kconfig and sam_hsmci.c:  Add configuration to
+	  assign an XDMAC channel to an HSMCI (2014-6029).
+	* Various fixes for networking and tiny webserver from Max (2014-6-29).
+	* SAMA5: Various fixes related to DMA in order to get the HSMCI
+	  driver to build for the SAMA5D4 (2014-6-29).
+	* SAMA5D4-EK: Fix HSMCI card-detect pin selection (2014-6-29).
+	* net/:  Still renaming, mostly uip_* to net_* (2014-6-29).
+	* arch/arm/src/stm32/stm32_i2c.c and stm32_i2c_alt.c, and
+	  libc/time/lib_daysbeforemonth.c:  Make variable definitions
+	  'static const' when possible to save RAM usage.  From Kosma
+	  Moczek (2014-6-30).
+	* include/stdint.h: Correct naming of [U]INT_LEASTn_{MAX|MIN}
+	  and [U]INT_FASTn{MAX|MIN}. From Kosma Moczek (2014-6-30). 
+	* drivers/mtd/mtd-config:  Extend erase block size to 18-bits in
+	  order (decrease block size to 14-bits) to handle parts with large
+	  erase blocks. From Kosma Moczek (2014-6-30). 
+	* drivers/analog/adc.c: Remove empty ADC write method. From Kosma
+	  Moczek (2014-6-30).
+	* arch/arm/src/stm32/stm32_serial.c: Unconfigure GPIO pins when
+	  closing a serial port to prevent back effects from back-powering on
+	  the TX pin. From Kosma Moczek (2014-6-30)
+	* arch/arm/src/stm32/Kconfig:  Move temperature ranges from chip
+	  selection configuration prompts. Reorder MCUs in choice menu;
+	  remove duplicates. Add support for the STM32F103RC and RD.  From
+	  Kosma Moczek (2014-6-30)
+	* configs/sam4s-xplained-pro:  Correct description of LEDs and
+	  usage. From Kosma Moczek (2014-6-30)
+	* include/unistd.h: Some POSIX_* and _POSIX_* macros are defined
+	  without value, whereas (as far as I can tell) the newer versions
+	  of the standard require them to have the value corresponding to
+	  the standard version implemented, like 200809L. Are the any plans
+	  to clean this up? For now I've put together a quick patch that
+	  defines those macros to 1, consistent with the rest of unistd.h.
+	  From Kosma Moczek (2014-6-30)
+	* arch/arm/src/sama5/sam_memories.c:  Fix some logic in conversion
+	  of physical and virtual DRAM addresses when running out of DRAM.  This
+	  is an important bug fix for the SAMA5D3 and 4 when running out of
+	  DRAM (2014-6-30).
+	* arch/arm/src/sama5/sam_pio.c:  Another *critical* SAMA5D3 and 4 bug
+	  fix:  PIO clocking must be enabled for all input pins or else the
+	  value that is read never changes. (2014-6-30).
+	* net/:  Many more functions renamed to follow new modularization of
+	  the networking code.  This is part of an ongoing repartitioning
+	  effort and there is still more to be done.  There will be no additional
+	  notations in this ChangeLog until the renaming is complete (2014-6-30).
+	* arch/arm/src/sam34/sam_emac.c, sama5/sam_emaca.c, sam_emacb.c, and
+	  sam_gmac.c:  Fix cloned error:  Wrong bits being cleared before ORing
+	  in new bits (2014-7-1).
+	* drivers/syslog/ramlog.c: syslog_putc needs to set the errno and
+	  return EOF on a failure (2014-7-1).
+	* SAM3/4 and SAMA5 Ethernet:  Fix an error in the function that
+	  determines the number of free TX descriptors.  This is an important
+	  bugfix on busy networks (2014-7-2).
+	* SAM4 AES driver.  Contributed by Max Neklyudov (2014-7-3).
+	* crypto/ and include/crypto:  Beginnings of a crypto/ subsystem from
+	  Max Neklyudov (2014-7-3).
+	* arch/arm/src/stm32 and fs/procfs:  Add a procfs entry to show the
+	  state of the CCM heap usage.  From Pelle Winderstam (2013-7-3).
+	* SAMA5 OHCI: Fix an error in a DEBUGASSERT statement.  Caused assertion
+	  to fire inappropriately when a low- or full-speed device was removed
+	  and CONFIG_DEBUG=y (2013-7-3).
+	* SmartFS.  Fix for a bug that would show up if CONFIG_MTD_BYTE_WRITE
+	  was not selected and the SMART sector size was larger than the mt
+	  device's block size (like it would be if using SMARTFS on larger
+	  flash devices).  From Ken Pettit (2014-7-3).
+	* tools/mkdeps.c: NAME_MAX not available on SunOS; use FILENAME_MAX
+	  or MAXNAMELEN.  Noted by Douglas Beattie (2014-7-4).
+	* drivers/mtd/smart.c: Increase some variables from uint16_t to uint32_t
+	  to handle larger device sizes.  From Ken Pettit (2014-7-4).
+	* SAMA5 OHCI: Pointers to allocated port values were not being nullified
+	  after being deallocated.  This caused some assertions to fire when
+	  debug was enabled (2014-7-4).
+	* include/nuttx/net/ip.h and ipopt.h:  ip.h renamed ipopt.h.  Moved
+	  parts of uip.h to net.h. Renamed the rest of uip.h to ip.h.  Removed
+	  all includes of uip.h; added includes of ip.h wherever needed.
+	  Tried to fix problems of the now missing sneak inclusions because
+	  uip.h was removed.  There are probably a few of these that were
+	  missed! (2014-7-4).
+	* drivers/input/mxt.c/h and include/nuttx/input/mxt.h:  Add very basic
+	  support for the Atmel maXTouch touchscreen controller (2014-7-5).
+	* net/*/*.h: Start moving the private definitions from header files
+	  at include/nuttx/net to the corresponding header file under net/.
+	  So far pkt.h, upd.h, and igmp.h have been sanitized.  Still a few
+	  to go (2014-7-5)
+	* configs/sama5d4-ek/src/sam_maxtouch.c:  Add board support for the
+	  maXTouch touchscreen controller (2014-7-5).
+	* net/*/*.h: Finish moving the private definitions from header files
+	  at include/nuttx/net to the corresponding header file under net/.
+	  This additional header files have been sanitized: arp.h, icmp.h, tcp.h
+	  (2014-7-6)
+	* net/: Add a few missing configuration options to the Kconfig files
+	  (2014-7-8).
+	* net/iob/iob_trimhead_queue.c and socket/recvfrom.c:  Important fix to
+	  the read-ahead buffer queue management: Consumed bytes were being
+	  trimmed from the head of the queue, but the queue head itself was
+	  not being updated.  From Rony XLN (2014-7-7).
+	* drivers/bch:  Add configurable AES encryption support to block-to-
+	  character (BCH) driver.  This allows any block device to be accessed
+	  as an encrypted character device.  From  Max Nekludov (2014-7-7).
+	* SAM3/4: Fix compile of sam_aes.c if CONFIG_CRYPTO_AES is defined.
+	  From  Max Nekludov (2014-7-7)
+	* SAMA5D3/4 I2C: Test for read or write operation was reversed.  How
+	  could this have worked before? (2014-7-7).
+	* SAMA5D3/4 PIO Interrupts:  Correct a typo in
+	  arch/arm/src/sama5/sam_pio.h that could disable PIO interrupt support
+	  if only PIOE interrupts were enabled (2014-7-7).
+	* SAMA5D4 PIO Interrupts: Macro SAM_PION_VBASE is not defined for the
+	  SAMA5D4 and must be replaced with a table lookup (2014-7-7).
+	* configs/sam*: Fix some cloned errors in SAM GPIO interrupt setup
+	  (1014-7-7).
+	* arch/arm/src/sama5/Kconfig and sam_allocateheap.c:  Add a
+	  configuration option to reserve DRAM for a framebuffer when executing
+	  out of DRAM.  This optional was available before when executing out of
+	  NOR, but needs to work a little differently in this case (2014-7-7).
+	* arch/arm/src/sama5/sam_lcd.c and chip/sam_lcdc.h: Adapt the SAMA5D3
+	  LCDC driver to work with the SAMA5D4 which has no hardware cursor
+	  (2014-7-8).
+	* configs/sama5d4-ek:  Add options to support an LCD (2014-7-7).
+	* arch/arm/src/sama5/sam_twi.c:  Now support the up_i2creset() method
+	  (2014-7-9)
+	* drivers/input/mxt.c:  Use i2c_reset() if it thinks that the bus
+	  might by hung (2014-7-9).
+	* arch/arm/src/sama5/sam_pio.c/.h:  Add a new interface
+	  sam_pio_forceclk() that can be used to force PIO clocking on.  I am
+	  afraid I was too conservative with PIO clocking in the initial design;
+	  this is the price (2014-7-9).
+	* arch/arm/src/sama5/sam_twi.c: Use sam_pio_forceclk() so that we can
+	  read the current state of an open-drain output in the TWI reset logic
+	  (2014-7-9).
+	* arch/arm/src/sama5/sam_pio.c/.h: Fix a typo in Schmitt trigger
+	  configuration; Configure pin as a a vanilla input first so that final
+	  pin configuration is more read-able (i.e., easier to debug)
+	  (2014-7-9).
+	* drivers/input/mxt:  The maXTouch driver works! (2014-7-10).
+	* configs/sama5d4-ek:  The TM7000 LCD works! (2014-7-10).
+	* configs/sama5d4-ek/NxWM:  Add an NxWM configuration (2014-7-10).
+	* drivers/mtc_rwbuffer.c (and others): Add an MTD layer that will add
+	  read-ahead or write buffering to any MTD driver (incomplete) (2014-7-11).
+	* arch/arm/src/lpc17xx/lpc17_ethernet.c: Comment out an assertion that
+	  is reported to fire inappropriately.  From Max (2014-7-11).
+	* drivers/mtd (mostly): Addition rwbuffer interfaces should not be
+	  enabled unless they are needed; if rwbuffer support is enabled, it
+	  should not be unconditionally enabled in SMART and FTL (2014-7-11).
+	* libnx/nxglib/nxglib_colorcmp.c and include/nuttx/nx/nxglib.h: New
+	  utility to compare two colors (2014-7-11).
+	* graphics/Kconfig and nxbe/nxbe_configure.c: The initial background
+	  color is now configurable (2014-7-11).
+	* graphics/nxmu/nxmu_server.c and nxsu/nx_setbgcolor.c:  Don't change
+	  the background if the color did not really change (2014-7-11).
+	* arch/arm/src/sama5/sam_ldc.c and sama5d4-ek/include/board.h:  Back
+	  out the delay kludge.  The actual fix to the LDC instability was to
+	  drive the LCD at 2xMCK instead of 1xMCK (2013-7-12).
+	* drivers/input/mxt.c:  Fix an error in the state machine (2014-7-12).
+	* drivers/input/mxt.c:  Add thresholding so that "move" reports are not
+	  generated unless there is a significant change in the reported
+	  position (2014-7-12).
+	* SAMA5D4-EK MXT: The maXTouch should be able to handler an I2C
+	  frequency of 400KHz.  Valid interrupts should occur only on the
+	  falling edge of the ~CHG signal (2014-7-12).
+	* SAMA5D3x-EK: Use larger icons in NxWM configuration instead of
+	  scaling (2014-7-14).
+	* Graphics: Rename CONFIG_NX_MOUSE to CONFIG_NX_INPUT, then add
+	  CONFIG_NX_XYINPUT_MOUSE and CONFIG_XYINPUT_TOUCHSCREEN (2014-7-16).
+	* drivers/input/mxt.c:  Fix error in threshoold test... backward
+	  logic (2014-7-16).
+	* graphics/nxconsole/nxcon_scroll.c:  Fix scrolling in the NxConsole
+	  for the case of the framebuffer device.  In this case, the logic
+	  for clearing the vacated region at the bottom was missing so garbage
+	  up from the last, uncleared line (2014-7-17).
+	* drivers/audio/wm8904.c/.h and include/nuttx/audio.wm8904.h:  Framework
+	  for a WM8904 audio driver.  The initial driver check-in is simply Ken
+	  Pettit's VS1053 driver forced to compile with only WM8904 definitions
+	  (2014-7-18).
+	* configs/sama5d4-ek/src/sam_wm8904.c:  Add logic to configure and
+	  initialize the WM8904 audio CODEC (2014-7-17).
+	* arch/arm/src/sama5/sam_sckc.c/.h and chip/sam_sckc.h:  Add SAMA5
+	  slow clock support.
+	* arch/arm/src/sama5/sam_pck.c and .h:  Add support to use the slow
+	  clock as the PCK clock source (2014-7-19).
+	* drivers/audio/wm8904.c/:  The WM8904 audio driver is mostly code
+	  complete and ready to begin initial testing (2014-7-19).
+	* arch/arm/src/sama5/sam_pio.c:  Logic for Schmitt trigger selection
+	  backward (2014-7-20).
+	* drivers/net/slip.c:  Fix an error in SLIP escaping.  From Max
+	  Neklyudov (2014-7-22).
+	* drivers/input/Kconfg: Add missing configuration option to select the
+	  MAX11802 touchscreen controller. From Petteri Aimonen (2014-7-22).
+	* arm/src/stm32/chip/stm32_dac.h:  Fix typos, from Peterri Aimonen
+	  (2014-7-22).
+	* arch/arm/src/stm32/stm32_otgfsdev.c: STM32 OTGFS device:  Various
+	  changes to try to reduce that amount of time in interrupts handles and
+	  with interrupts disbled.  Needs verification on other platforms.  From
+	  Petteri Aimonen (2014-7-22).
+	* arch/arm/src/sama5/sam_pck.c: Fix a recently introduced typo that was
+	  being masked by some bad conditional compilation (2015=4-7-22).
+	* drivers/audio/wm8904.c and include/nuttx/audio/wm8904.h: Remove WM8904
+	  driver unused parameters, clean-up comments, remove some kruft in
+	  capability reporting (2014-7-22).
+	* audio/Makefile and pcm_decode.c, include/nuttx/audio/pcm_decode.c,
+	  configs/sama5d4-ek/src/sam_wm8904.c and others:  Add new framework for
+	  the PCM decoder.  It is now a 'front end' for lower-level drivers like
+	  the WM8904 that performs the PCM decoding from end (2014-7-22).
+	* audio/pcm_decode.c, configs/sama5d4-ek/src/sam_wm8904.c,
+	  drivers/audio/wm8904.c, and include/nuttx/audio/pcm.h:  Rename
+	  pcm_decode.h to pcm.h since it will hold more than just decoding
+	  definitions.  Fix some porting errors like idbg should auddbg, etc.
+	  Add wav file header and a few low-level wav utilities (2014-7-22).
+	* audio/pcm_decode.c and include/nuttx/audio/pcm.h:  Flesh out a few
+	  more PCM methods, still incomplete.  Re-vision PCM structure
+	  definition (2014-7-22).
+	* configs/sama*:  Disable MMC/SD multiblock transfers in all SAMA5D3/4
+	  configurations.  I suspect an issue but have not had time to run it
+	  down yet so the easiest thing is simply to disable the feature for
+	  now (2014-7-23).
+	* drivers/audio/audio_null.c, include/nuttx/audio/audio_null.c, and
+	  configs/sama5d4-ek/src/sam_audio_null.c: Add a NULL audio device that
+	  can be used to simply unit-level testing of audio decoders (2014-7/23).
+	* audio/pcm_decode.c, include/nuttx/audio/audio.h, and drivers/audio/audio_null.c
+	  and wm8904.c: Add ioctls so that PCM decoder can configure the driver
+	  bitrate, num channels, and sample width (2014-7-23).
+	* drivers/audio/Kconfig: Fix a typo in the audio Kconfig file,
+	  UDIO->AUDIO (2014-7-23).
+	* configs/sama5d4-ek/nxwm/defconfig:  The NxPlayer and audio system are
+	  now enabled in the default configuration (although they have not yet
+	  been fully integrated into the NxWM media player) (2014-7-23).
+	* configs/sama5d4-ek/nsh/defconfig: Enable the command line media player
+	  in the NSH configuration as well (still does not work, however)
+	  (2014-7-23).
+	* audio/Kconfig, audio.c, and include/nuttx/audio/audio.h: Add hooks for
+	  fast-forward and rewind needed by CMediaPlayer; add hooks for
+	  equalizer settings needed by the WM8904 (2014-7-24).
+	* drivers/audio/audio_null.c and wm8904.c: Fix some compile errors when
+	  audio DEBUG is enabled (2014-7-24).
+	* SAMA5D4-EK NxWM:  Configuration refreshed (2014-7-24).
+	* arch/arm/src/armv7-m/up_initialstate.c:  Correct the initial value of
+	  the BASEPRI register.  This was apparently never being initialized!
+	  From Max (2014-7-24).
+	* configs/mbed/src/up_adc.c, up_dac.c, and up_pwm.c and include/board.h:
+	  Port ADC, DAC, and PWM logic from the configs/zkit-arm-1769.  From Max
+	  (2014-7-24).
+	* arch/arm/src/lpc17xx/lpc176x_rtc.c: Eliminate warnings.  From Max
+	  (2014-7-24).
+	* arch/arm/src/lpc17xx/lpc17_pwm.c, lpc17_timer.c, lpc17_dac.c: Mostly
+	  cosmetic updates from Max (2014-7-24).
+	* arch/arm/src/lpc17xx/lpc17_adc.c and Kconfig : Added burstmode ADC
+	  conversion mode, with CONFIG_ADC_BURSTMODE option in Kconfig.  From
+	  Max (2014-7-24).
+	* arch/arm/src/lpc17xx/lpc17_ethernet.c: Added option to use the kernel
+	  worker thread to do most of the workload with CONFIG_NET_WORKER_THREAD
+	  option in Kconfig.  Eliminated a problem with PHY DP83848C : it doesn't
+	  need a specific initialization on mbed. Critical bugfix: From time to
+	  time (after some hours) the Ethernet receiver would lose one receive
+	  interrupt and the IP stack never recover because there is no receive
+	  watchdog as the transmit watchdog.  From Max (2013-7-24).
+	* audio/pcm_decode.c: Add missing audio callback forwarding logic
+	  (2014-7-25).
+	* arch/arm/armv7-a/l2cc_pl310.h:  Move arch/arm/sama5/chip/sam_l2cc.h to
+	  arch/arm/armv7-a/l2cc_pl310.h.  Adjust the two corresponding Kconfig
+	  files as well (2014-7-25).
+	* arch/arm/src/armv7-a/arm_l2cc_pl310.c, l2cc.h, l2cc_pl310.h, Kconfig:
+	  Add initial support for the ARM L2CC-PL310 L2 cache (2014-7-26).
+	* arch/arm/src/armv7-a/cp15_cacheops.h: Rename ARMv7-A cache.h to
+	  cp15_cache.h.  Things will be broken on this commit until I get the
+	  new cache.h in place (2014-7-26).
+	* arch/arm/src/armv7-a/cache.h: New cache.h file.  Renames all functions
+	  like cp15_XYZ_cache() to arch_XYZ_cache() and adds L2 cache support if
+	  L2 cache is enabled (2014-7-26).
+	* arch/arm/src/sama5/*.c (many files): Change naming from cp_XYZ_cache()
+	  to arch_XYP_cache() so that all cache operations will pick up L2
+	  support if it is enabled (2014-7-26).
+	* arch/arm/src/sama5/sam_boot.c: Enables cache early in boot-up sequence
+	  (2014-7-26).
+	* arch/arm/src/armv7-a/arm_l2cc_pl310.c and l2cc.h: Minor bugfixes/
+	  improvements (2014-7-26)
+	* arch/arm/src/armv7-a/Kconfig: L2 Cache currently depends on
+	  EXPERIMENTAL because it does not yet work properly (2014-7-26).
+	* include/nuttx/audio/audio.h: Move sub-sampling rate definitions from
+	  nxplayer.h to audio.h (2014-7-17).
+	* audio/pcm_decode.c: PCM: First cut at fast forward by sub-sampling.
+	  This design is overkill:  It manages too many audio buffers.  I think
+	  that a cleaner design could do all sub-sampling in place without
+	  managing additional audio buffers (2014-7-27).
+	* drivers/audio/audio_null.c:  Was not returning buffers to the upper
+	  level (2014-7-27)
+	* include/nuttx/audio/audio.h and audio/pcm_decode.c: Misc bugfixes
+	  while integrating fast forward by sub-sampling (2014-7-27).
+	* audio/pcm_decode.c: Back out a change; the fix really belongs in
+	  NxPlayer. (2014-7-27).
+	* arch/arm/src/lpc17xx/lpc17_adc.c and arch/arm/src/lpc17xx/lpc17_ethernet.c:
+	  ADC updates from Max.  Also fixes some syntax errors that I introduced in
+	  the last commit (2014-7-28).
+	* audio/pcm_decode.c:  Fix a logic error in a DEBUG assertion (2014-7-28).
+	* configs/sama5d4-ek/src/sam_pmic.c, dram_main.c, sama5d4-ek.h, Makefile.
+	  Add logic to disable the faulty PMIC.  This must be done with JP23 open.
+	  It is performed only from the DRAMBOOT loader (2014-7-28).
+	* drivers/audio/wm8904.c: Fix some compile problems with the WM8904 driver
+	  due to recent audio subsystem changes (2014-7-28).
+	* arch/arm/src/sama5/sam_timerisr.c and configs/sama5d3*/include/board*.h:
+	  Correct system timer frequency.  Input clock is MCK/2, not MCK
+	  (2014-7-29).
+	* fs/fs_automount.c and include/nuttx/fs/automount.h (plus hooks in other
+	  files):  Add support for an auto-mounter that will automatically mount
+	  and unmount a file system a media is inserted and removed (2014-7-29 .
+	* configs/sama5d4-ek/src/sam_automount.c:  Add automounter support for
+	  HSMCI0 and HSMCI1 (2014-7-29).
+	* configs/sama5d4-ek/Kconfig and src/sam_hsmci.c: Minor warning/latent
+	  bug clean-up of auto-mounter logic (2014-7-29).
+	* configs/sama5d4-ek/README.txt anand src/sam_nsh.c, fs/fs_automount.c,
+	  and include/nuttx/fs/automount.h: Cosmetic updates to comments and
+	  README files and some naming (2014-7-29).
+	* configs/sama5d4-ek/nsh/defconfig and nxwm/defconfig: The SAMA5D4-EK
+	  NSH and NxWM configurations now have the auto-mounter configured to
+	  automatically mount the FAT file system on HSMCI0 at /mnt/sdcard
+	  (2014-7-29).
+	* arch/arm/src/sama5/sam_hsmci.c: Add method to do RX transfer without
+	  DMA.  The 8-byte SCR transfer was failing silently with the DMA
+	  transfer, leaving the SD card in single bit mode (2014-7-29).
+	* arch/arm/src/sama5/sam_hsmci.c: Fix a problem on card insertion/removal
+	  callback handling.  Interrupts were being disable so that the callbacks
+	  occurred with interrupts disabled.  This resulted in loss of some
+	  interrupts and some not-so-good behaviors.  The solution is to perform
+	  all callbacks on the work thread unconditionally (2014-7-30).
+	* nuttx/fs/fs_automount.c: Auto-mounter:  Fix state setting.  Not
+	  harmful other than it can cause a debug assertion to fire if you
+	  manually unmount the media before removing it which is, of course,
+	  what you are supposed to do (2014-7-30).
+	* arch/arm/src/sama5/sam_hsmci.c and README files: Re-enable TX DMA and
+	  verify that DMA writes to the SD card are functional.  They are so now
+	  TX DMA is re-enabled in the driver.  This might affect the SAMA5D3
+	  platforms where the TX DMA problem was found.  The SAMA4D3 and 4 use
+	  the same HSMCI driver.  Much has change since then and it is not
+	  surprising that DMA is now functional.  However, the has not be re-
+	  verified on the SAMA5D3 which has a different DMA controller
+	  (2014-7-30).
+	* arch/arm/src/sama5/sam_dmac.c, sam_pio.c, and sam_pioirq.c: Changes
+	  needed for a clean SAMA5D3 build after all of the recent SAMA5D4
+	  changes (2014-7-31).
+	* configs/sama5d3x-ek/nsh/defconfig: Refresh configuration (2014-7-31).
+	* configs/sama5d3x-ek/Kconfig, README.txt, src/sam_wm8904.c, Makefile,
+	  sam_nsh.c, and sama5d3x-ek.h: Add support for the WM8904 audio CODEC
+	  (2014-7-31).
+	* configs/sama5d3x-ek/nxplayer:  Add a configuration to support the
+	  command line NxPlayer (2014-7-31).
+	* audio/audio.c: More debug output (2014-7-31).
+	* configs/sama5d3x-ek/README.txt: REAME update (2014-7-31).
+	* drivers/audio/wm8904.c: Was not saving i2s interface instance
+	  (2014-7-31).
+	* sched/sem_wait.c: Use set_errno() and get_errno().  Direct access
+	  inside the OS may not be supported in the future (2014-7-31).
+	* drivers/audio/audio_null.c, vs1053.c, wm8904.c, include/nuttx/audio/audio.h,
+	  libc/audio/lib_buffer.c: Change how the end of the audio stream is
+	  detected by the leaf audio component.  This used to be done by looking
+	  for the first partial buffer.  That does not work with the in-place
+	  sub-sampling performed by the PCM decoder:  That always reduces the
+	  size of the buffer so that all buffers only partially filled by the
+	  time they get to the leaf.  Now, a flag is set in the audio buffer
+	  flags set to indicate the final buffer in the stream (2014-7-31).
+	* arch/arm/src/sama5/sam_ssc.c:  Needs to account for data offset in
+	  audio buffer (2014-7-31).
+	* drivers/audio/wm8904.c:  Can't reset the WM8904 unless we also
+	  reinitialize all registers.  Try to get a saner timeout based on
+	  sample rate, bits-per-sample, and buffer size (2014-7-31).
+	* arch/arm/src/sama5/Kconfig and sam_ssc.c:  SCC Frame Synch Delay and
+	  Start Delay are now configurable (2014-8-1).
+	* drivers/audio/wm8904_debug.c:  Add logic to dump WM8904 registers
+	  (2014-8-1).
+	* drivers/audio/wm8904.c: Fix an error in write logic.  I am not sure
+	  why this fixes the problem (2014-8-1).
+	* include/nuttx/audio/wm8904.h (and implementers of the interface):
+	  the WM8904 driver needs to know the frequency of the MCLK in order
+	  to set up the FLL to generate the correct bitrate (2014-8-1).
+	* WM8904:  Add an option to control WM8904 register dumping (2014-8-2).
+	* WM8904:  Add logic to program the FLL to achieve the bitrate
+	  (2014-8-1).
+	* arch/arm/src/sama5/sam_ssc.c:  Verify that the requested bit width
+	  is supported.  Correct some alignment tests that depend upon the data
+	  bit width (2014-8-2).
+	* audio/pcm_decode.c:  Correct the end of audio stream handling.  It was
+	  not being detected before so that logic was not examining the WAV
+	  header in the first buffer of the next audio file (2014-8-2).
+	* configs/sama5d3x-ek/nxplayer/defconfig:  Update with last WM8904
+	  settings (2014-8-2).
+	* drivers/audio/wm8904.c:  Disable the FFL at the end of playing
+	  (2014-8-2).
+	* include/nuttx/audio/wm8904.h:  Fix wm8904_dump_registers macro:
+	  Wrong number of parameters (2014-8-2).
+	* arch/arm/src/sama5/sam_pck.* and all SAMA5D board header files:
+	  Add Main clock as an option for the PCK clock source (2014-8-3).
+	* configs/sama5d*-ek/Kconfig and src/sam_wm8904.c: Add option to
+	  use MAINCK as source fort he WM8904 MCLK (2015-8-3).
+	* include/nuttx/audio/wm8904.h, configs/sama5d3x-ek/src/sam_wm8904.cm,
+	  and sama5d4-ek/src/sam_wm8904.c: WM8904 interface enable method now
+	  returns the previous interrupt state (2014-8-4).
+	* configs/sama5d3x-ek/src/sama5d3x-ek.h and sama5d4-ek/src/sama5d4-ek.h:
+	  Correct the WM8904 interrupt configuration, active high level. Fix
+	  that and don't pull-up (2014-8-4).
+	* configs/sama5d3x-ek/src/sam_wm8904.cm, and sama5d4-ek/src/sam_wm8904.c:
+	  Correct ordering of some WM8904initialization: Need to provide MCLK
+	  before initializing the WM8904, not after (2014-8-4).
+	* drivers/audio/wm8904.c and .h: Correct calculation of bitrate (I am
+	  not sure why this is correct). LR clock divisor is now a constant 32-
+	  bits per frame. Conditioned out interrupt logic; it is not being used.
+	  Also added some FLL lock interrupt/poll logic (which was subsequently
+	  disabled) (2014-8-4).
+	* SAMA5D3x-EK and SAMA4D4-EK: Add/update usage documents for media
+	  players (2014-8-4).
+	* drivers/audio/wm8904.c and .h:  Add reset logic to put the part back
+	  in its initial state after playing each WAV file.  Base samples per
+	  second on frame length, not bits-per-sample.  Use a different frame
+	  length for 8-bit and 16-bit data (2014-8-4).
+	* arch/arm/src/sama5/sam_hsmci.c:  TX DMA is again disabled for the
+	  SAMA5D3 family.  Although it works with the SAMA5D4 (which has a
+	  different DMA subsystem), it does not work with the SAMA5D3 (2014-8-5,
+	  see also 2014-7-30).
+	* audio/pcm_decode.c: Handle errors in the PCM WAV file in a way that
+	  the Nxplayer can recover gracefully:  Send and Audio Complete message
+	  (2014-8-5).
+	* arch/*/src/*/*_timerisr.c, up_initialize.c, and up_internal.h: Re-name
+	  up_timerinit() to up_timer_intialaize() for compatibility with new
+	  tickless OS interface name (2014-8-6).
+	* arch/*/src/*/Make.def:  Don't build existing timer initialization
+	  logic if CONFIG_SCHED_TICKLESS is defined (2014-8-6).
+	* include/nuttx/arch.h:  First cut at platform-specific interfaces
+	  needed to support tickless OS option (2014-8-6).
+	* sched/Kconfig: Add a new option CONFIG_SCHED_TICKLESS to enable the
+	  tickless OS.  This is a work in progress but should be relatively
+	  safe since the new features are only enabled by this option (Safer
+	  but not 100% safe since it does not protect from typos and other
+	  dumb errors) (2014-8-6).
+	* arch/sim/src/Makefile, up_idle.c, up_internal.h, and up_tickless.c:
+	  Add support for a simulated interval timer support verification of
+	  the tickless OS (2014-8-6).
+	* include/nuttx/arch.h: Added another tickless OS interface to get
+	  the timer remaining on the interval timer (2014-8-6).
+	* include/nuttx/clock.h, sched/clock_initialize.c and clock_internal.h:
+	  If CONFIG_SCHED_TICKLESS is defined, then the global variable
+	  g_system_timer does not exist (2014-8-6).
+	* sched/Makefile: Don't build in sched_processtimer.c if
+	  CONFIG_SCHED_TICKLESS is selected (2014-8-6).
+	* sched/clock_gettime.c and clock_settime.c: Use the clock_systimer()
+	  macro, do access the g_system_timer() global directly (2014-8-6).
+	* sched/clock_systimer.c: Uses interval timer interfaces to get the
+	  time if CONFIG_SCHED_TICKLESS is selected (2014-8-6).
+	* sched/sched_timerexpiration.c, Makefile, os_internal.h,
+	  sched_addreadytorun.c, sched_processtimer.c, sched_unlock.c,
+	  wd_cancel.c, wd_internal.h, and wd_start.c: Implements the
+	  tickless OS (2014-8-7).
+	* Many files: Remove CONFIG_DISABLE_CLOCK.  Why?  This option is not
+	  really very useful and was only selected in a few unusable, mostly
+	  unusable configurations anyway (m9s12/ostest, kl25z/minnsh,
+	  z180/ostest, 8051, sh1, z80, and z8).  The only real loss is probably
+	  to the kl25z/minsh configuration .  And with the addition of the
+	  tickless OS, I just wanted to make the pain go away (2014-8-7).
+	* Many files: Change CONFIG_MSEC_PER_TICK to CONFIG_USEC_PER_TICK.
+	  This gives more options for system timers in general, but more
+	  importantly, let's us realize higher resolution for the case of
+	  CONFIG_SCHED_TICKLESS=y -- of course, at the risk of some new
+	  integer overflow problems 2014-8-7).
+	* Many files: Change all time conversions.  Yech.  New timer units
+	  in microseconds breaks all existing logic that used milliseconds
+	  in the conversions.  Something likely got broken doing this,
+	  probably because I confused a MSEC2TICK conversion with a TICK2MSEC
+	  conversion (2014-8-7).
+	* arch/sim/src/up_tickless.c and sched/sched_timerexpiration.c: The
+	  tickless OS now appears fully functional and passes the OS test
+	  on the simulator with no errors (2014-8-7).
+	* sched/mqueue: Move POSIX message queue files from sched/ to
+	  sched/mqueue (2014-8-8).
+	* sched/signal: Move signal-related files from sched/ to sched/signal
+	  (2014-8-8).
+	* sched/pthread: Move all pthread files from sched/ to sched/pthread
+	  (2014-8-8).
+	* sched/semaphore: Move POSIX counting semaphore files from sched/ to
+	  sched/semaphore (2014-8-8).
+	* sched/environ: Move environment files from sched/ to sched/environ
+	  (2014-8-8).
+	* sched/group: Move group logic from sched/ to sched/group (2014-8-8).
+	* sched/wdog: Move watchdog functions from sched/ to sched/wdog
+	  (2014-8-8).
+	* sched/irq: Move interrupt dispatch logic from sched/ to sched/irq
+	  (2014-8-8).
+	* sched/clock: Move clock functions from sched/ to sched/clock
+	  (2014-8-8).
+	* sched/timer: Move POSIX timer files from sched/ to sched/timer
+	  (2014-8-8).
+	* sched/paging: Move page fill sources from sched/ to sched/paging
+	  (2014-8-8).
+	* sched/init: Move initialization functions from sched/ to sched/init
+	  (2014-8-8).
+	* sched/errno: Move errno related files from sched/ to sched/errno
+	  (2014-8-8).
+	* sched/task: Move task control files from sched/ to sched/task
+	  (2014-8-8).
+	* sched/: Move a few files in sched/ that did not seem to have a home to
+	  sched/signal and sched/task (2014-8-8).
+	* sched/sched: Move scheduler files from sched/ to sched/sched
+	  (2014-8-8).
+	* (Many files): Replace os_internal.h with sched/sched.h in files that
+	  actually reference something in sched.h (2014-8-8).
+	* sched/task/exit.c: Move sched/exit.c to sched/task/exit.c (2014-8-8).
+	* (Many files): Remove os_internal.h it has been replace by several new
+	  header files under sched/.  There have been some sneak inclusion paths
+	  via os_internal.h, so expect a few compilation errors for some
+	  architectures (2014-8-8).
+	* Documentation/NuttxPortingGuide.html, arch/sim/src/up_tickless.c, and
+	  include/nuttx/arch.h: Fix errors in documentation and comments related
+	  to the Tickless OS.  From Vijay Kumar (2014-9-9).
+	* arch/arm/src/sama5/sam_tc.c and .h: Can now handle non-constant
+	  BOARD_MCK_FREQUENCY. Also now supports methods to attach user
+	  interrupt handlers (2014-8-9).
+	* drivers/audio/audio_null.c: Fix an error in a variable name
+	  (2014-8-9).
+	* arch/arm/src/sama5/sam_oneshot.c, .h, Kconfig, Make.defs, sam_tc.c,
+	  .h, and sam_adc.c: Add support for a one-shot timer wrapper around
+	  the low-level timer/counter logic.  This also involved several changes
+	  that rippled into the ADC driver (untested) (2014-8-9).
+	* arch/arm/src/sama5/sam_freerun.c, .h, Kconfig, and Make.defs: Add
+	  support for a free-running timer wrapper around the low-level
+	  timer/counter logic (2014-8-9).
+	* arch/arm/Kconfig, src/sama5/sam_tickless.c, Kconfig, Make.defs: Use
+	  the one-shot and free-running timers to implement tickless OS support
+	  for SAMA5 (2014-8-9).
+	* arch/arm/src/sama5/sam_oneshot.c and sam_tc.c: Fix several bugs in
+	  timer/counter interrupt logic and one-shot timer logic.  Comments and
+	  debug output updated in additional files (2014-8-10).
+	* sched/wdog/wd_start.c: Correct a bug in Tickless OS support: logic to
+	  detect changes in head of timer list was wrong (2014-5-10).
+	* sched/sched/sched_timerexperation.c, sched.h, and wdog/wd_start.c:  In
+	  tickless mode, need to stop the interval timer before inserted a new
+	  delay into the timer list.  Otherwise, the time is incorrect on the
+	  first entry of the list (2014-8-11).
+	* arch/arm/src/sama5/sam_freerun.c and sam_oneshot.c:  Correct bad time
+	  conversion, 1000000 not 1000 to convert seconds to microseconds
+	  (2014-8-11).
+	* sched/sched/sched_timerexpiration.c:  Fix inaccurate time conversion.
+	  Remove MSEC_PER_TICK from calculation and convert uint32_t to uin64_t
+	  (2014-8-11).
+	* libc/time/lib_localtime.c, private.h, tzfile.h and several header and
+	  make-related files:  Adds support for localtime.  From Max Neklyudov
+	  (2014-8-12)
+
+7.5 2014-xx-xx Gregory Nutt <gnutt@nuttx.org>

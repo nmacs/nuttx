@@ -47,10 +47,10 @@
 #include <debug.h>
 
 #include <nuttx/kmalloc.h>
-#include <nuttx/net/uip.h>
-#include <nuttx/net/tcp.h>
+#include <nuttx/net/net.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
+#include "tcp/tcp.h"
 
 /****************************************************************************
  * Private Data
@@ -80,7 +80,7 @@ int tcp_backlogcreate(FAR struct tcp_conn_s *conn, int nblg)
 {
   FAR struct tcp_backlog_s     *bls = NULL;
   FAR struct tcp_blcontainer_s *blc;
-  uip_lock_t flags;
+  net_lock_t flags;
   int size;
   int offset;
   int i;
@@ -133,7 +133,7 @@ int tcp_backlogcreate(FAR struct tcp_conn_s *conn, int nblg)
 
   /* Destroy any existing backlog (shouldn't be any) */
 
-  flags = uip_lock();
+  flags = net_lock();
   tcp_backlogdestroy(conn);
 
   /* Now install the backlog tear-off in the connection.  NOTE that bls may
@@ -143,7 +143,7 @@ int tcp_backlogcreate(FAR struct tcp_conn_s *conn, int nblg)
    */
 
   conn->backlog = bls;
-  uip_unlock(flags);
+  net_unlock(flags);
   return OK;
 }
 
@@ -295,7 +295,7 @@ bool tcp_backlogavailable(FAR struct tcp_conn_s *conn)
  *
  ****************************************************************************/
 
-struct tcp_conn_s *tcp_backlogremove(FAR struct tcp_conn_s *conn)
+FAR struct tcp_conn_s *tcp_backlogremove(FAR struct tcp_conn_s *conn)
 {
   FAR struct tcp_backlog_s     *bls;
   FAR struct tcp_blcontainer_s *blc;
@@ -345,7 +345,8 @@ struct tcp_conn_s *tcp_backlogremove(FAR struct tcp_conn_s *conn)
  *
  ****************************************************************************/
 
-int tcp_backlogdelete(FAR struct tcp_conn_s *conn, FAR struct tcp_conn_s *blconn)
+int tcp_backlogdelete(FAR struct tcp_conn_s *conn,
+                      FAR struct tcp_conn_s *blconn)
 {
   FAR struct tcp_backlog_s     *bls;
   FAR struct tcp_blcontainer_s *blc;

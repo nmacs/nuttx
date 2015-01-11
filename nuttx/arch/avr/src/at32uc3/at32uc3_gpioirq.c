@@ -50,8 +50,7 @@
 #include <arch/irq.h>
 
 #include "up_arch.h"
-#include "os_internal.h"
-#include "irq_internal.h"
+#include "irq/irq.h"
 #include "at32uc3_internal.h"
 #include "at32uc3_gpio.h"
 

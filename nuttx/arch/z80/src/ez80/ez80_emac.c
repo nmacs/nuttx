@@ -52,15 +52,15 @@
 #include <errno.h>
 #include <assert.h>
 
+#include <arpa/inet.h>
+
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/net/mii.h>
-
-#include <arch/io.h>
-
-#include <nuttx/net/uip.h>
 #include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
+
+#include <arch/io.h>
 
 #include "chip.h"
 #include "up_internal.h"
@@ -319,7 +319,7 @@ struct ez80emac_driver_s
 
   /* This holds the information visible to uIP/NuttX */
 
-  struct uip_driver_s dev;  /* Interface understood by uIP */
+  struct net_driver_s dev;  /* Interface understood by uIP */
 };
 
 /****************************************************************************
@@ -355,7 +355,7 @@ static void ez80emac_machash(FAR uint8_t *mac, int *ndx, int *bitno)
 /* TX/RX logic */
 
 static int  ez80emac_transmit(struct ez80emac_driver_s *priv);
-static int  ez80emac_uiptxpoll(struct uip_driver_s *dev);
+static int  ez80emac_txpoll(struct net_driver_s *dev);
 
 static inline FAR struct ez80emac_desc_s *ez80emac_rwp(void);
 static inline FAR struct ez80emac_desc_s *ez80emac_rrp(void);
@@ -374,12 +374,12 @@ static void ez80emac_txtimeout(int argc, uint32_t arg, ...);
 
 /* NuttX callback functions */
 
-static int  ez80emac_ifup(struct uip_driver_s *dev);
-static int  ez80emac_ifdown(struct uip_driver_s *dev);
-static int  ez80emac_txavail(struct uip_driver_s *dev);
+static int  ez80emac_ifup(struct net_driver_s *dev);
+static int  ez80emac_ifdown(struct net_driver_s *dev);
+static int  ez80emac_txavail(struct net_driver_s *dev);
 #ifdef CONFIG_NET_IGMP
-static int ez80emac_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
-static int ez80emac_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
+static int ez80emac_addmac(struct net_driver_s *dev, FAR const uint8_t *mac);
+static int ez80emac_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac);
 #endif
 
 /* Initialization */
@@ -1044,11 +1044,11 @@ static int ez80emac_transmit(struct ez80emac_driver_s *priv)
 }
 
 /****************************************************************************
- * Function: ez80emac_uiptxpoll
+ * Function: ez80emac_txpoll
  *
  * Description:
  *   The transmitter is available, check if uIP has any outgoing packets ready
- *   to send.  This is a callback from uip_poll().  uip_poll() may be called:
+ *   to send.  This is a callback from devif_poll().  devif_poll() may be called:
  *
  *   1. When the preceding TX packet send is complete,
  *   2. When the preceding TX packet send timesout and the interface is reset
@@ -1064,7 +1064,7 @@ static int ez80emac_transmit(struct ez80emac_driver_s *priv)
  *
  ****************************************************************************/
 
-static int ez80emac_uiptxpoll(struct uip_driver_s *dev)
+static int ez80emac_txpoll(struct net_driver_s *dev)
 {
   struct ez80emac_driver_s *priv = (struct ez80emac_driver_s *)dev->d_private;
   int ret = 0;
@@ -1266,16 +1266,16 @@ static int ez80emac_receive(struct ez80emac_driver_s *priv)
       /* We only accept IP packets of the configured type and ARP packets */
 
 #ifdef CONFIG_NET_IPv6
-      if (ETHBUF->type == HTONS(UIP_ETHTYPE_IP6))
+      if (ETHBUF->type == HTONS(ETHTYPE_IP6))
 #else
-      if (ETHBUF->type == HTONS(UIP_ETHTYPE_IP))
+      if (ETHBUF->type == HTONS(ETHTYPE_IP))
 #endif
         {
           nvdbg("IP packet received (%02x)\n", ETHBUF->type);
           EMAC_STAT(priv, rx_ip);
 
           arp_ipin(&priv->dev);
-          uip_input(&priv->dev);
+          devif_input(&priv->dev);
 
           /* If the above function invocation resulted in data that should be
            * sent out on the network, the field  d_len will set to a value > 0.
@@ -1287,7 +1287,7 @@ static int ez80emac_receive(struct ez80emac_driver_s *priv)
               ez80emac_transmit(priv);
             }
         }
-      else if (ETHBUF->type == htons(UIP_ETHTYPE_ARP))
+      else if (ETHBUF->type == htons(ETHTYPE_ARP))
         {
           nvdbg("ARP packet received (%02x)\n", ETHBUF->type);
           EMAC_STAT(priv, rx_arp);
@@ -1578,7 +1578,7 @@ static void ez80emac_txtimeout(int argc, uint32_t arg, ...)
 
   /* Then poll uIP for new XMIT data */
 
-  (void)uip_poll(&priv->dev, ez80emac_uiptxpoll);
+  (void)devif_poll(&priv->dev, ez80emac_txpoll);
 }
 
 /****************************************************************************
@@ -1604,7 +1604,7 @@ static void ez80emac_polltimer(int argc, uint32_t arg, ...)
 
   /* Poll uIP for new XMIT data */
 
-  (void)uip_timer(&priv->dev, ez80emac_uiptxpoll, EMAC_POLLHSEC);
+  (void)devif_timer(&priv->dev, ez80emac_txpoll, EMAC_POLLHSEC);
 
   /* Setup the watchdog poll timer again */
 
@@ -1628,7 +1628,7 @@ static void ez80emac_polltimer(int argc, uint32_t arg, ...)
  *
  ****************************************************************************/
 
-static int ez80emac_ifup(FAR struct uip_driver_s *dev)
+static int ez80emac_ifup(FAR struct net_driver_s *dev)
 {
   FAR struct ez80emac_driver_s *priv = (FAR struct ez80emac_driver_s *)dev->d_private;
   uint8_t regval;
@@ -1723,7 +1723,7 @@ static int ez80emac_ifup(FAR struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int ez80emac_ifdown(struct uip_driver_s *dev)
+static int ez80emac_ifdown(struct net_driver_s *dev)
 {
   struct ez80emac_driver_s *priv = (struct ez80emac_driver_s *)dev->d_private;
   irqstate_t flags;
@@ -1775,7 +1775,7 @@ static int ez80emac_ifdown(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int ez80emac_txavail(struct uip_driver_s *dev)
+static int ez80emac_txavail(struct net_driver_s *dev)
 {
   struct ez80emac_driver_s *priv = (struct ez80emac_driver_s *)dev->d_private;
   irqstate_t flags;
@@ -1791,7 +1791,7 @@ static int ez80emac_txavail(struct uip_driver_s *dev)
 
       /* If so, then poll uIP for new XMIT data */
 
-      (void)uip_poll(&priv->dev, ez80emac_uiptxpoll);
+      (void)devif_poll(&priv->dev, ez80emac_txpoll);
     }
 
   irqrestore(flags);
@@ -1817,7 +1817,7 @@ static int ez80emac_txavail(struct uip_driver_s *dev)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int ez80emac_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int ez80emac_addmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   FAR struct ez80emac_driver_s *priv = (FAR struct ez80emac_driver_s *)dev->d_private;
 
@@ -1847,7 +1847,7 @@ static int ez80emac_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int ez80emac_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int ez80emac_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   FAR struct ez80emac_driver_s *priv = (FAR struct ez80emac_driver_s *)dev->d_private;
 
@@ -2173,7 +2173,7 @@ errout:
  ****************************************************************************/
 
 #ifdef CONFIG_ARCH_MCFILTER
-int up_multicastfilter(FAR struct uip_driver_s *dev, FAR uint8_t *mac, bool enable)
+int up_multicastfilter(FAR struct net_driver_s *dev, FAR uint8_t *mac, bool enable)
 {
   FAR struct ez80emac_driver_s *priv = (FAR struct ez80emac_driver_s *)dev->priv;
   uint8_t regval;

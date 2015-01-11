@@ -58,9 +58,10 @@
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <apps/netutils/dnsclient.h>
-#include <apps/netutils/uiplib.h>
+#include <apps/netutils/netlib.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -515,7 +516,7 @@ int dns_query_sock(int sockfd, FAR const char *hostname, FAR in_addr_t *ipaddr)
 
   /* First check if the host is an IP address. */
 
-  if (!uiplib_ipaddrconv(hostname, (uint8_t*)ipaddr))
+  if (!netlib_ipaddrconv(hostname, (uint8_t*)ipaddr))
     {
       /* 'host' does not point to a valid address string.  Try to resolve
        *  the host name to an IP address.

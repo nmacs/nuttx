@@ -49,11 +49,13 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
+#include <nuttx/net/net.h>
+#include <nuttx/net/netstats.h>
 #include <nuttx/net/igmp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "igmp/igmp.h"
+#include "utils/utils.h"
 
 #ifdef CONFIG_NET_IGMP
 
@@ -134,7 +136,7 @@ static void igmp_timeout(int argc, uint32_t arg, ...)
        * for the message to be sent.
        */
 
-      IGMP_STATINCR(uip_stat.igmp.report_sched);
+      IGMP_STATINCR(g_netstats.igmp.report_sched);
       igmp_schedmsg(group, IGMPv2_MEMBERSHIP_REPORT);
 
       /* Also note:  The Membership Report is sent at most two times becasue
@@ -152,28 +154,6 @@ static void igmp_timeout(int argc, uint32_t arg, ...)
  ****************************************************************************/
 
 /****************************************************************************
- * Name:  igmp_starttimer
- *
- * Description:
- *   Start the IGMP timer.
- *
- * Assumptions:
- *   This function may be called from most any context.
- *
- ****************************************************************************/
-
-int igmp_decisec2tick(int decisecs)
-{
-  /* Convert the deci-second comparison value to clock ticks.  The CLK_TCK
-   * value is the number of clock ticks per second; decisecs argument is the
-   * maximum delay in 100's of milliseconds.  CLK_TCK/10 is then the number
-   * of clock ticks in 100 milliseconds.
-   */
-
-  return CLK_TCK * decisecs / 10;
-}
-
-/****************************************************************************
  * Name:  igmp_startticks and igmp_starttimer
  *
  * Description:
@@ -184,7 +164,7 @@ int igmp_decisec2tick(int decisecs)
  *
  ****************************************************************************/
 
-void igmp_startticks(FAR struct igmp_group_s *group, int ticks)
+void igmp_startticks(FAR struct igmp_group_s *group, unsigned int ticks)
 {
   int ret;
 
@@ -205,7 +185,7 @@ void igmp_starttimer(FAR struct igmp_group_s *group, uint8_t decisecs)
    */
 
   gtmrdbg("decisecs: %d\n", decisecs);
-  igmp_startticks(group, igmp_decisec2tick(decisecs));
+  igmp_startticks(group, net_dsec2tick(decisecs));
 }
 
 /****************************************************************************
@@ -224,14 +204,14 @@ void igmp_starttimer(FAR struct igmp_group_s *group, uint8_t decisecs)
 
 bool igmp_cmptimer(FAR struct igmp_group_s *group, int maxticks)
 {
-  uip_lock_t flags;
+  net_lock_t flags;
   int remaining;
 
   /* Disable interrupts so that there is no race condition with the actual
    * timer expiration.
    */
 
-  flags = uip_lock();
+  flags = net_lock();
 
   /* Get the timer remaining on the watchdog.  A time of <= zero means that
    * the watchdog was never started.
@@ -250,11 +230,11 @@ bool igmp_cmptimer(FAR struct igmp_group_s *group, int maxticks)
       /* Cancel the watchdog timer and return true */
 
       wd_cancel(group->wdog);
-      uip_unlock(flags);
+      net_unlock(flags);
       return true;
     }
 
-  uip_unlock(flags);
+  net_unlock(flags);
   return false;
 }
 

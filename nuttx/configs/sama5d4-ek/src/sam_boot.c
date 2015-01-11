@@ -41,6 +41,7 @@
 
 #include <debug.h>
 
+#include "sam_sckc.h"
 #include "sama5d4-ek.h"
 
 /************************************************************************************
@@ -60,18 +61,25 @@
  *
  * Description:
  *   All SAMA5 architectures must provide the following entry point.  This entry
- *   point is called early in the intitialization -- after all memory has been
+ *   point is called early in the initialization -- after all memory has been
  *   configured and mapped but before any devices have been initialized.
  *
  ************************************************************************************/
 
 void sam_boardinitialize(void)
 {
+#ifdef CONFIG_SAMA5D4EK_SLOWCLOCK
+  /* Enable the external slow clock */
+
+  sam_sckc_enable(true);
+#endif
+
   /* Configure SPI chip selects if 1) SPI is enable, and 2) the weak function
    * sam_spiinitialize() has been brought into the link.
    */
 
-#if defined(CONFIG_SAMA5_SPI0) || defined(CONFIG_SAMA5_SPI1)
+#if defined(CONFIG_SAMA5_SPI0) || defined(CONFIG_SAMA5_SPI1) || \
+    defined(CONFIG_SAMA5_SPI2)
   if (sam_spiinitialize)
     {
       sam_spiinitialize();

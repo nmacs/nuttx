@@ -48,17 +48,19 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/udp.h>
+#include <nuttx/net/netstats.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
+#include "utils/utils.h"
 #include "udp/udp.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
 
 /****************************************************************************
  * Public Variables
@@ -95,14 +97,14 @@
  *
  ****************************************************************************/
 
-int udp_input(FAR struct uip_driver_s *dev)
+int udp_input(FAR struct net_driver_s *dev)
 {
   FAR struct udp_conn_s *conn;
   FAR struct udp_iphdr_s *pbuf = UDPBUF;
   int ret = OK;
 
 #ifdef CONFIG_NET_STATISTICS
-  uip_stat.udp.recv++;
+  g_netstats.udp.recv++;
 #endif
 
   /* UDP processing is really just a hack. We don't do anything to the UDP/IP
@@ -110,14 +112,14 @@ int udp_input(FAR struct uip_driver_s *dev)
    * application sets d_sndlen, it has a packet to send.
    */
 
-  dev->d_len    -= UIP_IPUDPH_LEN;
+  dev->d_len    -= IPUDP_HDRLEN;
 #ifdef CONFIG_NET_UDP_CHECKSUMS
-  dev->d_appdata = &dev->d_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN];
+  dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
   if (pbuf->udpchksum != 0 && udp_chksum(dev) != 0xffff)
     {
 #ifdef CONFIG_NET_STATISTICS
-      uip_stat.udp.drop++;
-      uip_stat.udp.chkerr++;
+      g_netstats.udp.drop++;
+      g_netstats.udp.chkerr++;
 #endif
       nlldbg("Bad UDP checksum\n");
       dev->d_len = 0;
@@ -134,19 +136,19 @@ int udp_input(FAR struct uip_driver_s *dev)
 
           /* Set-up for the application callback */
 
-          dev->d_appdata = &dev->d_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN];
-          dev->d_snddata = &dev->d_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN];
+          dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
+          dev->d_snddata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
           dev->d_sndlen  = 0;
 
           /* Perform the application callback */
 
-          flags = udp_callback(dev, conn, UIP_NEWDATA);
+          flags = udp_callback(dev, conn, UDP_NEWDATA);
 
-          /* If the operation was successful, the UIP_NEWDATA flag is removed
+          /* If the operation was successful, the UDP_NEWDATA flag is removed
            * and thus the packet can be deleted (OK will be returned).
            */
 
-          if ((flags & UIP_NEWDATA) != 0)
+          if ((flags & UDP_NEWDATA) != 0)
             {
               /* No.. the packet was not processed now.  Return ERROR so
                * that the driver may retry again later.

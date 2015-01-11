@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_pioirq.c
  *
- *   Copyright (C) 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,10 +53,11 @@
 #include "up_arch.h"
 #include "up_internal.h"
 
-#include "sam_pio.h"
-#include "sam_periphclks.h"
 #include "chip/sam_pio.h"
 #include "chip/sam_pmc.h"
+
+#include "sam_pio.h"
+#include "sam_periphclks.h"
 
 #ifdef CONFIG_SAMA5_PIO_IRQ
 
@@ -87,14 +88,14 @@
 static inline uint32_t sam_piobase(pio_pinset_t pinset)
 {
   int port = (pinset & PIO_PORT_MASK) >> PIO_PORT_SHIFT;
-  return SAM_PION_VBASE(port >> PIO_PORT_SHIFT);
+  return sam_pion_vbase(port >> PIO_PORT_SHIFT);
 }
 
 /****************************************************************************
  * Name: sam_piopin
  *
  * Description:
- *   Returun the base address of the PIO register set
+ *   Return the base address of the PIO register set
  *
  ****************************************************************************/
 
@@ -107,7 +108,7 @@ static inline int sam_piopin(pio_pinset_t pinset)
  * Name: sam_irqbase
  *
  * Description:
- *   Return pio information associated with this IRQ
+ *   Return PIO information associated with this IRQ
  *
  ****************************************************************************/
 
@@ -169,10 +170,10 @@ static int sam_irqbase(int irq, uint32_t *base, int *pin)
 }
 
 /****************************************************************************
- * Name: sam_pioa/b/cinterrupt
+ * Name: sam_pioa/b/c/d/e/finterrupt
  *
  * Description:
- *   Receive PIOA/B/C interrupts
+ *   Receive PIOA/B/C/D/E/F interrupts
  *
  ****************************************************************************/
 
@@ -196,6 +197,7 @@ static int sam_piointerrupt(uint32_t base, int irq0, void *context)
           pending &= ~bit;
         }
     }
+
   return OK;
 }
 
@@ -375,8 +377,49 @@ void sam_pioirqinitialize(void)
 
 void sam_pioirq(pio_pinset_t pinset)
 {
+#if defined(SAM_PIO_ISLR_OFFSET)
+  uint32_t regval;
+#endif
   uint32_t base = sam_piobase(pinset);
   int      pin  = sam_piopin(pinset);
+
+#if defined(SAM_PIO_ISLR_OFFSET)
+  /* Enable writing to PIO registers.  The following registers are protected:
+   *
+   *  - PIO Enable/Disable Registers (PER/PDR)
+   *  - PIO Output Enable/Disable Registers (OER/ODR)
+   *  - PIO Interrupt Security Level Register (ISLR)
+   *  - PIO Input Filter Enable/Disable Registers (IFER/IFDR)
+   *  - PIO Multi-driver Enable/Disable Registers (MDER/MDDR)
+   *  - PIO Pull-Up Enable/Disable Registers (PUER/PUDR)
+   *  - PIO Peripheral ABCD Select Register 1/2 (ABCDSR1/2)
+   *  - PIO Output Write Enable/Disable Registers
+   *  - PIO Pad Pull-Down Enable/Disable Registers (PPER/PPDR)
+   *
+   * I suspect that the default state is the WPMR is unprotected, so these
+   * operations could probably all be avoided.
+   */
+
+  putreg32(PIO_WPMR_WPKEY, base + SAM_PIO_WPMR_OFFSET);
+
+  /* Is the interrupt secure? */
+
+   regval = getreg32(base + SAM_PIO_ISLR_OFFSET);
+   if ((pinset & PIO_INT_SECURE) != 0)
+     {
+       /* Yes.. make sure that the corresponding bit in ISLR is cleared */
+
+       regval &= ~pin;
+     }
+   else
+     {
+       /* Yes.. make sure that the corresponding bit in ISLR is set */
+
+       regval |= pin;
+     }
+
+   putreg32(regval, base + SAM_PIO_ISLR_OFFSET);
+#endif
 
    /* Are any additional interrupt modes selected? */
 
@@ -414,6 +457,12 @@ void sam_pioirq(pio_pinset_t pinset)
 
        putreg32(pin, base + SAM_PIO_AIMDR_OFFSET);
      }
+
+#if defined(SAM_PIO_ISLR_OFFSET)
+  /* Disable writing to PIO registers */
+
+  putreg32(PIO_WPMR_WPEN | PIO_WPMR_WPKEY, base + SAM_PIO_WPMR_OFFSET);
+#endif
 }
 
 /************************************************************************************

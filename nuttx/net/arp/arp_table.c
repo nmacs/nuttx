@@ -51,11 +51,14 @@
 #include <debug.h>
 
 #include <netinet/in.h>
-
 #include <net/ethernet.h>
+
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/arp.h>
+#include <nuttx/net/ip.h>
+
+#include <arp/arp.h>
 
 #ifdef CONFIG_NET_ARP
 
@@ -85,17 +88,17 @@ static uint8_t g_arptime;
  ****************************************************************************/
 
 /****************************************************************************
- * Name: arp_init
+ * Name: arp_reset
  *
  * Description:
- *   Initialize the ARP module. This function must be called before any of
- *   the other ARP functions.
+ *   Re-initialize the ARP table.
  *
  ****************************************************************************/
 
-void arp_init(void)
+void arp_reset(void)
 {
   int i;
+
   for (i = 0; i < CONFIG_NET_ARPTAB_SIZE; ++i)
     {
       memset(&g_arptable[i].at_ipaddr, 0, sizeof(in_addr_t));
@@ -115,14 +118,16 @@ void arp_init(void)
 
 void arp_timer(void)
 {
-  struct arp_entry *tabptr;
+  FAR struct arp_entry *tabptr;
   int i;
 
   ++g_arptime;
   for (i = 0; i < CONFIG_NET_ARPTAB_SIZE; ++i)
     {
       tabptr = &g_arptable[i];
-      if (tabptr->at_ipaddr != 0 && g_arptime - tabptr->at_time >= UIP_ARP_MAXAGE)
+
+      if (tabptr->at_ipaddr != 0 &&
+          g_arptime - tabptr->at_time >= CONFIG_NET_ARP_MAXAGE)
         {
           tabptr->at_ipaddr = 0;
         }
@@ -145,10 +150,10 @@ void arp_timer(void)
  *
  ****************************************************************************/
 
-void arp_update(uint16_t *pipaddr, uint8_t *ethaddr)
+void arp_update(FAR uint16_t *pipaddr, FAR uint8_t *ethaddr)
 {
   struct arp_entry *tabptr = NULL;
-  in_addr_t         ipaddr = uip_ip4addr_conv(pipaddr);
+  in_addr_t         ipaddr = net_ip4addr_conv32(pipaddr);
   int               i;
 
   /* Walk through the ARP mapping table and try to find an entry to
@@ -168,7 +173,7 @@ void arp_update(uint16_t *pipaddr, uint8_t *ethaddr)
            * the IP address in this ARP table entry.
            */
 
-          if (uip_ipaddr_cmp(ipaddr, tabptr->at_ipaddr))
+          if (net_ipaddr_cmp(ipaddr, tabptr->at_ipaddr))
             {
               /* An old entry found, update this and return. */
 
@@ -239,15 +244,15 @@ void arp_update(uint16_t *pipaddr, uint8_t *ethaddr)
  *
  ****************************************************************************/
 
-struct arp_entry *arp_find(in_addr_t ipaddr)
+FAR struct arp_entry *arp_find(in_addr_t ipaddr)
 {
-  struct arp_entry *tabptr;
+  FAR struct arp_entry *tabptr;
   int i;
 
   for (i = 0; i < CONFIG_NET_ARPTAB_SIZE; ++i)
     {
       tabptr = &g_arptable[i];
-      if (uip_ipaddr_cmp(ipaddr, tabptr->at_ipaddr))
+      if (net_ipaddr_cmp(ipaddr, tabptr->at_ipaddr))
         {
           return tabptr;
         }

@@ -62,10 +62,38 @@ ifeq ($(CONFIG_SAMA5_EBICS3_NAND),y)
 CSRCS += sam_nandflash.c
 endif
 
+ifeq ($(CONFIG_SAMA5D4EK_DRAM_MAIN),y)
+CSRCS += dram_main.c
+endif
+
+ifeq ($(CONFIG_SAMA5D4EK_AT25_MAIN),y)
+CSRCS += at25_main.c
+endif
+
 ifeq ($(CONFIG_MTD_AT25),y)
 ifeq ($(CONFIG_SAMA5_SPI0),y)
 CSRCS += sam_at25.c
 endif
+endif
+
+ifeq ($(CONFIG_FS_AUTOMOUNTER),y)
+CSRCS += sam_automount.c
+endif
+
+ifeq ($(CONFIG_AUDIO_WM8904),y)
+ifeq ($(CONFIG_SAMA5_TWI0),y)
+ifeq ($(CONFIG_SAMA5_SSC0),y)
+CSRCS += sam_wm8904.c
+endif
+endif
+endif
+
+ifeq ($(CONFIG_SAMA5_TWI0),y)
+CSRCS += sam_pmic.c
+endif
+
+ifeq ($(CONFIG_AUDIO_NULL),y)
+CSRCS += sam_audio_null.c
 endif
 
 ifeq ($(CONFIG_SAMA5_HSMCI0),y)
@@ -88,6 +116,10 @@ ifeq ($(CONFIG_SAMA5_EMACB),y)
 CSRCS += sam_ethernet.c
 endif
 
+ifeq ($(CONFIG_INPUT_MXT),y)
+CSRCS += sam_maxtouch.c
+endif
+
 ifeq ($(CONFIG_NSH_ARCHINIT),y)
 CSRCS += sam_nsh.c
 endif
@@ -98,10 +130,6 @@ endif
 
 ifeq ($(CONFIG_PWM),y)
 CSRCS += sam_pwm.c
-endif
-
-ifeq ($(CONFIG_CAN),y)
-CSRCS += sam_can.c
 endif
 
 ifeq ($(CONFIG_USBMSC),y)

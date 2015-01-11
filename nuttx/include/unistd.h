@@ -76,11 +76,11 @@
 #undef  _POSIX_MAPPED_FILES
 #undef  _POSIX_SHARED_MEMORY_OBJECTS
 #define _POSIX_PRIORITY_SCHEDULING 1
-#define _POSIX_TIMERS
+#define _POSIX_TIMERS 1
 #undef  _POSIX_MEMLOCK
 #undef  _POSIX_MEMLOCK_RANGE
 #undef  _POSIX_FSYNC
-#define _POSIX_SYNCHRONIZED_IO
+#define _POSIX_SYNCHRONIZED_IO 1
 #undef  _POSIX_ASYNCHRONOUS_IO
 #undef  _POSIX_PRIORITIZED_IO
 
@@ -90,7 +90,7 @@
 #undef  _POSIX_NO_TRUNC
 #undef  _POSIX_VDISABLE
 
-#define _POSIX_SYNC_IO
+#define _POSIX_SYNC_IO 1
 #undef  _POSIX_ASYNC_IO
 #undef  _POSIX_PRIO_IO
 
@@ -119,7 +119,7 @@ EXTERN int       optind; /* Index into argv */
 EXTERN int       optopt; /* unrecognized option character */
 #else
 #  define optarg  (*(getoptargp()))
-#  define optind  (*(getopindgp()))
+#  define optind  (*(getoptindp()))
 #  define optopt  (*(getoptoptp()))
 #endif
 
@@ -183,7 +183,7 @@ int     getopt(int argc, FAR char *const argv[], FAR const char *optstring);
  */
 
 FAR char **getoptargp(void); /* Optional argument following option */
-int       *getopindgp(void); /* Index into argv */
+int       *getoptindp(void); /* Index into argv */
 int       *getoptoptp(void); /* unrecognized option character */
 
 #define access(...) (0)

@@ -60,11 +60,11 @@
 #endif
 
 /****************************************************************************
- * Private Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
-#if defined(CONFIG_FS_READAHEAD) || (defined(CONFIG_FS_WRITABLE) && defined(CONFIG_FS_WRITEBUFFER))
-#  defined CONFIG_FTL_RWBUFFER 1
+#if defined(CONFIG_FTL_READAHEAD) || defined(CONFIG_FTL_WRITEBUFFER)
+#  define FTL_HAVE_RWBUFFER 1
 #endif
 
 /****************************************************************************
@@ -75,7 +75,7 @@ struct ftl_struct_s
 {
   FAR struct mtd_dev_s *mtd;     /* Contained MTD interface */
   struct mtd_geometry_s geo;     /* Device geometry */
-#ifdef CONFIG_FTL_RWBUFFER
+#ifdef FTL_HAVE_RWBUFFER
   struct rwbuffer_s     rwb;     /* Read-ahead/write buffer support */
 #endif
   uint16_t              blkper;  /* R/W blocks per erase block */
@@ -118,7 +118,7 @@ static const struct block_operations g_bops =
 #ifdef CONFIG_FS_WRITABLE
   ftl_write,    /* write    */
 #else
-  NULL,        /* write    */
+  NULL,         /* write    */
 #endif
   ftl_geometry, /* geometry */
   ftl_ioctl     /* ioctl    */
@@ -282,13 +282,14 @@ static ssize_t ftl_reload(FAR void *priv, FAR uint8_t *buffer,
 static ssize_t ftl_read(FAR struct inode *inode, unsigned char *buffer,
                         size_t start_sector, unsigned int nsectors)
 {
-  struct ftl_struct_s *dev;
+  FAR struct ftl_struct_s *dev;
 
   fvdbg("sector: %d nsectors: %d\n", start_sector, nsectors);
 
   DEBUGASSERT(inode && inode->i_private);
-  dev = (struct ftl_struct_s *)inode->i_private;
-#ifdef CONFIG_FS_READAHEAD
+
+  dev = (FAR struct ftl_struct_s *)inode->i_private;
+#ifdef CONFIG_FTL_READAHEAD
   return rwb_read(&dev->rwb, start_sector, nsectors, buffer);
 #else
   return ftl_reload(dev, buffer, start_sector, nsectors);
@@ -550,7 +551,7 @@ static ssize_t ftl_write(FAR struct inode *inode, const unsigned char *buffer,
 
   DEBUGASSERT(inode && inode->i_private);
   dev = (struct ftl_struct_s *)inode->i_private;
-#ifdef CONFIG_FS_WRITEBUFFER
+#ifdef CONFIG_FTL_WRITEBUFFER
   return rwb_write(&dev->rwb, start_sector, nsectors, buffer);
 #else
   return ftl_flush(dev, buffer, start_sector, nsectors);
@@ -733,20 +734,21 @@ int ftl_initialize(int minor, FAR struct mtd_dev_s *mtd)
 
       /* Configure read-ahead/write buffering */
 
-#ifdef CONFIG_FTL_RWBUFFER
+#ifdef FTL_HAVE_RWBUFFER
       dev->rwb.blocksize   = dev->geo.blocksize;
       dev->rwb.nblocks     = dev->geo.neraseblocks * dev->blkper;
       dev->rwb.dev         = (FAR void *)dev;
 
-#if defined(CONFIG_FS_WRITABLE) && defined(CONFIG_FS_WRITEBUFFER)
+#if defined(CONFIG_FS_WRITABLE) && defined(CONFIG_FTL_WRITEBUFFER)
       dev->rwb.wrmaxblocks = dev->blkper;
       dev->rwb.wrflush     = ftl_flush;
 #endif
 
-#ifdef CONFIG_FS_READAHEAD
+#ifdef CONFIG_FTL_READAHEAD
       dev->rwb.rhmaxblocks = dev->blkper;
       dev->rwb.rhreload    = ftl_reload;
 #endif
+
       ret = rwb_initialize(&dev->rwb);
       if (ret < 0)
         {

@@ -53,7 +53,7 @@
 #include "up_arch.h"
 #include "cache.h"
 #include "up_internal.h"
-#include "os_internal.h"
+#include "sched/sched.h"
 
 #include "chip.h"
 #include "sam_dmac.h"
@@ -115,7 +115,7 @@ struct sam_pidmap_s
   uint8_t pchan;                  /* DMA channel */
 };
 
-/* This structure descibes one DMA channel */
+/* This structure describes one DMA channel */
 
 struct sam_xdmach_s
 {
@@ -1067,9 +1067,11 @@ static inline uint32_t sam_txcc(struct sam_xdmach_s *xdmach)
 
   regval |= XDMACH_CC_DSYNC;
 
+#if 0 /* REVISIT */
   /* 5. Set PROT to activate a secure channel (REVISIT). */
 
   regval |= XDMACH_CC_PROT; /* Channel is unsecured */
+#endif
 
   /* 6. Program CSIZE to configure the channel chunk size (only
    *    relevant for peripheral synchronized transfer).
@@ -1133,11 +1135,13 @@ static inline uint32_t sam_txcc(struct sam_xdmach_s *xdmach)
       field   = sam_sink_channel(xdmach, pid);
       regval |= (field << XDMACH_CC_CSIZE_SHIFT);
 
+#if 0 /* Not supported */
       /* 10. Set SWREQ to use software request (only relevant for a
        *     peripheral synchronized transfer).
        */
 
       regval |= XDMACH_CC_SWREQ;
+#endif
     }
 
   return regval;
@@ -1221,9 +1225,11 @@ static inline uint32_t sam_rxcc(struct sam_xdmach_s *xdmach)
    * RX -> Peripheral to memory (DSYNC == 0)
    */
 
+#if 0 /* REVISIT */
   /* 5. Set PROT to activate a secure channel (REVISIT) */
 
   regval |= XDMACH_CC_PROT; /* Channel is unsecured */
+#endif
 
   /* 6. Program CSIZE to configure the channel chunk size (only
    *    relevant for peripheral synchronized transfer).
@@ -1287,11 +1293,13 @@ static inline uint32_t sam_rxcc(struct sam_xdmach_s *xdmach)
       field   = sam_source_channel(xdmach, pid);
       regval |= (field << XDMACH_CC_CSIZE_SHIFT);
 
+#if 0 /* Not supported */
       /* 10. Set SWREQ to use software request (only relevant for a
        *     peripheral synchronized transfer).
        */
 
       regval |= XDMACH_CC_SWREQ;
+#endif
     }
 
   return regval;
@@ -1392,7 +1400,7 @@ sam_allocdesc(struct sam_xdmach_s *xdmach, struct chnext_view1_s *prev,
                * that hardware will be accessing the descriptor via DMA.
                */
 
-              cp15_clean_dcache((uintptr_t)descr,
+              arch_clean_dcache((uintptr_t)descr,
                                 (uintptr_t)descr + sizeof(struct chnext_view1_s));
               break;
             }
@@ -1483,7 +1491,8 @@ static int sam_txbuffer(struct sam_xdmach_s *xdmach, uint32_t paddr,
 
   /* Calculate the number of transfers for CUBC */
 
-  cubc = sam_cubc(xdmach, nbytes);
+  cubc  = sam_cubc(xdmach, nbytes);
+  cubc |= (CHNEXT_UBC_NVIEW_1 | CHNEXT_UBC_NSEN);
 
   /* Add the new link list entry */
 
@@ -1522,7 +1531,8 @@ static int sam_rxbuffer(struct sam_xdmach_s *xdmach, uint32_t paddr,
 
   /* Calculate the number of transfers for CUBC */
 
-  cubc = sam_cubc(xdmach, nbytes);
+  cubc  = sam_cubc(xdmach, nbytes);
+  cubc |= (CHNEXT_UBC_NVIEW_1 | CHNEXT_UBC_NSEN);
 
   /* Add the new link list entry */
 
@@ -1707,7 +1717,7 @@ static inline int sam_multiple(struct sam_xdmach_s *xdmach)
    */
 
   if ((xdmach->cc & XDMACH_CC_TYPE) == 0 ||
-      (xdmach->cc & XDMACH_CC_TYPE) != 0)
+      (xdmach->cc & XDMACH_CC_DSYNC) != 0)
     {
       regval |= XDMACH_CNDC_NDSUP;
     }
@@ -1794,7 +1804,7 @@ static void sam_dmaterminate(struct sam_xdmach_s *xdmach, int result)
 
   if (xdmach->rx)
     {
-      cp15_invalidate_dcache(xdmach->rxaddr, xdmach->rxaddr + xdmach->rxsize);
+      arch_invalidate_dcache(xdmach->rxaddr, xdmach->rxaddr + xdmach->rxsize);
     }
 
   /* Perform the DMA complete callback */
@@ -1989,7 +1999,7 @@ void weak_function up_dmainitialize(void)
 }
 
 /****************************************************************************
- * Name: sam_xdmachannel
+ * Name: sam_dmachannel
  *
  *   Allocate a DMA channel.  This function sets aside a DMA channel then
  *   gives the caller exclusive access to the DMA channel.
@@ -2005,7 +2015,7 @@ void weak_function up_dmainitialize(void)
  *
  ****************************************************************************/
 
-DMA_HANDLE sam_xdmachannel(uint8_t dmacno, uint32_t chflags)
+DMA_HANDLE sam_dmachannel(uint8_t dmacno, uint32_t chflags)
 {
   struct sam_xdmac_s *xdmac;
   struct sam_xdmach_s *xdmach;
@@ -2086,14 +2096,14 @@ DMA_HANDLE sam_xdmachannel(uint8_t dmacno, uint32_t chflags)
 }
 
 /************************************************************************************
- * Name: sam_xdmaconfig
+ * Name: sam_dmaconfig
  *
  * Description:
  *   There are two channel usage models:  (1) The channel is allocated and configured
  *   in one step.  This is the typical case where a DMA channel performs a constant
  *   role.  The alternative is (2) where the DMA channel is reconfigured on the fly.
- *   In this case, the chflags provided to sam_xdmachannel are not used and
- *   sam_xdmaconfig() is called before each DMA to configure the DMA channel
+ *   In this case, the chflags provided to sam_dmachannel are not used and
+ *   sam_dmaconfig() is called before each DMA to configure the DMA channel
  *   appropriately.
  *
  * Returned Value:
@@ -2101,7 +2111,7 @@ DMA_HANDLE sam_xdmachannel(uint8_t dmacno, uint32_t chflags)
  *
  ************************************************************************************/
 
-void sam_xdmaconfig(DMA_HANDLE handle, uint32_t chflags)
+void sam_dmaconfig(DMA_HANDLE handle, uint32_t chflags)
 {
   struct sam_xdmach_s *xdmach = (struct sam_xdmach_s *)handle;
 
@@ -2126,7 +2136,7 @@ void sam_xdmaconfig(DMA_HANDLE handle, uint32_t chflags)
  *
  * Description:
  *   Release a DMA channel.  NOTE:  The 'handle' used in this argument must
- *   NEVER be used again until sam_xdmachannel() is called again to re-gain
+ *   NEVER be used again until sam_dmachannel() is called again to re-gain
  *   a valid handle.
  *
  * Returned Value:
@@ -2233,7 +2243,7 @@ int sam_dmatxsetup(DMA_HANDLE handle, uint32_t paddr, uint32_t maddr,
 
   /* Clean caches associated with the DMA memory */
 
-  cp15_clean_dcache(maddr, maddr + nbytes);
+  arch_clean_dcache(maddr, maddr + nbytes);
   return ret;
 }
 
@@ -2314,7 +2324,7 @@ int sam_dmarxsetup(DMA_HANDLE handle, uint32_t paddr, uint32_t maddr,
 
   /* Clean caches associated with the DMA memory */
 
-  cp15_clean_dcache(maddr, maddr + nbytes);
+  arch_clean_dcache(maddr, maddr + nbytes);
   return ret;
 }
 
@@ -2390,7 +2400,7 @@ void sam_dmastop(DMA_HANDLE handle)
  *   Sample DMA register contents
  *
  * Assumptions:
- *   - DMA handle allocated by sam_xdmachannel()
+ *   - DMA handle allocated by sam_dmachannel()
  *
  ****************************************************************************/
 
@@ -2421,6 +2431,7 @@ void sam_dmasample(DMA_HANDLE handle, struct sam_dmaregs_s *regs)
 
   /* Sample channel registers */
 
+  regs->cim    = sam_getdmach(xdmach, SAM_XDMACH_CIM_OFFSET);
   regs->cis    = sam_getdmach(xdmach, SAM_XDMACH_CIS_OFFSET);
   regs->csa    = sam_getdmach(xdmach, SAM_XDMACH_CSA_OFFSET);
   regs->cda    = sam_getdmach(xdmach, SAM_XDMACH_CDA_OFFSET);
@@ -2444,7 +2455,7 @@ void sam_dmasample(DMA_HANDLE handle, struct sam_dmaregs_s *regs)
  *   Dump previously sampled DMA register contents
  *
  * Assumptions:
- *   - DMA handle allocated by sam_xdmachannel()
+ *   - DMA handle allocated by sam_dmachannel()
  *
  ****************************************************************************/
 
@@ -2467,6 +2478,7 @@ void sam_dmadump(DMA_HANDLE handle, const struct sam_dmaregs_s *regs,
   dmadbg("       GWS[%08x]: %08x\n", xdmac->base + SAM_XDMAC_GWS_OFFSET, regs->gws);
   dmadbg("      GSWS[%08x]: %08x\n", xdmac->base + SAM_XDMAC_GSWS_OFFSET, regs->gsws);
   dmadbg("  DMA Channel Registers:\n");
+  dmadbg("       CIM[%08x]: %08x\n", xdmach->base + SAM_XDMACH_CIM_OFFSET, regs->cim);
   dmadbg("       CIS[%08x]: %08x\n", xdmach->base + SAM_XDMACH_CIS_OFFSET, regs->cis);
   dmadbg("       CSA[%08x]: %08x\n", xdmach->base + SAM_XDMACH_CSA_OFFSET, regs->csa);
   dmadbg("       CDA[%08x]: %08x\n", xdmach->base + SAM_XDMACH_CDA_OFFSET, regs->cda);

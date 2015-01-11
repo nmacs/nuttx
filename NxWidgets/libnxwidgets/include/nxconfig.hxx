@@ -57,7 +57,7 @@
  *
  * CONFIG_HAVE_CXX=y   : C++ support is required
  * CONFIG_NX=y         : NX graphics support must be enabled
- * CONFIG_NX_MOUSE=y   : Required to enable NX mouse/touchscreen support
+ * CONFIG_NX_XYINPUT=y : Required to enable NX mouse/touchscreen support
  * CONFIG_NX_KBD=y     : Required to enabled NX keyboard support
  * CONFIG_NX_NPLANES=1 : Only a single video plane is supported
  *
@@ -68,7 +68,7 @@
  * CONFIG_NXWIDGETS_VPLANE - Only a single video plane is supported. Default: 0
  * CONFIG_NXWIDGETS_SERVERPRIO - Priority of the NX server.  This applies
  *   only if NX is configured in multi-user mode (CONFIG_NX_MULTIUSER=y).
- *   Default: SCHED_PRIORITY_DEFAULT+1.  NOTE:  Of the three priority
+ *   Default: (SCHED_PRIORITY_DEFAULT+10).  NOTE:  Of the three priority
  *   definitions here, CONFIG_NXWIDGETS_SERVERPRIO should have the highest
  *   priority to avoid data overrun race conditions. Such errors would most
  *   likely appear as duplicated rows of data on the display.
@@ -160,8 +160,8 @@
  * Required to enable NX mouse/touchscreen support
  */
 
-#ifndef CONFIG_NX_MOUSE
-#  warning "NX mouse/touchscreen support is required (CONFIG_NX_MOUSE)"
+#ifndef CONFIG_NX_XYINPUT
+#  warning "NX mouse/touchscreen support is required (CONFIG_NX_XYINPUT)"
 #endif
 
 /**
@@ -214,7 +214,7 @@
  */
 
 #ifndef CONFIG_NXWIDGETS_SERVERPRIO
-#  define CONFIG_NXWIDGETS_SERVERPRIO (SCHED_PRIORITY_DEFAULT+1)
+#  define CONFIG_NXWIDGETS_SERVERPRIO (SCHED_PRIORITY_DEFAULT+10)
 #endif
 
 #ifndef CONFIG_NXWIDGETS_CLIENTPRIO

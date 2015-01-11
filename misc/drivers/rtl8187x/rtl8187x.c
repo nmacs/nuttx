@@ -62,6 +62,8 @@
 #include <errno.h>
 #include <debug.h>
 
+#include <arpa/inet.h>
+
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/clock.h>
@@ -72,9 +74,9 @@
 #include <nuttx/usb/usb.h>
 #include <nuttx/usb/usbhost.h>
 
-#include <nuttx/net/uip/uip.h>
+#include <nuttx/net/net.h>
 #include <nuttx/net/arp.h>
-#include <nuttx/net/uip/uip-arch.h>
+#include <nuttx/net/devif.h>
 
 #include "rtl8187x.h"
 
@@ -233,7 +235,7 @@ struct rtl8187x_state_s
 
   /* This holds the information visible to uIP/NuttX */
 
-  struct uip_driver_s        ethdev;       /* Interface understood by uIP */
+  struct net_driver_s        ethdev;       /* Interface understood by uIP */
   FAR uint8_t               *txbuffer;     /* The allocated TX I/O buffer */
   FAR uint8_t               *rxbuffer;     /* The allocated RX I/O buffer */
 };
@@ -318,7 +320,7 @@ static void rtl8187x_write(FAR struct rtl8187x_state_s *priv, uint8_t addr,
 /* TX logic */
 
 static int rtl8187x_transmit(FAR struct rtl8187x_state_s *priv);
-static int rtl8187x_uiptxpoll(struct uip_driver_s *dev);
+static int rtl8187x_txpoll(struct net_driver_s *dev);
 static void rtl8187x_txpollwork(FAR void *arg);
 static void rtl8187x_txpolltimer(int argc, uint32_t arg, ...);
 
@@ -331,12 +333,12 @@ static void rtl8187x_rxpolltimer(int argc, uint32_t arg, ...);
 
 /* Network callback functions */
 
-static int rtl8187x_ifup(struct uip_driver_s *dev);
-static int rtl8187x_ifdown(struct uip_driver_s *dev);
-static int rtl8187x_txavail(struct uip_driver_s *dev);
+static int rtl8187x_ifup(struct net_driver_s *dev);
+static int rtl8187x_ifdown(struct net_driver_s *dev);
+static int rtl8187x_txavail(struct net_driver_s *dev);
 #ifdef CONFIG_NET_IGMP
-static int rtl8187x_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
-static int rtl8187x_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
+static int rtl8187x_addmac(struct net_driver_s *dev, FAR const uint8_t *mac);
+static int rtl8187x_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac);
 #endif
 
 /* EEPROM support */
@@ -1927,11 +1929,11 @@ static int rtl8187x_transmit(FAR struct rtl8187x_state_s *priv)
 }
 
 /****************************************************************************
- * Function: rtl8187x_uiptxpoll
+ * Function: rtl8187x_txpoll
  *
  * Description:
  *   The transmitter is available, check if uIP has any outgoing packets ready
- *   to send.  This is a callback from uip_poll().  uip_poll() may be called:
+ *   to send.  This is a callback from devif_poll().  devif_poll() may be called:
  *
  *   1. When the preceding TX packet send is complete,
  *   2. When the preceding TX packet send timesout and the interface is reset
@@ -1946,11 +1948,11 @@ static int rtl8187x_transmit(FAR struct rtl8187x_state_s *priv)
  * Assumptions:
  *  Never called from an interrupt handler.  The polling process was
  *  initiated by a normal thread (possibly the worker thread).  The initiator
- *  has called uip_lock() to assure that we have exclusive access to uIP.
+ *  has called net_lock() to assure that we have exclusive access to uIP.
  *
  ****************************************************************************/
 
-static int rtl8187x_uiptxpoll(struct uip_driver_s *dev)
+static int rtl8187x_txpoll(struct net_driver_s *dev)
 {
   FAR struct rtl8187x_state_s *priv = (FAR struct rtl8187x_state_s *)dev->d_private;
 
@@ -1998,13 +2000,13 @@ static void rtl8187x_txpollwork(FAR void *arg)
 
   if (!priv->disconnected && priv->bifup)
     {
-      uip_lock_t lock;
+      net_lock_t lock;
       uint32_t   now;
       uint32_t   hsecs;
 
       /* Get exclusive access to uIP */
 
-      lock = uip_lock();
+      lock = net_lock();
 
       /* Estimate the elapsed time in hsecs since the last poll */
 
@@ -2018,8 +2020,8 @@ static void rtl8187x_txpollwork(FAR void *arg)
        */
 
       priv->ethdev.d_buf = &priv->txbuffer[SIZEOF_TXDESC];
-      (void)uip_timer(&priv->ethdev, rtl8187x_uiptxpoll, (int)hsecs);
-      uip_unlock(lock);
+      (void)devif_timer(&priv->ethdev, rtl8187x_txpoll, (int)hsecs);
+      net_unlock(lock);
     }
 }
 
@@ -2110,7 +2112,7 @@ static inline int rtl8187x_receive(FAR struct rtl8187x_state_s *priv,
    * and an Ethernet header
    */
 
-  if (iolen < UIP_LLH_LEN + SIZEOF_RXDESC)
+  if (iolen < NET_LL_HDRLEN + SIZEOF_RXDESC)
     {
       RTL8187X_STATS(priv, rxtoosmall);
       RTL8187X_STATS(priv, rxdropped);
@@ -2223,26 +2225,26 @@ static inline int rtl8187x_receive(FAR struct rtl8187x_state_s *priv,
 static inline void rtl8187x_rxdispatch(FAR struct rtl8187x_state_s *priv,
                                        unsigned int pktlen)
 {
-  FAR struct uip_eth_hdr *ethhdr = (FAR struct uip_eth_hdr *)priv->rxbuffer;
-  uip_lock_t lock;
+  FAR struct eth_hdr_s *ethhdr = (FAR struct eth_hdr_s *)priv->rxbuffer;
+  net_lock_t lock;
 
   /* Get exclusive access to uIP */
 
-  lock               = uip_lock();
+  lock               = net_lock();
   priv->ethdev.d_buf = priv->rxbuffer;
   priv->ethdev.d_len = pktlen;
 
   /* We only accept IP packets of the configured type and ARP packets */
 
 #ifdef CONFIG_NET_IPv6
-  if (ethhdr->type == HTONS(UIP_ETHTYPE_IP6))
+  if (ethhdr->type == HTONS(ETHTYPE_IP6))
 #else
-  if (ethhdr->type == HTONS(UIP_ETHTYPE_IP))
+  if (ethhdr->type == HTONS(ETHTYPE_IP))
 #endif
     {
       RTL8187X_STATS(priv, rxippackets);
-      uip_arp_ipin(&priv->ethdev);
-      uip_input(&priv->ethdev);
+      arp_ipin(&priv->ethdev);
+      devif_input(&priv->ethdev);
 
       /* If the above function invocation resulted in data that should be
        * sent out on the network, the field  d_len will set to a value > 0.
@@ -2254,7 +2256,7 @@ static inline void rtl8187x_rxdispatch(FAR struct rtl8187x_state_s *priv,
           rtl8187x_transmit(priv);
         }
     }
-  else if (ethhdr->type == htons(UIP_ETHTYPE_ARP))
+  else if (ethhdr->type == htons(ETHTYPE_ARP))
     {
       RTL8187X_STATS(priv, rxarppackets);
       arp_arpin(&priv->ethdev);
@@ -2274,7 +2276,7 @@ static inline void rtl8187x_rxdispatch(FAR struct rtl8187x_state_s *priv,
       RTL8187X_STATS(priv, rxdropped);
     }
 
-  uip_unlock(lock);
+  net_unlock(lock);
 }
 
 /****************************************************************************
@@ -2414,7 +2416,7 @@ static void rtl8187x_rxpolltimer(int argc, uint32_t arg, ...)
  *
  ****************************************************************************/
 
-static int rtl8187x_ifup(struct uip_driver_s *dev)
+static int rtl8187x_ifup(struct net_driver_s *dev)
 {
   FAR struct rtl8187x_state_s *priv = (FAR struct rtl8187x_state_s *)dev->d_private;
   int ret;
@@ -2461,7 +2463,7 @@ static int rtl8187x_ifup(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int rtl8187x_ifdown(struct uip_driver_s *dev)
+static int rtl8187x_ifdown(struct net_driver_s *dev)
 {
   FAR struct rtl8187x_state_s *priv = (FAR struct rtl8187x_state_s *)dev->d_private;
   irqstate_t flags;
@@ -2505,7 +2507,7 @@ static int rtl8187x_ifdown(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int rtl8187x_txavail(struct uip_driver_s *dev)
+static int rtl8187x_txavail(struct net_driver_s *dev)
 {
   FAR struct rtl8187x_state_s *priv = (FAR struct rtl8187x_state_s *)dev->d_private;
 
@@ -2513,17 +2515,17 @@ static int rtl8187x_txavail(struct uip_driver_s *dev)
 
   if (priv->bifup)
     {
-      uip_lock_t lock;
+      net_lock_t lock;
 
       /* If so, then poll uIP for new XMIT data.  Pass the offset address
        * into the txbuffer, reserving space for the TX descriptor at the
        * beginning of the buffer.
        */
 
-      lock = uip_lock();
+      lock = net_lock();
       priv->ethdev.d_buf = &priv->txbuffer[SIZEOF_TXDESC];
-      (void)uip_poll(&priv->ethdev, rtl8187x_uiptxpoll);
-      uip_unlock(lock);
+      (void)devif_poll(&priv->ethdev, rtl8187x_txpoll);
+      net_unlock(lock);
     }
 
   return OK;
@@ -2548,7 +2550,7 @@ static int rtl8187x_txavail(struct uip_driver_s *dev)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int rtl8187x_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int rtl8187x_addmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   FAR struct rtl8187x_state_s *priv = (FAR struct rtl8187x_state_s *)dev->d_private;
 
@@ -2577,7 +2579,7 @@ static int rtl8187x_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int rtl8187x_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int rtl8187x_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   FAR struct rtl8187x_state_s *priv = (FAR struct rtl8187x_state_s *)dev->d_private;
 

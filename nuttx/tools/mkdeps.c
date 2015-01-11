@@ -54,8 +54,28 @@
 
 #define MAX_BUFFER  (4096)
 
-#ifdef WIN32
-#  define NAME_MAX FILENAME_MAX
+/* NAME_MAX is typically defined in limits.h */
+
+#if !defined(NAME_MAX)
+
+  /* FILENAME_MAX might be defined in stdio.h */
+
+#  if defined(FILENAME_MAX)
+#    define NAME_MAX FILENAME_MAX
+#  else
+
+  /* MAXNAMELEN might be defined in dirent.h */
+
+#    include <dirent.h>
+#    if defined(MAXNAMLEN)
+#      define NAME_MAX MAXNAMLEN
+#    else
+
+  /* Lets not let a silly think like this stop us... just make something up */
+
+#      define NAME_MAX 256
+#    endif
+#  endif
 #endif
 
 /****************************************************************************
@@ -374,7 +394,7 @@ static void parse_args(int argc, char **argv)
       fprintf(stderr, "  Windows Native : [%s]\n", g_winnative ? "TRUE" : "FALSE");
     }
 
-  /* Check for required paramters */
+  /* Check for required parameters */
 
   if (!g_cc)
     {

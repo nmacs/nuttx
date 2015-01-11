@@ -61,11 +61,17 @@
 #include <debug.h>
 
 #include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include <net/ethernet.h>
 #include <nuttx/net/netconfig.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/arp.h>
+#include <nuttx/net/ip.h>
+
+#include "netdev/netdev.h"
+#include "route/route.h"
+#include "arp/arp.h"
 
 #ifdef CONFIG_NET_ARP
 
@@ -81,8 +87,8 @@
 #define RASIZE         4  /* Size of ROUTER ALERT */
 
 #define ETHBUF        ((struct eth_hdr_s *)&dev->d_buf[0])
-#define ARPBUF        ((struct arp_hdr_s *)&dev->d_buf[UIP_LLH_LEN])
-#define IPBUF         ((struct arp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+#define ARPBUF        ((struct arp_hdr_s *)&dev->d_buf[NET_LL_HDRLEN])
+#define IPBUF         ((struct arp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
 
 /****************************************************************************
  * Private Types
@@ -155,7 +161,7 @@ static const uint8_t g_multicast_ethaddr[3] = {0x01, 0x00, 0x5e};
  ****************************************************************************/
 
 #if defined(CONFIG_NET_DUMPARP) && defined(CONFIG_DEBUG)
-static void arp_dump(struct arp_hdr_s *arp)
+static void arp_dump(FAR struct arp_hdr_s *arp)
 {
   nlldbg("  HW type: %04x Protocol: %04x\n",
          arp->ah_hwtype, arp->ah_protocol);\
@@ -180,19 +186,23 @@ static void arp_dump(struct arp_hdr_s *arp)
  * Public Functions
  ****************************************************************************/
 
-/* ARP processing for incoming IP packets
+/****************************************************************************
+ * Name: arp_ipin
  *
- * This function should be called by the device driver when an IP packet has
- * been received. The function will check if the address is in the ARP cache,
- * and if so the ARP cache entry will be refreshed. If no ARP cache entry was
- * found, a new one is created.
+ * Description:
+ *   The arp_ipin() function should be called by Ethernet device drivers
+ *   whenever an IP packet arrives from the network.  The function will
+ *   check if the address is in the ARP cache, and if so the ARP cache entry
+ *   will be refreshed. If no ARP cache entry was found, a new one is created.
  *
- * This function expects an IP packet with a prepended Ethernet header in the
- * d_buf[] buffer, and the length of the packet in the variable d_len.
- */
+ *   This function expects that an IP packet with an Ethernet header is
+ *   present in the d_buf buffer and that the length of the packet is in the
+ *   d_len field.
+ *
+ ****************************************************************************/
 
 #ifdef CONFIG_NET_ARP_IPIN
-void arp_ipin(struct uip_driver_s *dev)
+void arp_ipin(FAR struct net_driver_s *dev)
 {
   in_addr_t srcipaddr;
 
@@ -200,41 +210,43 @@ void arp_ipin(struct uip_driver_s *dev)
    * packet comes from a host on the local network.
    */
 
-  srcipaddr = uip_ip4addr_conv(IPBUF->eh_srcipaddr);
-  if (uip_ipaddr_maskcmp(srcipaddr, dev->d_ipaddr, dev->d_netmask))
+  srcipaddr = net_ip4addr_conv32(IPBUF->eh_srcipaddr);
+  if (net_ipaddr_maskcmp(srcipaddr, dev->d_ipaddr, dev->d_netmask))
     {
       arp_update(IPBUF->eh_srcipaddr, ETHBUF->src);
     }
 }
 #endif /* CONFIG_NET_ARP_IPIN */
 
-/* ARP processing for incoming ARP packets.
+/****************************************************************************
+ * Name: arp_arpin
  *
- * This function should be called by the device driver when an ARP
- * packet has been received. The function will act differently
- * depending on the ARP packet type: if it is a reply for a request
- * that we previously sent out, the ARP cache will be filled in with
- * the values from the ARP reply. If the incoming ARP packet is an ARP
- * request for our IP address, an ARP reply packet is created and put
- * into the d_buf[] buffer.
+ * Description:
+ *   This function should be called by the Ethernet device driver when an ARP
+ *   packet has been received.   The function will act differently
+ *   depending on the ARP packet type: if it is a reply for a request
+ *   that we previously sent out, the ARP cache will be filled in with
+ *   the values from the ARP reply.  If the incoming ARP packet is an ARP
+ *   request for our IP address, an ARP reply packet is created and put
+ *   into the d_buf[] buffer.
  *
- * When the function returns, the value of the field d_len
- * indicates whether the device driver should send out a packet or
- * not. If d_len is zero, no packet should be sent. If d_len is
- * non-zero, it contains the length of the outbound packet that is
- * present in the d_buf[] buffer.
+ *   On entry, this function expects that an ARP packet with a prepended
+ *   Ethernet header is present in the d_buf[] buffer and that the length of
+ *   the packet is set in the d_len field.
  *
- * This function expects an ARP packet with a prepended Ethernet
- * header in the d_buf[] buffer, and the length of the packet in the
- * variable d_len.
- */
+ *   When the function returns, the value of the field d_len indicates whether
+ *   the device driver should send out the ARP reply packet or not. If d_len
+ *   is zero, no packet should be sent; If d_len is non-zero, it contains the
+ *   length of the outbound packet that is present in the d_buf[] buffer.
+ *
+ ****************************************************************************/
 
-void arp_arpin(struct uip_driver_s *dev)
+void arp_arpin(FAR struct net_driver_s *dev)
 {
-  struct arp_hdr_s *parp = ARPBUF;
+  FAR struct arp_hdr_s *parp = ARPBUF;
   in_addr_t ipaddr;
 
-  if (dev->d_len < (sizeof(struct arp_hdr_s) + UIP_LLH_LEN))
+  if (dev->d_len < (sizeof(struct arp_hdr_s) + NET_LL_HDRLEN))
     {
       nlldbg("Too small\n");
       dev->d_len = 0;
@@ -243,7 +255,7 @@ void arp_arpin(struct uip_driver_s *dev)
 
   dev->d_len = 0;
 
-  ipaddr = uip_ip4addr_conv(parp->ah_dipaddr);
+  ipaddr = net_ip4addr_conv32(parp->ah_dipaddr);
   switch(parp->ah_opcode)
     {
       case HTONS(ARP_REQUEST):
@@ -251,7 +263,7 @@ void arp_arpin(struct uip_driver_s *dev)
 
         /* ARP request. If it asked for our address, we send out a reply. */
 
-        if (uip_ipaddr_cmp(ipaddr, dev->d_ipaddr))
+        if (net_ipaddr_cmp(ipaddr, dev->d_ipaddr))
           {
             struct eth_hdr_s *peth = ETHBUF;
 
@@ -270,11 +282,11 @@ void arp_arpin(struct uip_driver_s *dev)
 
             parp->ah_dipaddr[0] = parp->ah_sipaddr[0];
             parp->ah_dipaddr[1] = parp->ah_sipaddr[1];
-            uiphdr_ipaddr_copy(parp->ah_sipaddr, &dev->d_ipaddr);
+            net_ipaddr_hdrcopy(parp->ah_sipaddr, &dev->d_ipaddr);
             arp_dump(parp);
 
-            peth->type          = HTONS(UIP_ETHTYPE_ARP);
-            dev->d_len          = sizeof(struct arp_hdr_s) + UIP_LLH_LEN;
+            peth->type          = HTONS(ETHTYPE_ARP);
+            dev->d_len          = sizeof(struct arp_hdr_s) + NET_LL_HDRLEN;
           }
         break;
 
@@ -285,7 +297,7 @@ void arp_arpin(struct uip_driver_s *dev)
          * for us.
          */
 
-        if (uip_ipaddr_cmp(ipaddr, dev->d_ipaddr))
+        if (net_ipaddr_cmp(ipaddr, dev->d_ipaddr))
           {
             arp_update(parp->ah_sipaddr, parp->ah_shwaddr);
           }
@@ -293,39 +305,41 @@ void arp_arpin(struct uip_driver_s *dev)
     }
 }
 
-/* Prepend Ethernet header to an outbound IP packet and see if we need
- * to send out an ARP request.
+/****************************************************************************
+ * Name: arp_out
  *
- * This function should be called before sending out an IP packet. The
- * function checks the destination IP address of the IP packet to see
- * what Ethernet MAC address that should be used as a destination MAC
- * address on the Ethernet.
+ * Description:
+ *   This function should be called before sending out an IP packet. The
+ *   function checks the destination IP address of the IP packet to see
+ *   what Ethernet MAC address that should be used as a destination MAC
+ *   address on the Ethernet.
  *
- * If the destination IP address is in the local network (determined
- * by logical ANDing of netmask and our IP address), the function
- * checks the ARP cache to see if an entry for the destination IP
- * address is found. If so, an Ethernet header is prepended and the
- * function returns. If no ARP cache entry is found for the
- * destination IP address, the packet in the d_buf[] is replaced by
- * an ARP request packet for the IP address. The IP packet is dropped
- * and it is assumed that they higher level protocols (e.g., TCP)
- * eventually will retransmit the dropped packet.
+ *   If the destination IP address is in the local network (determined
+ *   by logical ANDing of netmask and our IP address), the function
+ *   checks the ARP cache to see if an entry for the destination IP
+ *   address is found.  If so, an Ethernet header is pre-pended at the
+ *   beginning of the packet and the function returns.
  *
- * If the destination IP address is not on the local network, the IP
- * address of the default router is used instead.
+ *   If no ARP cache entry is found for the destination IP address, the
+ *   packet in the d_buf[] is replaced by an ARP request packet for the
+ *   IP address. The IP packet is dropped and it is assumed that the
+ *   higher level protocols (e.g., TCP) eventually will retransmit the
+ *   dropped packet.
  *
- * When the function returns, a packet is present in the d_buf[]
- * buffer, and the length of the packet is in the field d_len.
- */
+ *   Upon return in either the case, a packet to be sent is present in the
+ *   d_buf[] buffer and the d_len field holds the length of the Ethernet
+ *   frame that should be transmitted.
+ *
+ ****************************************************************************/
 
-void arp_out(struct uip_driver_s *dev)
+void arp_out(FAR struct net_driver_s *dev)
 {
-  const struct arp_entry *tabptr = NULL;
-  struct arp_hdr_s       *parp   = ARPBUF;
-  struct eth_hdr_s     *peth   = ETHBUF;
-  struct arp_iphdr_s     *pip    = IPBUF;
-  in_addr_t               ipaddr;
-  in_addr_t               destipaddr;
+  FAR const struct arp_entry *tabptr = NULL;
+  FAR struct arp_hdr_s       *parp   = ARPBUF;
+  FAR struct eth_hdr_s       *peth   = ETHBUF;
+  FAR struct arp_iphdr_s     *pip    = IPBUF;
+  in_addr_t                   ipaddr;
+  in_addr_t                   destipaddr;
 
 #ifdef CONFIG_NET_PKT
   /* Skip sending ARP requests when the frame to be transmitted was
@@ -348,7 +362,7 @@ void arp_out(struct uip_driver_s *dev)
 
   /* First check if destination is a local broadcast. */
 
-  if (uiphdr_ipaddr_cmp(pip->eh_destipaddr, g_broadcast_ipaddr))
+  if (net_ipaddr_hdrcmp(pip->eh_destipaddr, g_broadcast_ipaddr))
     {
       memcpy(peth->dest, g_broadcast_ethaddr.ether_addr_octet, ETHER_ADDR_LEN);
     }
@@ -371,7 +385,7 @@ void arp_out(struct uip_driver_s *dev)
        * last three bytes of the IP address.
        */
 
-      const uint8_t *ip = ((uint8_t*)pip->eh_destipaddr) + 1;
+      FAR const uint8_t *ip = ((uint8_t*)pip->eh_destipaddr) + 1;
       memcpy(peth->dest,  g_multicast_ethaddr, 3);
       memcpy(&peth->dest[3], ip, 3);
     }
@@ -380,8 +394,8 @@ void arp_out(struct uip_driver_s *dev)
     {
       /* Check if the destination address is on the local network. */
 
-      destipaddr = uip_ip4addr_conv(pip->eh_destipaddr);
-      if (!uip_ipaddr_maskcmp(destipaddr, dev->d_ipaddr, dev->d_netmask))
+      destipaddr = net_ip4addr_conv32(pip->eh_destipaddr);
+      if (!net_ipaddr_maskcmp(destipaddr, dev->d_ipaddr, dev->d_netmask))
         {
           /* Destination address is not on the local network */
 
@@ -398,14 +412,14 @@ void arp_out(struct uip_driver_s *dev)
            * destination address when determining the MAC address.
            */
 
-          uip_ipaddr_copy(ipaddr, dev->d_draddr);
+          net_ipaddr_copy(ipaddr, dev->d_draddr);
 #endif
         }
       else
         {
           /* Else, we use the destination IP address. */
 
-          uip_ipaddr_copy(ipaddr, destipaddr);
+          net_ipaddr_copy(ipaddr, destipaddr);
         }
 
       /* Check if we already have this destination address in the ARP table */
@@ -424,18 +438,18 @@ void arp_out(struct uip_driver_s *dev)
           memcpy(peth->src, dev->d_mac.ether_addr_octet, ETHER_ADDR_LEN);
           memcpy(parp->ah_shwaddr, dev->d_mac.ether_addr_octet, ETHER_ADDR_LEN);
 
-          uiphdr_ipaddr_copy(parp->ah_dipaddr, &ipaddr);
-          uiphdr_ipaddr_copy(parp->ah_sipaddr, &dev->d_ipaddr);
+          net_ipaddr_hdrcopy(parp->ah_dipaddr, &ipaddr);
+          net_ipaddr_hdrcopy(parp->ah_sipaddr, &dev->d_ipaddr);
 
           parp->ah_opcode   = HTONS(ARP_REQUEST);
           parp->ah_hwtype   = HTONS(ARP_HWTYPE_ETH);
-          parp->ah_protocol = HTONS(UIP_ETHTYPE_IP);
+          parp->ah_protocol = HTONS(ETHTYPE_IP);
           parp->ah_hwlen    = ETHER_ADDR_LEN;
           parp->ah_protolen = 4;
           arp_dump(parp);
 
-          peth->type        = HTONS(UIP_ETHTYPE_ARP);
-          dev->d_len        = sizeof(struct arp_hdr_s) + UIP_LLH_LEN;
+          peth->type        = HTONS(ETHTYPE_ARP);
+          dev->d_len        = sizeof(struct arp_hdr_s) + NET_LL_HDRLEN;
           return;
         }
 
@@ -447,8 +461,8 @@ void arp_out(struct uip_driver_s *dev)
   /* Finish populating the Ethernet header */
 
   memcpy(peth->src, dev->d_mac.ether_addr_octet, ETHER_ADDR_LEN);
-  peth->type  = HTONS(UIP_ETHTYPE_IP);
-  dev->d_len += UIP_LLH_LEN;
+  peth->type  = HTONS(ETHTYPE_IP);
+  dev->d_len += NET_LL_HDRLEN;
 }
 
 #endif /* CONFIG_NET_ARP */

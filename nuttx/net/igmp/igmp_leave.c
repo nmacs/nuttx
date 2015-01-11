@@ -47,11 +47,15 @@
 #include <assert.h>
 #include <debug.h>
 
+#include <netinet/in.h>
+
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
+#include <nuttx/net/net.h>
+#include <nuttx/net/netstats.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/igmp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "igmp/igmp.h"
 
 #ifdef CONFIG_NET_IGMP
@@ -128,10 +132,10 @@
  *
  ****************************************************************************/
 
-int igmp_leavegroup(struct uip_driver_s *dev, FAR const struct in_addr *grpaddr)
+int igmp_leavegroup(struct net_driver_s *dev, FAR const struct in_addr *grpaddr)
 {
   struct igmp_group_s *group;
-  uip_lock_t flags;
+  net_lock_t flags;
 
   DEBUGASSERT(dev && grpaddr);
 
@@ -147,20 +151,20 @@ int igmp_leavegroup(struct uip_driver_s *dev, FAR const struct in_addr *grpaddr)
        * could interfere with the Leave Group.
        */
 
-      flags = uip_lock();
+      flags = net_lock();
       wd_cancel(group->wdog);
       CLR_SCHEDMSG(group->flags);
       CLR_WAITMSG(group->flags);
-      uip_unlock(flags);
+      net_unlock(flags);
 
-      IGMP_STATINCR(uip_stat.igmp.leaves);
+      IGMP_STATINCR(g_netstats.igmp.leaves);
 
       /* Send a leave if the flag is set according to the state diagram */
 
       if (IS_LASTREPORT(group->flags))
         {
           ndbg("Schedule Leave Group message\n");
-          IGMP_STATINCR(uip_stat.igmp.leave_sched);
+          IGMP_STATINCR(g_netstats.igmp.leave_sched);
           igmp_waitmsg(group, IGMP_LEAVE_GROUP);
         }
 
@@ -170,7 +174,7 @@ int igmp_leavegroup(struct uip_driver_s *dev, FAR const struct in_addr *grpaddr)
 
       /* And remove the group address from the ethernet drivers MAC filter set */
 
-      igmp_removemcastmac(dev, (FAR uip_ipaddr_t *)&grpaddr->s_addr);
+      igmp_removemcastmac(dev, (FAR net_ipaddr_t *)&grpaddr->s_addr);
       return OK;
     }
 

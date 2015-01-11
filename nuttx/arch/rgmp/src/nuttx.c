@@ -52,10 +52,11 @@
 #include <stdlib.h>
 #include <arch/irq.h>
 #include <arch/arch.h>
-#include <os_internal.h>
+
+#include "task/task.h"
+#include "sched/sched.h"
 
 struct tcb_s *current_task = NULL;
-
 
 /**
  * This function is called in non-interrupt context
@@ -326,7 +327,7 @@ void up_unblock_task(struct tcb_s *tcb)
          * robin tasks but it doesn't here to do it for everything
          */
 #if CONFIG_RR_INTERVAL > 0
-        tcb->timeslice = CONFIG_RR_INTERVAL / MSEC_PER_TICK;
+        tcb->timeslice = MSEC2TICK(CONFIG_RR_INTERVAL);
 #endif
 
         // Add the task in the correct location in the prioritized

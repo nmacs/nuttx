@@ -414,6 +414,7 @@
 
 #define TC_CMR_TCCLKS_SHIFT      (0)       /* Bits 0-2: Clock Selection */
 #define TC_CMR_TCCLKS_MASK       (7 << TC_CMR_TCCLKS_SHIFT)
+#  define TC_CMR_TCCLKS(n)       ((uint32_t)(n) << TC_CMR_TCCLKS_SHIFT)
 #  define TC_CMR_TCCLKS_TCLK1    (0 << TC_CMR_TCCLKS_SHIFT) /* TIMER_CLOCK1 Clock selected */
 #  define TC_CMR_TCCLKS_TCLK2    (1 << TC_CMR_TCCLKS_SHIFT) /* TIMER_CLOCK2 Clock selected */
 #  define TC_CMR_TCCLKS_TCLK3    (2 << TC_CMR_TCCLKS_SHIFT) /* TIMER_CLOCK3 Clock selected */
@@ -428,7 +429,7 @@
 #  define TC_CMR_BURST_NONE      (0 << TC_CMR_BURST_SHIFT) /* Clock not gated by external signal */
 #  define TC_CMR_BURST_XC0       (1 << TC_CMR_BURST_SHIFT) /* XXC0 ANDed with clock */
 #  define TC_CMR_BURST_XC1       (2 << TC_CMR_BURST_SHIFT) /* XC1 ANDed with clock */
-#  define TC_CMR_BURST_XC2       (3 << TC_CMR_BURST_SHIFT) /* XC2  ANDed with clock */
+#  define TC_CMR_BURST_XC2       (3 << TC_CMR_BURST_SHIFT) /* XC2 ANDed with clock */
 
 /* Channel Mode Register -- Capture mode */
 

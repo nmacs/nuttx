@@ -45,7 +45,8 @@
 #include <8052.h>
 #include <nuttx/arch.h>
 
-#include "os_internal.h"
+#include "task/task.h"
+#include "sched/sched.h"
 #include "up_internal.h"
 
 /****************************************************************************************

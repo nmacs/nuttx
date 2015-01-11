@@ -2,7 +2,7 @@
  * arch/arm/src/sam34/chip/sam4cm_aes.h
  * AES hardware accelerator for SAM4CM
  *
- *   Copyright (C) 2009, 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -69,7 +69,7 @@
 #define SAM_AES_CTRR_OFFSET              0x0098 /* GCM Encryption Counter Value Register */
 #define SAM_AES_GCMHR_OFFSET             0x009C /* GCM H World Register */
 
-/* PMC register adresses ********************************************************************/
+/* AES register addresses *******************************************************************/
 
 #define SAM_AES_CR                       (SAM_AES_BASE + SAM_AES_CR_OFFSET)
 #define SAM_AES_MR                       (SAM_AES_BASE + SAM_AES_MR_OFFSET)
@@ -90,13 +90,13 @@
 
 /* AES register bit definitions *************************************************************/
 
-/* AES Control Register
- */
+/* AES Control Register */
+
 #define AES_CR_START                     (1 << 0) /* Start Processing */
 #define AES_CR_SWRST                     (1 << 8) /* Software Reset */
 
-/* AES Mode Register
- */
+/* AES Mode Register */
+
 #define AES_MR_CIPHER_OFSET              (0)
 #define AES_MR_CIPHER_MASK               (0x1 << AES_MR_CIPHER_OFSET)
 #  define AES_MR_CIPHER_DECRYPT          (0 << AES_MR_CIPHER_OFSET)
@@ -132,8 +132,8 @@
 #  define AES_MR_CFBS_SIZE_8BIT          (4 << AES_MR_CFBS_OFFSET)
 #define AES_MR_CKEY                      (0xE << 20)
 
-/* AES Interrupt Status Register
- */
+/* AES Interrupt Status Register */
+
 #define AES_ISR_DATRDY                   (1 << 0)
 
 #endif /* __ARCH_ARM_SRC_SAM34_CHIP_SAM4CM_AES_H */

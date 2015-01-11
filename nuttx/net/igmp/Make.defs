@@ -33,8 +33,6 @@
 #
 ############################################################################
 
-ifeq ($(CONFIG_NET),y)
-
 # IGMP source files
 
 ifeq ($(CONFIG_NET_IGMP),y)
@@ -47,5 +45,4 @@ NET_CSRCS += igmp_mcastmac.c igmp_msg.c igmp_poll.c igmp_send.c igmp_timer.c
 DEPPATH += --dep-path igmp
 VPATH += :igmp
 
-endif
 endif

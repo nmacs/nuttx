@@ -48,11 +48,13 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
+#include <nuttx/net/netstats.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/igmp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "igmp/igmp.h"
+#include "utils/utils.h"
 
 #ifdef CONFIG_NET_IGMP
 
@@ -60,7 +62,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define IGMPBUF ((struct igmp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+#define IGMPBUF ((struct igmp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
 
 /****************************************************************************
  * Private Functions
@@ -112,36 +114,36 @@
  *
  ****************************************************************************/
 
-void igmp_input(struct uip_driver_s *dev)
+void igmp_input(struct net_driver_s *dev)
 {
   FAR struct igmp_group_s *group;
-  uip_ipaddr_t destipaddr;
-  uip_ipaddr_t grpaddr;
+  net_ipaddr_t destipaddr;
+  net_ipaddr_t grpaddr;
   unsigned int ticks;
 
   nllvdbg("IGMP message: %04x%04x\n", IGMPBUF->destipaddr[1], IGMPBUF->destipaddr[0]);
 
   /* Verify the message length */
 
-  if (dev->d_len < UIP_LLH_LEN+UIP_IPIGMPH_LEN)
+  if (dev->d_len < NET_LL_HDRLEN+IPIGMP_HDRLEN)
     {
-      IGMP_STATINCR(uip_stat.igmp.length_errors);
+      IGMP_STATINCR(g_netstats.igmp.length_errors);
       nlldbg("Length error\n");
       return;
     }
 
   /* Calculate and check the IGMP checksum */
 
-  if (uip_chksum((uint16_t*)&IGMPBUF->type, UIP_IGMPH_LEN) != 0)
+  if (net_chksum((uint16_t*)&IGMPBUF->type, IGMP_HDRLEN) != 0)
     {
-      IGMP_STATINCR(uip_stat.igmp.chksum_errors);
+      IGMP_STATINCR(g_netstats.igmp.chksum_errors);
       nlldbg("Checksum error\n");
       return;
     }
 
   /* Find the group (or create a new one) using the incoming IP address*/
 
-  destipaddr = uip_ip4addr_conv(IGMPBUF->destipaddr);
+  destipaddr = net_ip4addr_conv32(IGMPBUF->destipaddr);
   group = igmp_grpallocfind(dev, &destipaddr);
   if (!group)
     {
@@ -163,7 +165,7 @@ void igmp_input(struct uip_driver_s *dev)
 
         /* Check if the query was sent to all systems */
 
-        if (uip_ipaddr_cmp(destipaddr, g_allsystems))
+        if (net_ipaddr_cmp(destipaddr, g_allsystems))
           {
             /* Yes... Now check the if this this is a general or a group
              * specific query.
@@ -191,22 +193,22 @@ void igmp_input(struct uip_driver_s *dev)
                 nllvdbg("General multicast query\n");
                 if (IGMPBUF->maxresp == 0)
                   {
-                    IGMP_STATINCR(uip_stat.igmp.v1_received);
+                    IGMP_STATINCR(g_netstats.igmp.v1_received);
                     IGMPBUF->maxresp = 10;
 
                     nlldbg("V1 not implemented\n");
                   }
 
-                IGMP_STATINCR(uip_stat.igmp.query_received);
+                IGMP_STATINCR(g_netstats.igmp.query_received);
                 for (member = (FAR struct igmp_group_s *)dev->grplist.head;
                      member;
                      member = member->next)
                   {
                     /* Skip over the all systems group entry */
 
-                    if (!uip_ipaddr_cmp(member->grpaddr, g_allsystems))
+                    if (!net_ipaddr_cmp(member->grpaddr, g_allsystems))
                       {
-                        ticks = igmp_decisec2tick((int)IGMPBUF->maxresp);
+                        ticks = net_dsec2tick((int)IGMPBUF->maxresp);
                         if (IS_IDLEMEMBER(member->flags) ||
                             igmp_cmptimer(member, ticks))
                           {
@@ -224,10 +226,10 @@ void igmp_input(struct uip_driver_s *dev)
                  * Use the incoming IPaddress!
                  */
 
-                IGMP_STATINCR(uip_stat.igmp.ucast_query);
-                grpaddr = uip_ip4addr_conv(IGMPBUF->grpaddr);
+                IGMP_STATINCR(g_netstats.igmp.ucast_query);
+                grpaddr = net_ip4addr_conv32(IGMPBUF->grpaddr);
                 group   = igmp_grpallocfind(dev, &grpaddr);
-                ticks   = igmp_decisec2tick((int)IGMPBUF->maxresp);
+                ticks   = net_dsec2tick((int)IGMPBUF->maxresp);
                 if (IS_IDLEMEMBER(group->flags) || igmp_cmptimer(group, ticks))
                   {
                     igmp_startticks(group, ticks);
@@ -241,11 +243,11 @@ void igmp_input(struct uip_driver_s *dev)
         else if (group->grpaddr != 0)
           {
             nllvdbg("Unicast query\n");
-            IGMP_STATINCR(uip_stat.igmp.ucast_query);
+            IGMP_STATINCR(g_netstats.igmp.ucast_query);
 
             nlldbg("Query to a specific group with the group address as destination\n");
 
-            ticks = igmp_decisec2tick((int)IGMPBUF->maxresp);
+            ticks = net_dsec2tick((int)IGMPBUF->maxresp);
             if (IS_IDLEMEMBER(group->flags) || igmp_cmptimer(group, ticks))
               {
                 igmp_startticks(group, ticks);
@@ -258,7 +260,7 @@ void igmp_input(struct uip_driver_s *dev)
         {
           nllvdbg("Membership report\n");
 
-          IGMP_STATINCR(uip_stat.igmp.report_received);
+          IGMP_STATINCR(g_netstats.igmp.report_received);
           if (!IS_IDLEMEMBER(group->flags))
             {
               /* This is on a specific group we have already looked up */

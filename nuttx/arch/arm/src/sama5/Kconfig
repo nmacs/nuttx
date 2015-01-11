@@ -49,10 +49,6 @@ config SAMA5_HAVE_XDMA
 	bool
 	default n
 
-config SAMA5_HAVE_L2CC
-	bool
-	default n
-
 config SAMA5_HAVE_LCDC
 	bool
 	default n
@@ -80,7 +76,6 @@ config SAMA5_HAVE_HSMCI2
 config SAMA5_HAVE_SAIC
 	bool
 	default n
-	select ARMV7A_DECODEFIQ
 
 config SAMA5_HAVE_SBM
 	bool
@@ -91,6 +86,10 @@ config SAMA5_HAVE_SFC
 	default n
 
 config SAMA5_HAVE_SPI2
+	bool
+	default n
+
+config SAMA5_HAVE_TC
 	bool
 	default n
 
@@ -124,6 +123,8 @@ config ARCH_CHIP_SAMA5D3
 config ARCH_CHIP_SAMA5D4
 	bool
 	default n
+	select ARMV7A_HAVE_L2CC_PL310
+	select ARCH_NAND_HWECC
 	select SAMA5_HAVE_AESB
 	select SAMA5_HAVE_EMACB
 	select SAMA5_HAVE_EMAC1
@@ -133,7 +134,6 @@ config ARCH_CHIP_SAMA5D4
 	select SAMA5_HAVE_UART1
 	select SAMA5_HAVE_USART4
 	select SAMA5_HAVE_XDMA
-	select SAMA5_HAVE_L2CC
 	select SAMA5_HAVE_SAIC
 	select SAMA5_HAVE_SBM
 	select SAMA5_HAVE_SFC
@@ -142,7 +142,6 @@ config ARCH_CHIP_SAMA5D4
 	select SAMA5_HAVE_TC2
 	select SAMA5_HAVE_TRUSTZONE
 	select SAMA5_HAVE_TWI3
-	select ARCH_NAND_HWECC
 
 choice
 	prompt "Atmel AT91SAMA5 Chip Selection"
@@ -243,11 +242,6 @@ config SAMA5_DBGU
 	bool "Debug Unit (DBGU)"
 	default n
 
-config SAMA5_L2CC
-	bool "L2 Cache Controller (L2CC)"
-	default n
-	depends on SAMA5_HAVE_L2CC
-
 config SAMA5_PIT
 	bool "Periodic Interval Timer (PIT)"
 	default n
@@ -275,6 +269,12 @@ config SAMA5_HSMC
 config SAMA5_SMD
 	bool "SMD Soft Modem (SMD)"
 	default n
+
+config SAMA5_SAIC
+	bool "Secure Advanced Interrupt Controller (SAIC)"
+	default n
+	depends on SAMA5_HAVE_SAIC
+	select ARMV7A_DECODEFIQ
 
 config SAMA5_UART0
 	bool "UART 0"
@@ -373,16 +373,19 @@ config SAMA5_SPI2
 config SAMA5_TC0
 	bool "Timer Counter 0 (ch. 0, 1, 2) (TC0)"
 	default n
+	select SAMA5_HAVE_TC
 
 config SAMA5_TC1
 	bool "Timer Counter 1 (ch. 3, 4, 5) (TC1)"
-	depends on SAMA5_HAVE_TC1
 	default n
+	depends on SAMA5_HAVE_TC1
+	select SAMA5_HAVE_TC
 
 config SAMA5_TC2
 	bool "Timer Counter 2 (ch. 6, 7, 8) (TC2)"
-	depends on SAMA5_HAVE_TC2
 	default n
+	depends on SAMA5_HAVE_TC2
+	select SAMA5_HAVE_TC
 
 config SAMA5_PWM
 	bool "Pulse Width Modulation Controller (PWM)"
@@ -408,13 +411,13 @@ config SAMA5_DMAC1
 	depends on SAMA5_HAVE_DMA
 
 config SAMA5_XDMAC0
-	bool "XDMA Controller (XDMAC0)"
+	bool "XDMA Controller (XDMAC0, always secure)"
 	default n
 	select ARCH_DMA
 	depends on SAMA5_HAVE_XDMA
 
 config SAMA5_XDMAC1
-	bool "XDMA Controller (XDMAC1)"
+	bool "XDMA Controller (XDMAC1, never secure)"
 	default n
 	select ARCH_DMA
 	depends on SAMA5_HAVE_XDMA
@@ -478,14 +481,14 @@ config SAMA5_SSC0
 	bool "Synchronous Serial Controller 0 (SSC0)"
 	default n
 	select I2S
-	depends on SAMA5_DMAC0
+	depends on SAMA5_DMAC0 || SAMA5_XDMAC0 || SAMA5_XDMAC1
 	select AUDIO
 
 config SAMA5_SSC1
 	bool "Synchronous Serial Controller 1 (SSC1)"
 	default n
 	select I2S
-	depends on SAMA5_DMAC1
+	depends on SAMA5_DMAC1 || SAMA5_XDMAC0 || SAMA5_XDMAC1
 	select AUDIO
 
 config SAMA5_CAN0
@@ -1753,6 +1756,17 @@ config SAMA5_EMACB_NBC
 	---help---
 		Select to disable receipt of broadcast packets.
 
+config SAMA5_EMACB_DEBUG
+	bool "Force EMAC0/1 DEBUG"
+	default n
+	depends on DEBUG && !DEBUG_NET
+	---help---
+		This option will force debug output from EMAC driver even without
+		network debug output enabled.  This is not normally something
+		that would want to do but is convenient if you are debugging the
+		driver and do not want to get overloaded with other
+		network-related debug output.
+
 config SAMA5_EMACB_REGDEBUG
 	bool "Register-Level Debug"
 	default n
@@ -2147,6 +2161,24 @@ config SAMA5_SSC0_RX_RKOUTPUT_XFR
 
 endchoice # Receiver output clock
 endif # !SAMA5_SSC0_RX_RKINPUT
+
+config SAMA5_SSC0_RX_FSLEN
+	int "Receive Frame Sync Length"
+	default 1
+	range 1 255
+	---help---
+		This setting determines the pulse length of the Receive Frame Sync
+		signal in units of receive clock periods.
+
+config SAMA5_SSC0_RX_STTDLY
+	int "Receive Start Delay Length"
+	default 0
+	range 0 255
+	---help---
+		This setting determines the pulse length to the start of data in
+		receive clock periods.  It must be greater than or equal to the RX
+		frame synch length.  Zero means no start delay.
+
 endif # SAMA5_SSC0_RX
 
 config SAMA5_SSC0_TX
@@ -2197,6 +2229,26 @@ config SAMA5_SSC0_TX_TKOUTPUT_XFR
 
 endchoice # Receiver output clock
 endif # !SAMA5_SSC0_TX_TKINPUT
+
+config SAMA5_SSC0_TX_FSLEN
+	int "Transmit Frame Sync Length"
+	default 1
+	range 0 255
+	---help---
+		This setting define the length of the Transmit Frame Sync signal in
+		units of transmit clock periods.  A value of zero disables this
+		feature.  In that case the TD line is driven with the default value
+		during the Transmit Frame Sync signal.
+
+config SAMA5_SSC0_TX_STTDLY
+	int "Transmit Start Delay Length"
+	default 0
+	range 0 255
+	---help---
+		This setting determines the pulse length to the start of data in
+		transmit clock periods.  It must be greater than or equal to the RX
+		frame synch length.  Zero means no start delay.
+
 endif # SAMA5_SSC0_TX
 
 config SAMA5_SSC0_MCKDIV_SAMPLERATE
@@ -2281,7 +2333,25 @@ config SAMA5_SSC1_RX_RKOUTPUT_XFR
 
 endchoice # Receiver output clock
 endif # !SAMA5_SSC1_RX_RKINPUT
-endif # SAMA5_SSC0_RX
+
+config SAMA5_SSC1_RX_FSLEN
+	int "Receive Frame Sync Length"
+	default 1
+	range 1 255
+	---help---
+		This setting determines the pulse length of the Receive Frame Sync
+		signal in units of receive clock periods.
+
+config SAMA5_SSC1_RX_STTDLY
+	int "Receive Start Delay Length"
+	default 0
+	range 0 255
+	---help---
+		This setting determines the pulse length to the start of data of
+		receive clock periods.  It must be greater than or equal to the RX
+		frame synch length.  Zero means no start delay.
+
+endif # SAMA5_SSC1_RX
 
 config SAMA5_SSC1_TX
 	bool "Enable I2C transmitter"
@@ -2331,6 +2401,26 @@ config SAMA5_SSC1_TX_TKOUTPUT_XFR
 
 endchoice # Receiver output clock
 endif # !SAMA5_SSC1_TX_TKINPUT
+
+config SAMA5_SSC1_TX_FSLEN
+	int "Receive Frame Sync Length"
+	default 1
+	range 0 255
+	---help---
+		This setting define the length of the Transmit Frame Sync signal in
+		units of transmit clock periods.  A value of zero disables this
+		feature.  In that case the TD line is driven with the default value
+		during the Transmit Frame Sync signal.
+
+config SAMA5_SSC1_TX_STTDLY
+	int "Transmit Start Delay Length"
+	default 0
+	range 0 255
+	---help---
+		This setting determines the pulse length to the start of data in
+		transmit clock periods.  It must be greater than or equal to the RX
+		frame synch length.  Zero means no start delay.
+
 endif # SAMA5_SSC1_TX
 
 config SAMA5_SSC1_MCKDIV_SAMPLERATE
@@ -2394,6 +2484,43 @@ endif # SAMA5_SSC0 || SAMA5_SSC1
 
 if SAMA5_HSMCI0 || SAMA5_HSMCI1 || SAMA5_HSMCI2
 menu "HSMCI device driver options"
+
+if SAMA5_XDMAC0 || SAMA5_XDMAC1
+
+choice
+	prompt "HSMCI0 XDMAC Selection"
+	default SAMA5_HSMCI0_XDMAC0 if SAMA5_XDMAC0
+	default SAMA5_HSMCI0_XDMAC1 if !SAMA5_XDMAC0 && SAMA5_XDMAC1
+	depends on SAMA5_HSMCI0
+
+config SAMA5_HSMCI0_XDMAC0
+	bool "XDMAC0 (always secure)"
+	depends on SAMA5_XDMAC0
+
+config SAMA5_HSMCI0_XDMAC1
+	bool "XDMAC1 (never secure)"
+	depends on SAMA5_XDMAC1
+
+endchoice # HSMCI0 XDMAC Selection
+
+choice
+	prompt "HSMCI1 XDMAC Selection"
+	default SAMA5_HSMCI1_XDMAC0 if SAMA5_XDMAC0
+	default SAMA5_HSMCI1_XDMAC1 if !SAMA5_XDMAC0 && SAMA5_XDMAC1
+	depends on SAMA5_HSMCI1
+
+config SAMA5_HSMCI1_XDMAC0
+	bool "XDMAC0 (always secure)"
+	depends on SAMA5_XDMAC0
+
+config SAMA5_HSMCI1_XDMAC1
+	bool "XDMAC1 (never secure)"
+	depends on SAMA5_XDMAC1
+
+endchoice # HSMCI1 XDMAC Selection
+
+# There is no HSMCI2 on the platforms that support XDMAC
+endif # SAMA5_XDMAC0 || SAMA5_XDMAC1
 
 config SAMA5_HSMCI_RDPROOF
 	bool "Read Proof Enable"
@@ -3117,7 +3244,7 @@ config SAMA5_ADC_ADTRG
 		A-to-D Conversion is initiated an event on the ADTRG pin.
 
 config SAMA5_ADC_TIOATRIG
-	bool "TC0 ouput A trigger"
+	bool "TC0 output A trigger"
 	depends on SAMA5_TC0
 	---help---
 		A-to-D Conversion is initiated the A output from one of
@@ -3220,140 +3347,6 @@ config SAMA5_ADC_REGDEBUG
 
 endmenu # ADC Configuration
 
-if SAMA5_TC0 || SAMA5_TC1 || SAMA5_TC2
-menu "Timer/counter Configuration"
-
-if SAMA5_TC0
-
-config SAMA5_TC0_CLK0
-	bool "Enable TC0 channel 0 clock input pin"
-	default n
-
-config SAMA5_TC0_TIOA0
-	bool "Enable TC0 channel 0 ouput A"
-	default n
-
-config SAMA5_TC0_TIOB0
-	bool "Enable TC0 channel 0 ouput B"
-	default n
-
-config SAMA5_TC0_CLK1
-	bool "Enable TC0 channel 1 clock input pin"
-	default n
-
-config SAMA5_TC0_TIOA1
-	bool "Enable TC0 channel 1 ouput A"
-	default n
-
-config SAMA5_TC0_TIOB1
-	bool "Enable TC0 channel 1 ouput B"
-	default n
-
-config SAMA5_TC0_CLK2
-	bool "Enable TC0 channel 2 clock input pin"
-	default n
-
-config SAMA5_TC0_TIOA2
-	bool "Enable TC0 channel 2 ouput A"
-	default n
-
-config SAMA5_TC0_TIOB2
-	bool "Enable TC0 channel 2 ouput B"
-	default n
-
-endif # SAMA5_TC0
-
-if SAMA5_TC1
-
-config SAMA5_TC1_CLK3
-	bool "Enable TC1 channel 3 clock input pin"
-	default n
-
-config SAMA5_TC1_TIOA3
-	bool "Enable TC1 channel 3 ouput A"
-	default n
-
-config SAMA5_TC1_TIOB3
-	bool "Enable TC1 channel 3 ouput B"
-	default n
-
-config SAMA5_TC1_CLK4
-	bool "Enable TC1 channel 4 clock input pin"
-	default n
-
-config SAMA5_TC1_TIOA4
-	bool "Enable TC1 channel 4 ouput A"
-	default n
-
-config SAMA5_TC1_TIOB4
-	bool "Enable TC1 channel 4 ouput B"
-	default n
-
-config SAMA5_TC1_CLK5
-	bool "Enable TC1 channel 5 clock input pin"
-	default n
-
-config SAMA5_TC1_TIOA5
-	bool "Enable TC1 channel 5 ouput A"
-	default n
-
-config SAMA5_TC1_TIOB5
-	bool "Enable TC1 channel 5 ouput B"
-	default n
-
-endif # SAMA5_TC1
-
-if SAMA5_TC2
-
-config SAMA5_TC2_CLK6
-	bool "Enable TC2 channel 6 clock input pin"
-	default n
-
-config SAMA5_TC2_TIOA6
-	bool "Enable TC2 channel 6 ouput A"
-	default n
-
-config SAMA5_TC2_TIOB6
-	bool "Enable TC2 channel 6 ouput B"
-	default n
-
-config SAMA5_TC2_CLK7
-	bool "Enable TC2 channel 7 clock input pin"
-	default n
-
-config SAMA5_TC2_TIOA7
-	bool "Enable TC2 channel 7 ouput A"
-	default n
-
-config SAMA5_TC2_TIOB7
-	bool "Enable TC2 channel 7 ouput B"
-	default n
-
-config SAMA5_TC2_CLK8
-	bool "Enable TC2 channel 8 clock input pin"
-	default n
-
-config SAMA5_TC2_TIOA8
-	bool "Enable TC2 channel 8 ouput A"
-	default n
-
-config SAMA5_TC2_TIOB8
-	bool "Enable TC2 channel 8 ouput B"
-	default n
-
-endif # SAMA5_TC2
-
-config SAMA5_TC_REGDEBUG
-	bool "TC Register level debug"
-	depends on DEBUG
-	default n
-	---help---
-		Output detailed register-level Timer/Counter device debug information.
-		Very invasive! Requires also DEBUG.
-
-endmenu # Timer/counter Configuration
-endif # SAMA5_TC0 || SAMA5_TC1 || SAM_TC2
-
 menu "Touchscreen configuration"
 
 config SAMA5_TSD
@@ -3427,6 +3420,188 @@ config SAMA5_TSD_NPOLLWAITERS
 endif # SAMA5_TSD
 endmenu # Touchscreen Configuration
 endif # SAMA5_ADC
+
+if SAMA5_HAVE_TC
+menu "Timer/counter Configuration"
+
+if SAMA5_TC0
+
+config SAMA5_TC0_CLK0
+	bool "Enable TC0 channel 0 clock input pin"
+	default n
+
+config SAMA5_TC0_TIOA0
+	bool "Enable TC0 channel 0 output A"
+	default n
+
+config SAMA5_TC0_TIOB0
+	bool "Enable TC0 channel 0 output B"
+	default n
+
+config SAMA5_TC0_CLK1
+	bool "Enable TC0 channel 1 clock input pin"
+	default n
+
+config SAMA5_TC0_TIOA1
+	bool "Enable TC0 channel 1 output A"
+	default n
+
+config SAMA5_TC0_TIOB1
+	bool "Enable TC0 channel 1 output B"
+	default n
+
+config SAMA5_TC0_CLK2
+	bool "Enable TC0 channel 2 clock input pin"
+	default n
+
+config SAMA5_TC0_TIOA2
+	bool "Enable TC0 channel 2 output A"
+	default n
+
+config SAMA5_TC0_TIOB2
+	bool "Enable TC0 channel 2 output B"
+	default n
+
+endif # SAMA5_TC0
+
+if SAMA5_TC1
+
+config SAMA5_TC1_CLK3
+	bool "Enable TC1 channel 3 clock input pin"
+	default n
+
+config SAMA5_TC1_TIOA3
+	bool "Enable TC1 channel 3 output A"
+	default n
+
+config SAMA5_TC1_TIOB3
+	bool "Enable TC1 channel 3 output B"
+	default n
+
+config SAMA5_TC1_CLK4
+	bool "Enable TC1 channel 4 clock input pin"
+	default n
+
+config SAMA5_TC1_TIOA4
+	bool "Enable TC1 channel 4 output A"
+	default n
+
+config SAMA5_TC1_TIOB4
+	bool "Enable TC1 channel 4 output B"
+	default n
+
+config SAMA5_TC1_CLK5
+	bool "Enable TC1 channel 5 clock input pin"
+	default n
+
+config SAMA5_TC1_TIOA5
+	bool "Enable TC1 channel 5 output A"
+	default n
+
+config SAMA5_TC1_TIOB5
+	bool "Enable TC1 channel 5 output B"
+	default n
+
+endif # SAMA5_TC1
+
+if SAMA5_TC2
+
+config SAMA5_TC2_CLK6
+	bool "Enable TC2 channel 6 clock input pin"
+	default n
+
+config SAMA5_TC2_TIOA6
+	bool "Enable TC2 channel 6 output A"
+	default n
+
+config SAMA5_TC2_TIOB6
+	bool "Enable TC2 channel 6 output B"
+	default n
+
+config SAMA5_TC2_CLK7
+	bool "Enable TC2 channel 7 clock input pin"
+	default n
+
+config SAMA5_TC2_TIOA7
+	bool "Enable TC2 channel 7 output A"
+	default n
+
+config SAMA5_TC2_TIOB7
+	bool "Enable TC2 channel 7 output B"
+	default n
+
+config SAMA5_TC2_CLK8
+	bool "Enable TC2 channel 8 clock input pin"
+	default n
+
+config SAMA5_TC2_TIOA8
+	bool "Enable TC2 channel 8 output A"
+	default n
+
+config SAMA5_TC2_TIOB8
+	bool "Enable TC2 channel 8 output B"
+	default n
+
+endif # SAMA5_TC2
+
+config SAMA5_ONESHOT
+	bool "TC one-shot wrapper"
+	default n if !SCHED_TICKLESS
+	default y if SCHED_TICKLESS
+	---help---
+		Enable a wrapper around the low level timer/counter functions to
+		support one-shot timer.
+
+config SAMA5_FREERUN
+	bool "TC free-running wrapper"
+	default n if !SCHED_TICKLESS
+	default y if SCHED_TICKLESS
+	---help---
+		Enable a wrapper around the low level timer/counter functions to
+		support a free-running timer.
+
+if SCHED_TICKLESS
+
+config SAMA5_TICKLESS_ONESHOT
+	int "Tickless one-shot timer channel"
+	default 0
+	range 0 8
+	---help---
+		If the Tickless OS feature is enabled, the one clock must be
+		assigned to provided the one-shot timer needed by the OS.
+
+config SAMA5_TICKLESS_FREERUN
+	int "Tickless free-running timer channel"
+	default 1
+	range 0 8
+	---help---
+		If the Tickless OS feature is enabled, the one clock must be
+		assigned to provided the free-running timer needed by the OS.
+
+endif
+
+config SAMA5_TC_DEBUG
+	bool "TC debug"
+	depends on DEBUG
+	default n
+	---help---
+		Output high level Timer/Counter device debug information.
+		Requires also DEBUG.  If this option AND DEBUG_VERBOSE are
+		enabled, then the system will be overwhelmed the timer debug
+		output.  If DEBUG_VERBOSE is disabled, then debug output will
+		only indicate if/when timer-related errors occur.  This
+		latter mode is completely usable.
+
+config SAMA5_TC_REGDEBUG
+	bool "TC register level debug"
+	depends on DEBUG
+	default n
+	---help---
+		Output detailed register-level Timer/Counter device debug
+		information. Very invasive! Requires also DEBUG.
+
+endmenu # Timer/counter Configuration
+endif # SAMA5_HAVE_TC
 
 if SAMA5_PWM
 menu "PWM configuration"
@@ -4307,7 +4482,7 @@ config SAMA5_DDRCS_HEAP
 
 		*** DO NOT SELECT THIS OPTION IF YOU ARE EXECUTING FROM SDRAM!!**
 		In this case, the remaining SDRAM will automatically be added to the
-		heap (using RAM_END)
+		heap.
 
 if SAMA5_DDRCS_HEAP
 
@@ -4326,7 +4501,39 @@ config SAMA5_DDRCS_HEAP_SIZE
 		Add the region of DDR-SDRAM beginning at SAMA5_DDRCS_HEAP_OFFSET
 		and of size SAMA5_DDRCS_HEAP_SIZE to the heap.
 
-endif #SAMA5_DDRCS_HEAP
+endif # SAMA5_DDRCS_HEAP
+
+config SAMA5_DDRCS_RESERVE
+	bool "Reserve DDR-SDRAM"
+	default n
+	depends on SAMA5_BOOT_SDRAM
+	---help---
+		This option is available only we are executing out of SDRAM.  In
+		this case, by default, all of DRAM available from the end of the
+		program through the end of DRAM (RAM_START + RAM_END) is
+		automatically added to the heap.  However, there are certain cases
+		where you may want to reserve a block of DRAM for other purposes
+		such a large DMA buffer or an LCD framebuffer.  In those cases, you
+		can select this option to specify the end of the DRAM memory to add
+		to the heap; DRAM after this address will not be part of the heap
+		and so will be available for other purposes.
+
+		NOTE:  There is way to reserve memory before the start of the
+		program in DRAM using this mechanism.  That configuration is
+		possible, but not using this configuration setting.
+
+if SAMA5_DDRCS_RESERVE
+
+config SAMA5_DDRCS_HEAP_END
+	hex "DDR-SDRAM heap end"
+	default 0x30000000
+	---help---
+		Add the region of DDR-SDRAM beginning at the first available byte
+		after the memory used by the DRAM probably through this virtual
+		address (minus one).  This will reserve the memory starting at
+		this address through RAM_SIZE + RAM_END for other purposes.
+
+endif # SAMA5_DDRCS_RESERVE
 
 config SAMA5_EBICS0_HEAP
 	bool "Include EBICS0 SRAM/PSRAM in heap"

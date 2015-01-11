@@ -47,10 +47,11 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/netstats.h>
+#include <nuttx/net/ip.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "igmp/igmp.h"
 
 #ifdef CONFIG_NET_IGMP
@@ -64,10 +65,10 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name:  uip_schedsend
+ * Name:  igmp_sched_send
  *
  * Description:
- *   Construct the .
+ *   Construct and send the IGMP message.
  *
  * Returned Value:
  *   Returns a non-zero value if an IGMP message is sent.
@@ -78,9 +79,10 @@
  *
  ****************************************************************************/
 
-static inline void uip_schedsend(FAR struct uip_driver_s *dev, FAR struct igmp_group_s *group)
+static inline void igmp_sched_send(FAR struct net_driver_s *dev,
+                                   FAR struct igmp_group_s *group)
 {
-  uip_ipaddr_t *dest;
+  net_ipaddr_t *dest;
 
   /* Check what kind of message we need to send.  There are only two
    * possibilities:
@@ -91,7 +93,7 @@ static inline void uip_schedsend(FAR struct uip_driver_s *dev, FAR struct igmp_g
       dest = &group->grpaddr;
       nllvdbg("Send IGMPv2_MEMBERSHIP_REPORT, dest=%08x flags=%02x\n",
                *dest, group->flags);
-      IGMP_STATINCR(uip_stat.igmp.report_sched);
+      IGMP_STATINCR(g_netstats.igmp.report_sched);
       SET_LASTREPORT(group->flags); /* Remember we were the last to report */
     }
   else
@@ -100,7 +102,7 @@ static inline void uip_schedsend(FAR struct uip_driver_s *dev, FAR struct igmp_g
       dest = &g_allrouters;
       nllvdbg("Send IGMP_LEAVE_GROUP, dest=%08x flags=%02x\n",
                *dest, group->flags);
-      IGMP_STATINCR(uip_stat.igmp.leave_sched);
+      IGMP_STATINCR(g_netstats.igmp.leave_sched);
     }
 
   /* Send the message */
@@ -141,7 +143,7 @@ static inline void uip_schedsend(FAR struct uip_driver_s *dev, FAR struct igmp_g
  *
  ****************************************************************************/
 
-void igmp_poll(FAR struct uip_driver_s *dev)
+void igmp_poll(FAR struct net_driver_s *dev)
 {
   FAR struct igmp_group_s *group;
 
@@ -149,8 +151,8 @@ void igmp_poll(FAR struct uip_driver_s *dev)
 
   /* Setup the poll operation */
 
-  dev->d_appdata = &dev->d_buf[UIP_LLH_LEN + UIP_IPIGMPH_LEN];
-  dev->d_snddata = &dev->d_buf[UIP_LLH_LEN + UIP_IPIGMPH_LEN];
+  dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN + IPIGMP_HDRLEN];
+  dev->d_snddata = &dev->d_buf[NET_LL_HDRLEN + IPIGMP_HDRLEN];
 
   dev->d_len     = 0;
   dev->d_sndlen  = 0;
@@ -167,7 +169,7 @@ void igmp_poll(FAR struct uip_driver_s *dev)
         {
           /* Yes, create the IGMP message in the driver buffer */
 
-          uip_schedsend(dev, group);
+          igmp_sched_send(dev, group);
 
           /* Mark the message as sent and break out */
 

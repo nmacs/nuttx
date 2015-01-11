@@ -119,7 +119,7 @@
 
 /* Resulting frequencies */
 
-#define BOARD_MAINOSC_FREQUENCY    (12000000)  /* MAINOSC: 12MHz crystal on-board */
+#define BOARD_MAINCK_FREQUENCY     BOARD_MAINOSC_FREQUENCY
 #define BOARD_PLLA_FREQUENCY       (792000000) /* PLLACK:  66 * 12Mhz / 1 */
 #define BOARD_PCK_FREQUENCY        (396000000) /* CPU:     PLLACK / 2 / 1  */
 #define BOARD_MCK_FREQUENCY        (132000000) /* MCK:     PLLACK / 2 / 1 / 3 */
@@ -129,6 +129,7 @@
  * but not for the SAMA5D3.
  */
 
+#define BOARD_PIT_FREQUENCY        BOARD_MCK_FREQUENCY
 #define BOARD_USART_FREQUENCY      BOARD_MCK_FREQUENCY
 
 #if defined(CONFIG_SAMA5_EHCI) || defined(CONFIG_SAMA5_OHCI) || \
@@ -162,6 +163,12 @@
 #  define BOARD_USE_UPLL             1     /* Use UPLL for clock source */
 #  define BOARD_CKGR_UCKR_UPLLCOUNT  (15)  /* Maximum value */
 #  define BOARD_CKGR_UCKR_BIASCOUNT  (15)  /* Maximum value */
+
+/* REVISIT:  The divisor of 10 produces a rate that is too high. Division
+ * by 5, however, seems to work just fine.  No idea why?
+ */
+
+#  define BOARD_UPLL_OHCI_DIV        (5)   /* Divide by 5 */
 #endif
 
 /* HSMCI clocking

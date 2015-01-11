@@ -47,12 +47,11 @@
 
 #include <debug.h>
 
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
-#include <nuttx/net/pkt.h>
 #include <nuttx/net/arp.h>
+#include <nuttx/net/pkt.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "pkt/pkt.h"
 
 /****************************************************************************
@@ -96,7 +95,7 @@
  *
  ****************************************************************************/
 
-int pkt_input(struct uip_driver_s *dev)
+int pkt_input(struct net_driver_s *dev)
 {
   FAR struct pkt_conn_s *conn;
   FAR struct eth_hdr_s  *pbuf = (struct eth_hdr_s *)dev->d_buf;
@@ -115,13 +114,13 @@ int pkt_input(struct uip_driver_s *dev)
 
       /* Perform the application callback */
 
-      flags = pkt_callback(dev, conn, UIP_NEWDATA);
+      flags = pkt_callback(dev, conn, PKT_NEWDATA);
 
-      /* If the operation was successful, the UIP_NEWDATA flag is removed
+      /* If the operation was successful, the PKT_NEWDATA flag is removed
        * and thus the packet can be deleted (OK will be returned).
        */
 
-      if ((flags & UIP_NEWDATA) != 0)
+      if ((flags & PKT_NEWDATA) != 0)
         {
           /* No.. the packet was not processed now.  Return ERROR so
            * that the driver may retry again later.

@@ -908,7 +908,7 @@ static void sam_dma_single(uint8_t epno, struct sam_req_s *privreq,
   /* Flush the contents of the DMA buffer to RAM */
 
   buffer = (uintptr_t)&privreq->req.buf[privreq->req.xfrd];
-  cp15_clean_dcache(buffer, buffer + privreq->inflight);
+  arch_clean_dcache(buffer, buffer + privreq->inflight);
 
   /* Set up the DMA */
 
@@ -1567,7 +1567,7 @@ static void sam_req_rddisable(uint8_t epno)
  *     'inflight' field to hold the maximum size of the transfer; but
  *     'inflight' is not used with FIFO transfers.
  *
- *     When the transfer completes, the 'recvsize' paramter must be the
+ *     When the transfer completes, the 'recvsize' parameter must be the
  *     size of the transfer that just completed.   For the case of DMA,
  *     that is the size of the DMA transfer that has just been written to
  *     memory; for the FIFO transfer, recvsize is the number of bytes
@@ -2412,7 +2412,7 @@ static void sam_dma_interrupt(struct sam_usbdev_s *priv, int epno)
 
           DEBUGASSERT(USB_ISEPOUT(privep->ep.eplog));
           buf = &privreq->req.buf[privreq->req.xfrd];
-          cp15_invalidate_dcache((uintptr_t)buf, (uintptr_t)buf + xfrsize);
+          arch_invalidate_dcache((uintptr_t)buf, (uintptr_t)buf + xfrsize);
 
           /* Complete this transfer, return the request to the class
            * implementation, and try to start the next, queue read request.
@@ -2468,7 +2468,7 @@ static void sam_dma_interrupt(struct sam_usbdev_s *priv, int epno)
        */
 
       buf = &privreq->req.buf[privreq->req.xfrd];
-      cp15_invalidate_dcache((uintptr_t)buf, (uintptr_t)buf + xfrsize);
+      arch_invalidate_dcache((uintptr_t)buf, (uintptr_t)buf + xfrsize);
 
       /* Complete this transfer, return the request to the class
        * implementation, and try to start the next, queue read request.

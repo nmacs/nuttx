@@ -45,7 +45,7 @@
 #include <nuttx/arch.h>
 #include <8052.h>
 
-#include "clock_internal.h"
+#include "clock/clock.h"
 #include "up_internal.h"
 
 /************************************************************************
@@ -82,7 +82,7 @@ int up_timerisr(int irq, FAR uint8_t *frame)
 }
 
 /************************************************************************
- * Function:  up_timerinit
+ * Function:  up_timer_initialize
  *
  * Description:
  *   This function is called during start-up to initialize
@@ -90,7 +90,7 @@ int up_timerisr(int irq, FAR uint8_t *frame)
  *
  ************************************************************************/
 
-void up_timerinit(void)
+void up_timer_initialize(void)
 {
 #ifdef CONFIG_ARCH_8051_NOSYSTIMER
   up_disable_irq(TIMER2_IRQ);

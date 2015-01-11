@@ -1,8 +1,8 @@
 /****************************************************************************
  * include/crypto/testmngr.h
  *
- *   Copyright (C) 2008, 2009, 2011-2013 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ *   Copyright (C) 2014 Gregory Nutt. All rights reserved.
+ *   Author:  Max Nekludov <macscomp@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,8 +33,8 @@
  *
  ****************************************************************************/
 
-#ifndef __INCLUDE_CRYPTO_TESTMNGR_H
-#define __INCLUDE_CRYPTO_TESTMNGR_H
+#ifndef __CRYPTO_TESTMNGR_H
+#define __CRYPTO_TESTMNGR_H
 
 /****************************************************************************
  * Included Files
@@ -46,11 +46,12 @@
  * Pre-Processor Definitions
  ****************************************************************************/
 
-struct cipher_testvec {
-  char *key;
-  char *iv;
-  char *input;
-  char *result;
+struct cipher_testvec
+{
+  FAR char *key;
+  FAR char *iv;
+  FAR char *input;
+  FAR char *result;
   int np;
   unsigned char fail;
   unsigned char wk;
@@ -61,9 +62,8 @@ struct cipher_testvec {
 
 #if defined(CONFIG_CRYPTO_AES)
 
-/*
- * AES test vectors.
- */
+/* AES test vectors */
+
 #define AES_ENC_TEST_VECTORS 3
 #define AES_DEC_TEST_VECTORS 3
 #define AES_CBC_ENC_TEST_VECTORS 4
@@ -71,7 +71,8 @@ struct cipher_testvec {
 #define AES_CTR_ENC_TEST_VECTORS 3
 #define AES_CTR_DEC_TEST_VECTORS 3
 
-static struct cipher_testvec aes_enc_tv_template[] = {
+static struct cipher_testvec aes_enc_tv_template[] =
+{
   { /* From FIPS-197 */
     .key  = "\x00\x01\x02\x03\x04\x05\x06\x07"
         "\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f",
@@ -82,7 +83,8 @@ static struct cipher_testvec aes_enc_tv_template[] = {
     .result = "\x69\xc4\xe0\xd8\x6a\x7b\x04\x30"
         "\xd8\xcd\xb7\x80\x70\xb4\xc5\x5a",
     .rlen = 16,
-  }, {
+  },
+  {
     .key  = "\x00\x01\x02\x03\x04\x05\x06\x07"
         "\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
         "\x10\x11\x12\x13\x14\x15\x16\x17",
@@ -93,7 +95,8 @@ static struct cipher_testvec aes_enc_tv_template[] = {
     .result = "\xdd\xa9\x7c\xa4\x86\x4c\xdf\xe0"
         "\x6e\xaf\x70\xa0\xec\x0d\x71\x91",
     .rlen = 16,
-  }, {
+  },
+  {
     .key  = "\x00\x01\x02\x03\x04\x05\x06\x07"
         "\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
         "\x10\x11\x12\x13\x14\x15\x16\x17"
@@ -108,7 +111,8 @@ static struct cipher_testvec aes_enc_tv_template[] = {
   },
 };
 
-static struct cipher_testvec aes_dec_tv_template[] = {
+static struct cipher_testvec aes_dec_tv_template[] =
+{
   { /* From FIPS-197 */
     .key  = "\x00\x01\x02\x03\x04\x05\x06\x07"
         "\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f",
@@ -119,7 +123,8 @@ static struct cipher_testvec aes_dec_tv_template[] = {
     .result = "\x00\x11\x22\x33\x44\x55\x66\x77"
         "\x88\x99\xaa\xbb\xcc\xdd\xee\xff",
     .rlen = 16,
-  }, {
+  },
+  {
     .key  = "\x00\x01\x02\x03\x04\x05\x06\x07"
         "\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
         "\x10\x11\x12\x13\x14\x15\x16\x17",
@@ -130,7 +135,8 @@ static struct cipher_testvec aes_dec_tv_template[] = {
     .result = "\x00\x11\x22\x33\x44\x55\x66\x77"
         "\x88\x99\xaa\xbb\xcc\xdd\xee\xff",
     .rlen = 16,
-  }, {
+  },
+  {
     .key  = "\x00\x01\x02\x03\x04\x05\x06\x07"
         "\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f"
         "\x10\x11\x12\x13\x14\x15\x16\x17"
@@ -145,7 +151,8 @@ static struct cipher_testvec aes_dec_tv_template[] = {
   },
 };
 
-static struct cipher_testvec aes_cbc_enc_tv_template[] = {
+static struct cipher_testvec aes_cbc_enc_tv_template[] =
+{
   { /* From RFC 3602 */
     .key    = "\x06\xa9\x21\x40\x36\xb8\xa1\x5b"
         "\x51\x2e\x03\xd5\x34\x12\x00\x06",
@@ -157,7 +164,8 @@ static struct cipher_testvec aes_cbc_enc_tv_template[] = {
     .result = "\xe3\x53\x77\x9c\x10\x79\xae\xb8"
         "\x27\x08\x94\x2d\xbe\x77\x18\x1a",
     .rlen   = 16,
-  }, {
+  },
+  {
     .key    = "\xc2\x86\x69\x6d\x88\x7c\x9a\xa0"
         "\x61\x1b\xbb\x3e\x20\x25\xa4\x5a",
     .klen   = 16,
@@ -173,7 +181,8 @@ static struct cipher_testvec aes_cbc_enc_tv_template[] = {
         "\x75\x86\x60\x2d\x25\x3c\xff\xf9"
         "\x1b\x82\x66\xbe\xa6\xd6\x1a\xb1",
     .rlen   = 32,
-  }, { /* From NIST SP800-38A */
+  },
+  { /* From NIST SP800-38A */
     .key  = "\x8e\x73\xb0\xf7\xda\x0e\x64\x52"
         "\xc8\x10\xf3\x2b\x80\x90\x79\xe5"
         "\x62\xf8\xea\xd2\x52\x2c\x6b\x7b",
@@ -198,7 +207,8 @@ static struct cipher_testvec aes_cbc_enc_tv_template[] = {
         "\x08\xb0\xe2\x79\x88\x59\x88\x81"
         "\xd9\x20\xa9\xe6\x4f\x56\x15\xcd",
     .rlen = 64,
-  }, {
+  },
+  {
     .key  = "\x60\x3d\xeb\x10\x15\xca\x71\xbe"
         "\x2b\x73\xae\xf0\x85\x7d\x77\x81"
         "\x1f\x35\x2c\x07\x3b\x61\x08\xd7"
@@ -227,7 +237,8 @@ static struct cipher_testvec aes_cbc_enc_tv_template[] = {
   },
 };
 
-static struct cipher_testvec aes_cbc_dec_tv_template[] = {
+static struct cipher_testvec aes_cbc_dec_tv_template[] =
+{
   { /* From RFC 3602 */
     .key    = "\x06\xa9\x21\x40\x36\xb8\xa1\x5b"
         "\x51\x2e\x03\xd5\x34\x12\x00\x06",
@@ -239,7 +250,8 @@ static struct cipher_testvec aes_cbc_dec_tv_template[] = {
     .ilen   = 16,
     .result = "Single block msg",
     .rlen   = 16,
-  }, {
+  },
+  {
     .key    = "\xc2\x86\x69\x6d\x88\x7c\x9a\xa0"
         "\x61\x1b\xbb\x3e\x20\x25\xa4\x5a",
     .klen   = 16,
@@ -255,7 +267,8 @@ static struct cipher_testvec aes_cbc_dec_tv_template[] = {
         "\x10\x11\x12\x13\x14\x15\x16\x17"
         "\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f",
     .rlen   = 32,
-  }, { /* From NIST SP800-38A */
+  },
+  { /* From NIST SP800-38A */
     .key  = "\x8e\x73\xb0\xf7\xda\x0e\x64\x52"
         "\xc8\x10\xf3\x2b\x80\x90\x79\xe5"
         "\x62\xf8\xea\xd2\x52\x2c\x6b\x7b",
@@ -280,7 +293,8 @@ static struct cipher_testvec aes_cbc_dec_tv_template[] = {
         "\xf6\x9f\x24\x45\xdf\x4f\x9b\x17"
         "\xad\x2b\x41\x7b\xe6\x6c\x37\x10",
     .rlen = 64,
-  }, {
+  },
+  {
     .key  = "\x60\x3d\xeb\x10\x15\xca\x71\xbe"
         "\x2b\x73\xae\xf0\x85\x7d\x77\x81"
         "\x1f\x35\x2c\x07\x3b\x61\x08\xd7"
@@ -309,7 +323,8 @@ static struct cipher_testvec aes_cbc_dec_tv_template[] = {
   },
 };
 
-static struct cipher_testvec aes_ctr_enc_tv_template[] = {
+static struct cipher_testvec aes_ctr_enc_tv_template[] =
+{
   { /* From NIST Special Publication 800-38A, Appendix F.5 */
     .key  = "\x2b\x7e\x15\x16\x28\xae\xd2\xa6"
         "\xab\xf7\x15\x88\x09\xcf\x4f\x3c",
@@ -334,7 +349,8 @@ static struct cipher_testvec aes_ctr_enc_tv_template[] = {
         "\x1e\x03\x1d\xda\x2f\xbe\x03\xd1"
         "\x79\x21\x70\xa0\xf3\x00\x9c\xee",
     .rlen = 64,
-  }, {
+  },
+  {
     .key  = "\x8e\x73\xb0\xf7\xda\x0e\x64\x52"
         "\xc8\x10\xf3\x2b\x80\x90\x79\xe5"
         "\x62\xf8\xea\xd2\x52\x2c\x6b\x7b",
@@ -359,7 +375,8 @@ static struct cipher_testvec aes_ctr_enc_tv_template[] = {
         "\x4f\x78\xa7\xf6\xd2\x98\x09\x58"
         "\x5a\x97\xda\xec\x58\xc6\xb0\x50",
     .rlen = 64,
-  }, {
+  },
+  {
     .key  = "\x60\x3d\xeb\x10\x15\xca\x71\xbe"
         "\x2b\x73\xae\xf0\x85\x7d\x77\x81"
         "\x1f\x35\x2c\x07\x3b\x61\x08\xd7"
@@ -388,7 +405,8 @@ static struct cipher_testvec aes_ctr_enc_tv_template[] = {
   }
 };
 
-static struct cipher_testvec aes_ctr_dec_tv_template[] = {
+static struct cipher_testvec aes_ctr_dec_tv_template[] =
+{
   { /* From NIST Special Publication 800-38A, Appendix F.5 */
     .key  = "\x2b\x7e\x15\x16\x28\xae\xd2\xa6"
         "\xab\xf7\x15\x88\x09\xcf\x4f\x3c",
@@ -413,7 +431,8 @@ static struct cipher_testvec aes_ctr_dec_tv_template[] = {
         "\xf6\x9f\x24\x45\xdf\x4f\x9b\x17"
         "\xad\x2b\x41\x7b\xe6\x6c\x37\x10",
     .rlen = 64,
-  }, {
+  },
+  {
     .key  = "\x8e\x73\xb0\xf7\xda\x0e\x64\x52"
         "\xc8\x10\xf3\x2b\x80\x90\x79\xe5"
         "\x62\xf8\xea\xd2\x52\x2c\x6b\x7b",
@@ -438,7 +457,8 @@ static struct cipher_testvec aes_ctr_dec_tv_template[] = {
         "\xf6\x9f\x24\x45\xdf\x4f\x9b\x17"
         "\xad\x2b\x41\x7b\xe6\x6c\x37\x10",
     .rlen = 64,
-  }, {
+  },
+  {
     .key  = "\x60\x3d\xeb\x10\x15\xca\x71\xbe"
         "\x2b\x73\xae\xf0\x85\x7d\x77\x81"
         "\x1f\x35\x2c\x07\x3b\x61\x08\xd7"
@@ -468,5 +488,4 @@ static struct cipher_testvec aes_ctr_dec_tv_template[] = {
 };
 
 #endif /* CONFIG_CRYPTO_AES */
-
-#endif /* __INCLUDE_CRYPTO_TESTMNGR_H */
+#endif /* __CRYPTO_TESTMNGR_H */

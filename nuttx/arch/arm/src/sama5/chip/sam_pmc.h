@@ -420,8 +420,10 @@
 #define PMC_PCR_CMD                    (1 << 12) /* Bit 12: Command */
 
 #ifdef ATSAMA5D3
+#  define SAMA5_HAVE_PMC_PCR_DIV       1         /* Supports conditional compilation */
 #  define PMC_PCR_DIV_SHIFT            (16)      /* Bits 16-17: Divisor Value */
 #  define PMC_PCR_DIV_MASK             (3 << PMC_PCR_DIV_SHIFT)
+#    define PMC_PCR_DIV(n)             ((uint32_t)(n) << PMC_PCR_DIV_SHIFT)
 #    define PMC_PCR_DIV1               (0 << PMC_PCR_DIV_SHIFT) /* Peripheral clock is MCK */
 #    define PMC_PCR_DIV2               (1 << PMC_PCR_DIV_SHIFT) /* Peripheral clock is MCK/2 */
 #    define PMC_PCR_DIV4               (2 << PMC_PCR_DIV_SHIFT) /* Peripheral clock is MCK/4 */

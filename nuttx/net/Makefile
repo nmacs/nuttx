@@ -39,60 +39,24 @@ ifeq ($(CONFIG_NET),y)
 
 # Basic networking support
 
+NET_ASRCS   =
+NET_CSRCS   = net_initialize.c
+
+# Socket support
+
 SOCK_ASRCS  =
-SOCK_CSRCS  = bind.c connect.c getsockname.c recv.c recvfrom.c socket.c
-SOCK_CSRCS += sendto.c net_sockets.c net_close.c net_dup.c net_dup2.c
-SOCK_CSRCS += net_clone.c net_vfcntl.c
-
-VPATH =
-DEPPATH = --dep-path .
-
-# TCP/IP support
-
-ifeq ($(CONFIG_NET_TCP),y)
-SOCK_CSRCS += send.c listen.c accept.c net_monitor.c
-endif
-
-# Socket options
-
-ifeq ($(CONFIG_NET_SOCKOPTS),y)
-SOCK_CSRCS += setsockopt.c getsockopt.c
-ifneq ($(CONFIG_DISABLE_CLOCK),y)
-SOCK_CSRCS += net_timeo.c net_dsec2timeval.c net_timeval2dsec.c
-endif
-endif
-
-# Routing table support
-
-ifeq ($(CONFIG_NET_ROUTE),y)
-SOCK_CSRCS += net_addroute.c net_allocroute.c net_delroute.c
-SOCK_CSRCS += net_foreachroute.c net_router.c netdev_router.c
-endif
-
-# Support for network access using streams
-
-ifneq ($(CONFIG_NFILE_STREAMS),0)
-SOCK_CSRCS += net_checksd.c
-endif
-
-# Support for sendfile()
-
-ifeq ($(CONFIG_NET_SENDFILE),y)
-SOCK_CSRCS += net_sendfile.c
-endif
+SOCK_CSRCS  =
 
 # Support for operations on network devices
 
 NETDEV_ASRCS =
-NETDEV_CSRCS = netdev_register.c netdev_ioctl.c net_poll.c netdev_txnotify.c \
-		  netdev_findbyname.c netdev_findbyaddr.c netdev_count.c \
-		  netdev_foreach.c netdev_unregister.c netdev_sem.c \
-		  netdev_carrier.c
+NETDEV_CSRCS =
 
-ifeq ($(CONFIG_NET_RXAVAIL),y)
-NETDEV_CSRCS += netdev_rxnotify.c
-endif
+VPATH =
+DEPPATH = --dep-path .
 
+include socket/Make.defs
+include netdev/Make.defs
 include iob/Make.defs
 include arp/Make.defs
 include icmp/Make.defs
@@ -100,7 +64,9 @@ include igmp/Make.defs
 include tcp/Make.defs
 include udp/Make.defs
 include pkt/Make.defs
-include uip/Make.defs
+include devif/Make.defs
+include route/Make.defs
+include utils/Make.defs
 endif
 
 ASRCS		= $(SOCK_ASRCS) $(NETDEV_ASRCS) $(NET_ASRCS)

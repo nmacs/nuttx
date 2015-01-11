@@ -116,7 +116,7 @@
 
 /* Resulting frequencies */
 
-#define BOARD_MAINOSC_FREQUENCY    (12000000)  /* MAINOSC: 12MHz crystal on-board */
+#define BOARD_MAINCK_FREQUENCY     BOARD_MAINOSC_FREQUENCY
 #define BOARD_PLLA_FREQUENCY       (528000000) /* PLLACK:  44 * 12Mhz / 1 */
 #define BOARD_PCK_FREQUENCY        (528000000) /* CPU:     PLLACK / 1 / 1  */
 #define BOARD_MCK_FREQUENCY        (132000000) /* MCK:     PLLACK / 1 / 1 / 4 */
@@ -127,6 +127,7 @@
  * REVISIT:  I am not sure why this is.  Perhaps because of H32MXDIV?
  */
 
+#define BOARD_PIT_FREQUENCY        (BOARD_MCK_FREQUENCY >> 1)
 #define BOARD_USART_FREQUENCY      (BOARD_MCK_FREQUENCY >> 1)
 
 #if defined(CONFIG_SAMA5_EHCI) || defined(CONFIG_SAMA5_OHCI) || \
@@ -160,6 +161,7 @@
 #  define BOARD_USE_UPLL             1     /* Use UPLL for clock source */
 #  define BOARD_CKGR_UCKR_UPLLCOUNT  (15)  /* Maximum value */
 #  define BOARD_CKGR_UCKR_BIASCOUNT  (15)  /* Maximum value */
+#  define BOARD_UPLL_OHCI_DIV        (10)  /* Divide by 10 */
 #endif
 
 /* HSMCI clocking

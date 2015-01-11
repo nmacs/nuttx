@@ -1,9 +1,8 @@
 /****************************************************************************
  * arch/arm/src/sam34/sam_aes.c
  *
- *   Copyright (C) 2011, 2013 Gregory Nutt. All rights reserved.
- *   Authors: Gregory Nutt <gnutt@nuttx.org>
- *            Diego Sanchez <dsanchez@nx-engineering.com>
+ *   Copyright (C) 2014 Gregory Nutt. All rights reserved.
+ *   Author:  Max Nekludov <macscomp@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,13 +43,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <semaphore.h>
 #include <errno.h>
 #include <debug.h>
-#include <semaphore.h>
-#include <crypto/crypto.h>
 
-#include <arch/board/board.h>
+#include <nuttx/crypto/crypto.h>
 #include <nuttx/arch.h>
+#include <arch/board/board.h>
 
 #include "up_internal.h"
 #include "up_arch.h"
@@ -60,22 +59,8 @@
 #include "sam_aes.h"
 
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
-
-#define CONFIG_DEBUG_CRYPTO
-
-#ifdef CONFIG_DEBUG_CRYPTO
-#  define cryptdbg lldbg
-#  ifdef CONFIG_DEBUG_VERBOSE
-#    define cryptvdbg lldbg
-#  else
-#    define cryptvdbg(x...)
-#  endif
-#else
-#  define cryptdbg(x...)
-#  define cryptvdbg(x...)
-#endif
 
 #define AES_BLOCK_SIZE 16
 
@@ -116,7 +101,9 @@ static void aes_memcpy(void *out, const void *in, size_t size)
   size_t i;
   size_t wcount = size / 4;
   for (i = 0; i < wcount; i++, out = (uint8_t*)out + 4, in = (uint8_t*)in + 4)
-    *(uint32_t*)out = *(uint32_t*)in;
+    {
+      *(uint32_t*)out = *(uint32_t*)in;
+    }
 }
 
 static void aes_encryptblock(void *out, const void *in)
@@ -177,7 +164,8 @@ static int aes_setup_mr(uint32_t keysize, int mode, int encrypt)
  * Public Functions
  ****************************************************************************/
 
-int aes_cypher(void *out, const void *in, uint32_t size, const void *iv, const void *key, uint32_t keysize, int mode, int encrypt)
+int aes_cypher(void *out, const void *in, uint32_t size, const void *iv,
+               const void *key, uint32_t keysize, int mode, int encrypt)
 {
   int res = OK;
 
@@ -187,21 +175,25 @@ int aes_cypher(void *out, const void *in, uint32_t size, const void *iv, const v
   aes_lock();
 
   res = aes_setup_mr(keysize, mode, encrypt);
-  if (res) {
-    aes_unlock();
-    return res;
-  }
+  if (res)
+    {
+      aes_unlock();
+      return res;
+    }
 
   aes_memcpy((void*)SAM_AES_KEYWR, key, keysize);
   if (iv)
-    aes_memcpy((void*)SAM_AES_IVR, iv, AES_BLOCK_SIZE);
+    {
+      aes_memcpy((void*)SAM_AES_IVR, iv, AES_BLOCK_SIZE);
+    }
 
-  while (size) {
-    aes_encryptblock(out, in);
-    out = (char*)out + AES_BLOCK_SIZE;
-    in  = (char*)in  + AES_BLOCK_SIZE;
-    size -= AES_BLOCK_SIZE;
-  }
+  while (size)
+    {
+      aes_encryptblock(out, in);
+      out = (char*)out + AES_BLOCK_SIZE;
+      in  = (char*)in  + AES_BLOCK_SIZE;
+      size -= AES_BLOCK_SIZE;
+    }
 
   aes_unlock();
   return res;

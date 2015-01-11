@@ -48,7 +48,10 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
+
 #include <nuttx/net/netconfig.h>
+#include <nuttx/net/ip.h>
+#include <nuttx/net/tcp.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -101,8 +104,8 @@
 
 /* Header sizes */
 
-#define UIP_ICMPH_LEN   4                             /* Size of ICMP header */
-#define UIP_IPICMPH_LEN (UIP_ICMPH_LEN + UIP_IPH_LEN) /* Size of IP + ICMP header */
+#define ICMP_HDRLEN    4                         /* Size of ICMP header */
+#define IPICMP_HDRLEN  (ICMP_HDRLEN + IP_HDRLEN) /* Size of IP + ICMP header */
 
 /****************************************************************************
  * Public Type Definitions
@@ -122,8 +125,8 @@ struct icmp_iphdr_s
   uint8_t  len[2];          /* 16-bit Payload length */
   uint8_t  proto;           /*  8-bit Next header (same as IPv4 protocol field) */
   uint8_t  ttl;             /*  8-bit Hop limit (like IPv4 TTL field) */
-  uip_ip6addr_t srcipaddr;  /* 128-bit Source address */
-  uip_ip6addr_t destipaddr; /* 128-bit Destination address */
+  net_ip6addr_t srcipaddr;  /* 128-bit Source address */
+  net_ip6addr_t destipaddr; /* 128-bit Destination address */
 
 #else /* CONFIG_NET_IPv6 */
 
@@ -180,10 +183,10 @@ struct icmp_iphdr_s
 #ifdef CONFIG_NET_STATISTICS
 struct icmp_stats_s
 {
-  uip_stats_t drop;       /* Number of dropped ICMP packets */
-  uip_stats_t recv;       /* Number of received ICMP packets */
-  uip_stats_t sent;       /* Number of sent ICMP packets */
-  uip_stats_t typeerr;    /* Number of ICMP packets with a wrong type */
+  net_stats_t drop;       /* Number of dropped ICMP packets */
+  net_stats_t recv;       /* Number of received ICMP packets */
+  net_stats_t sent;       /* Number of sent ICMP packets */
+  net_stats_t typeerr;    /* Number of ICMP packets with a wrong type */
 };
 #endif
 
@@ -191,18 +194,47 @@ struct icmp_stats_s
  * Public Data
  ****************************************************************************/
 
-/****************************************************************************
- * Public Function Prototypes
- ****************************************************************************/
-
 #ifdef __cplusplus
 #define EXTERN extern "C"
-extern "C" {
+extern "C"
+{
 #else
 #define EXTERN extern
 #endif
 
-EXTERN int uip_ping(uip_ipaddr_t addr, uint16_t id, uint16_t seqno, uint16_t datalen, int dsecs);
+/****************************************************************************
+ * Public Function Prototypes
+ ****************************************************************************/
+
+/****************************************************************************
+ * Name: imcp_ping
+ *
+ * Description:
+ *   Send a ECHO request and wait for the ECHO response
+ *
+ * Parameters:
+ *   addr  - The IP address of the peer to send the ICMP ECHO request to
+ *           in network order.
+ *   id    - The ID to use in the ICMP ECHO request.  This number should be
+ *           unique; only ECHO responses with this matching ID will be
+ *           processed (host order)
+ *   seqno - The sequence number used in the ICMP ECHO request.  NOT used
+ *           to match responses (host order)
+ *   dsecs - Wait up to this many deci-seconds for the ECHO response to be
+ *           returned (host order).
+ *
+ * Return:
+ *   seqno of received ICMP ECHO with matching ID (may be different
+ *   from the seqno argument (may be a delayed response from an earlier
+ *   ping with the same ID). Or a negated errno on any failure.
+ *
+ * Assumptions:
+ *   Called from the user level with interrupts enabled.
+ *
+ ****************************************************************************/
+
+int icmp_ping(net_ipaddr_t addr, uint16_t id, uint16_t seqno, uint16_t datalen,
+              int dsecs);
 
 #undef EXTERN
 #ifdef __cplusplus

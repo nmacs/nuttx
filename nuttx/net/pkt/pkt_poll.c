@@ -48,11 +48,10 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
-#include <nuttx/net/pkt.h>
+#include <nuttx/net/udp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "pkt/pkt.h"
 
 /****************************************************************************
@@ -93,7 +92,7 @@
  *
  ****************************************************************************/
 
-void pkt_poll(FAR struct uip_driver_s *dev, FAR struct pkt_conn_s *conn)
+void pkt_poll(FAR struct net_driver_s *dev, FAR struct pkt_conn_s *conn)
 {
   nlldbg("IN\n");
 
@@ -103,21 +102,21 @@ void pkt_poll(FAR struct uip_driver_s *dev, FAR struct pkt_conn_s *conn)
     {
       /* Setup for the application callback */
 
-      dev->d_appdata = &dev->d_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN];
-      dev->d_snddata = &dev->d_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN];
+      dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
+      dev->d_snddata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
 
       dev->d_len     = 0;
       dev->d_sndlen  = 0;
 
       /* Perform the application callback */
 
-      (void)pkt_callback(dev, conn, UIP_POLL);
+      (void)pkt_callback(dev, conn, PKT_POLL);
 
       /* If the application has data to send, setup the UDP/IP header */
 
       if (dev->d_sndlen > 0)
         {
-//        uip_pktsend(dev, conn);
+//        devif_pkt_send(dev, conn);
           return;
         }
     }

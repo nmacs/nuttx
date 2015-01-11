@@ -48,7 +48,7 @@
 
 #include "chip.h"
 #include "up_arch.h"
-#include "clock_internal.h"
+#include "clock/clock.h"
 #include "up_internal.h"
 
 /****************************************************************************
@@ -100,7 +100,7 @@ int up_timerisr(int irq, uint32_t *regs)
 }
 
 /****************************************************************************
- * Function:  up_timerinit
+ * Function:  up_timer_initialize
  *
  * Description:
  *   This function is called during start-up to initialize the timer
@@ -108,7 +108,7 @@ int up_timerisr(int irq, uint32_t *regs)
  *
  ****************************************************************************/
 
-void up_timerinit(void)
+void up_timer_initialize(void)
 {
   uint32_t tctl;
 
@@ -138,11 +138,11 @@ void up_timerinit(void)
    * putreg(0, IMX_TIMER1_TPRER); -- already the case
    *
    * Set the compare register so that the COMP interrupt is generated
-   * with a period of MSEC_PER_TICK.  The value IMX_PERCLK1_FREQ/1000
+   * with a period of USEC_PER_TICK.  The value IMX_PERCLK1_FREQ/1000
    * (defined in board.h) is the number of counts in millisecond, so:
    */
 
-   putreg32((IMX_PERCLK1_FREQ / 1000) * MSEC_PER_TICK, IMX_TIMER1_TCMP);
+   putreg32(MSEC2TICK(IMX_PERCLK1_FREQ / 1000), IMX_TIMER1_TCMP);
 
   /* Configure to provide timer COMP interrupts when TCN increments
    * to TCMP.

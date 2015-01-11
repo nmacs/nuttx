@@ -1,5 +1,5 @@
 /****************************************************************************
- * net//tcp_send.c
+ * net/tcp/tcp_send.c
  *
  *   Copyright (C) 2007-2010, 2012 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -49,16 +49,20 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/netstats.h>
+#include <nuttx/net/ip.h>
+#include <nuttx/net/tcp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
+#include "tcp/tcp.h"
+#include "utils/utils.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define BUF ((struct tcp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+#define BUF ((struct tcp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
 
 /****************************************************************************
  * Public Variables
@@ -90,11 +94,11 @@
  *
  ****************************************************************************/
 
-static void tcp_sendcomplete(FAR struct uip_driver_s *dev)
+static void tcp_sendcomplete(FAR struct net_driver_s *dev)
 {
   FAR struct tcp_iphdr_s *pbuf = BUF;
 
-  pbuf->ttl         = UIP_TTL;
+  pbuf->ttl         = IP_TTL;
 
 #ifdef CONFIG_NET_IPv6
 
@@ -102,8 +106,8 @@ static void tcp_sendcomplete(FAR struct uip_driver_s *dev)
    * length.
    */
 
-  pbuf->len[0]      = ((dev->d_len - UIP_IPH_LEN) >> 8);
-  pbuf->len[1]      = ((dev->d_len - UIP_IPH_LEN) & 0xff);
+  pbuf->len[0]      = ((dev->d_len - IP_HDRLEN) >> 8);
+  pbuf->len[1]      = ((dev->d_len - IP_HDRLEN) & 0xff);
 
 #else /* CONFIG_NET_IPv6 */
 
@@ -138,7 +142,7 @@ static void tcp_sendcomplete(FAR struct uip_driver_s *dev)
   /* Calculate IP checksum. */
 
   pbuf->ipchksum    = 0;
-  pbuf->ipchksum    = ~(uip_ipchksum(dev));
+  pbuf->ipchksum    = ~(ip_chksum(dev));
 
 #endif /* CONFIG_NET_IPv6 */
 
@@ -146,8 +150,8 @@ static void tcp_sendcomplete(FAR struct uip_driver_s *dev)
           dev->d_len, (pbuf->len[0] << 8) | pbuf->len[1]);
 
 #ifdef CONFIG_NET_STATISTICS
-  uip_stat.tcp.sent++;
-  uip_stat.ip.sent++;
+  g_netstats.tcp.sent++;
+  g_netstats.ip.sent++;
 #endif
 }
 
@@ -171,7 +175,7 @@ static void tcp_sendcomplete(FAR struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static void tcp_sendcommon(FAR struct uip_driver_s *dev,
+static void tcp_sendcommon(FAR struct net_driver_s *dev,
                            FAR struct tcp_conn_s *conn)
 {
   FAR struct tcp_iphdr_s *pbuf = BUF;
@@ -179,16 +183,16 @@ static void tcp_sendcommon(FAR struct uip_driver_s *dev,
   memcpy(pbuf->ackno, conn->rcvseq, 4);
   memcpy(pbuf->seqno, conn->sndseq, 4);
 
-  pbuf->proto    = UIP_PROTO_TCP;
+  pbuf->proto    = IP_PROTO_TCP;
   pbuf->srcport  = conn->lport;
   pbuf->destport = conn->rport;
 
-  uiphdr_ipaddr_copy(pbuf->srcipaddr, &dev->d_ipaddr);
-  uiphdr_ipaddr_copy(pbuf->destipaddr, &conn->ripaddr);
+  net_ipaddr_hdrcopy(pbuf->srcipaddr, &dev->d_ipaddr);
+  net_ipaddr_hdrcopy(pbuf->destipaddr, &conn->ripaddr);
 
-  if (conn->tcpstateflags & UIP_STOPPED)
+  if (conn->tcpstateflags & TCP_STOPPED)
     {
-      /* If the connection has issued uip_stop(), we advertise a zero
+      /* If the connection has issued TCP_STOPPED, we advertise a zero
        * window so that the remote host will stop sending data.
        */
 
@@ -232,14 +236,14 @@ static void tcp_sendcommon(FAR struct uip_driver_s *dev,
  *
  ****************************************************************************/
 
-void tcp_send(FAR struct uip_driver_s *dev, FAR struct tcp_conn_s *conn,
+void tcp_send(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn,
               uint16_t flags, uint16_t len)
 {
   FAR struct tcp_iphdr_s *pbuf = BUF;
 
   pbuf->flags     = flags;
   dev->d_len     = len;
-  pbuf->tcpoffset = (UIP_TCPH_LEN / 4) << 4;
+  pbuf->tcpoffset = (TCP_HDRLEN / 4) << 4;
   tcp_sendcommon(dev, conn);
 }
 
@@ -260,18 +264,18 @@ void tcp_send(FAR struct uip_driver_s *dev, FAR struct tcp_conn_s *conn,
  *
  ****************************************************************************/
 
-void tcp_reset(FAR struct uip_driver_s *dev)
+void tcp_reset(FAR struct net_driver_s *dev)
 {
   FAR struct tcp_iphdr_s *pbuf = BUF;
   uint16_t tmp16;
   uint8_t seqbyte;
 
 #ifdef CONFIG_NET_STATISTICS
-  uip_stat.tcp.rst++;
+  g_netstats.tcp.rst++;
 #endif
 
   pbuf->flags     = TCP_RST | TCP_ACK;
-  dev->d_len      = UIP_IPTCPH_LEN;
+  dev->d_len      = IPTCP_HDRLEN;
   pbuf->tcpoffset = 5 << 4;
 
   /* Flip the seqno and ackno fields in the TCP header. */
@@ -316,8 +320,8 @@ void tcp_reset(FAR struct uip_driver_s *dev)
 
   /* Swap IP addresses. */
 
-  uiphdr_ipaddr_copy(pbuf->destipaddr, pbuf->srcipaddr);
-  uiphdr_ipaddr_copy(pbuf->srcipaddr, &dev->d_ipaddr);
+  net_ipaddr_hdrcopy(pbuf->destipaddr, pbuf->srcipaddr);
+  net_ipaddr_hdrcopy(pbuf->srcipaddr, &dev->d_ipaddr);
 
   /* And send out the RST packet */
 
@@ -343,7 +347,7 @@ void tcp_reset(FAR struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-void tcp_ack(FAR struct uip_driver_s *dev, FAR struct tcp_conn_s *conn,
+void tcp_ack(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn,
              uint8_t ack)
 {
   struct tcp_iphdr_s *pbuf = BUF;
@@ -356,10 +360,10 @@ void tcp_ack(FAR struct uip_driver_s *dev, FAR struct tcp_conn_s *conn,
 
   pbuf->optdata[0] = TCP_OPT_MSS;
   pbuf->optdata[1] = TCP_OPT_MSS_LEN;
-  pbuf->optdata[2] = (UIP_TCP_MSS) / 256;
-  pbuf->optdata[3] = (UIP_TCP_MSS) & 255;
-  dev->d_len       = UIP_IPTCPH_LEN + TCP_OPT_MSS_LEN;
-  pbuf->tcpoffset  = ((UIP_TCPH_LEN + TCP_OPT_MSS_LEN) / 4) << 4;
+  pbuf->optdata[2] = (TCP_MSS) / 256;
+  pbuf->optdata[3] = (TCP_MSS) & 255;
+  dev->d_len       = IPTCP_HDRLEN + TCP_OPT_MSS_LEN;
+  pbuf->tcpoffset  = ((TCP_HDRLEN + TCP_OPT_MSS_LEN) / 4) << 4;
 
   /* Complete the common portions of the TCP message */
 

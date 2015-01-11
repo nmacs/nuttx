@@ -47,10 +47,10 @@
 #include <assert.h>
 #include <debug.h>
 
-#include <nuttx/net/uip.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/igmp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "igmp/igmp.h"
 
 #ifdef CONFIG_NET_IGMP
@@ -67,8 +67,8 @@
  * Public Data
  ****************************************************************************/
 
-uip_ipaddr_t g_allsystems;
-uip_ipaddr_t g_allrouters;
+net_ipaddr_t g_allsystems;
+net_ipaddr_t g_allrouters;
 
 /****************************************************************************
  * Public Functions
@@ -86,8 +86,8 @@ void igmp_initialize(void)
 {
   nvdbg("IGMP initializing\n");
 
-  uip_ipaddr(g_allrouters, 224, 0, 0, 2);
-  uip_ipaddr(g_allsystems, 224, 0, 0, 1);
+  net_ipaddr(g_allrouters, 224, 0, 0, 2);
+  net_ipaddr(g_allsystems, 224, 0, 0, 1);
 
   /* Initialize the group allocation logic */
 
@@ -103,7 +103,7 @@ void igmp_initialize(void)
  *
  ****************************************************************************/
 
-void igmp_devinit(struct uip_driver_s *dev)
+void igmp_devinit(struct net_driver_s *dev)
 {
   nvdbg("IGMP initializing dev %p\n", dev);
   DEBUGASSERT(dev->grplist.head == NULL);

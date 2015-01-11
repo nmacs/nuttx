@@ -54,11 +54,11 @@
 #include <wdog.h>
 #include <errno.h>
 
+#include <arpa/inet.h>
+#include <net/ethernet.h>
+
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
-
-#include <net/ethernet.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 
@@ -330,7 +330,7 @@ struct c5471_driver_s
 
   /* This holds the information visible to uIP/NuttX */
 
-  struct uip_driver_s c_dev;  /* Interface understood by uIP */
+  struct net_driver_s c_dev;  /* Interface understood by uIP */
 };
 
 /****************************************************************************
@@ -359,7 +359,7 @@ static inline void c5471_incrxcpu(struct c5471_driver_s *c5471);
 /* Common TX logic */
 
 static int  c5471_transmit(struct c5471_driver_s *c5471);
-static int  c5471_uiptxpoll(struct uip_driver_s *dev);
+static int  c5471_txpoll(struct net_driver_s *dev);
 
 /* Interrupt handling */
 
@@ -380,12 +380,12 @@ static void c5471_txtimeout(int argc, uint32_t arg, ...);
 
 /* NuttX callback functions */
 
-static int c5471_ifup(struct uip_driver_s *dev);
-static int c5471_ifdown(struct uip_driver_s *dev);
-static int c5471_txavail(struct uip_driver_s *dev);
+static int c5471_ifup(struct net_driver_s *dev);
+static int c5471_ifdown(struct net_driver_s *dev);
+static int c5471_txavail(struct net_driver_s *dev);
 #ifdef CONFIG_NET_IGMP
-static int c5471_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
-static int c5471_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
+static int c5471_addmac(struct net_driver_s *dev, FAR const uint8_t *mac);
+static int c5471_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac);
 #endif
 
 /* Initialization functions */
@@ -844,7 +844,7 @@ static inline void c5471_incrxcpu(struct c5471_driver_s *c5471)
 
 static int c5471_transmit(struct c5471_driver_s *c5471)
 {
-  struct uip_driver_s *dev = &c5471->c_dev;
+  struct net_driver_s *dev = &c5471->c_dev;
   volatile uint16_t *packetmem;
   uint16_t framelen;
   bool bfirstframe;
@@ -954,11 +954,11 @@ static int c5471_transmit(struct c5471_driver_s *c5471)
 }
 
 /****************************************************************************
- * Function: c5471_uiptxpoll
+ * Function: c5471_txpoll
  *
  * Description:
  *   The transmitter is available, check if uIP has any outgoing packets ready
- *   to send.  This is a callback from uip_poll().  uip_poll() may be called:
+ *   to send.  This is a callback from devif_poll().  devif_poll() may be called:
  *
  *   1. When the preceding TX packet send is complete,
  *   2. When the preceding TX packet send timesout and the interface is reset
@@ -974,7 +974,7 @@ static int c5471_transmit(struct c5471_driver_s *c5471)
  *
  ****************************************************************************/
 
-static int c5471_uiptxpoll(struct uip_driver_s *dev)
+static int c5471_txpoll(struct net_driver_s *dev)
 {
   struct c5471_driver_s *c5471 = (struct c5471_driver_s *)dev->d_private;
 
@@ -1126,7 +1126,7 @@ static void c5471_rxstatus(struct c5471_driver_s *c5471)
 
 static void c5471_receive(struct c5471_driver_s *c5471)
 {
-  struct uip_driver_s *dev = &c5471->c_dev;
+  struct net_driver_s *dev = &c5471->c_dev;
   uint16_t *packetmem;
   bool bmore = true;
   int packetlen = 0;
@@ -1233,13 +1233,13 @@ static void c5471_receive(struct c5471_driver_s *c5471)
       /* We only accept IP packets of the configured type and ARP packets */
 
 #ifdef CONFIG_NET_IPv6
-      if (BUF->type == HTONS(UIP_ETHTYPE_IP6))
+      if (BUF->type == HTONS(ETHTYPE_IP6))
 #else
-      if (BUF->type == HTONS(UIP_ETHTYPE_IP))
+      if (BUF->type == HTONS(ETHTYPE_IP))
 #endif
         {
           arp_ipin(dev);
-          uip_input(dev);
+          devif_input(dev);
 
           /* If the above function invocation resulted in data that should be
            * sent out on the network, the field  d_len will set to a value > 0.
@@ -1254,7 +1254,7 @@ static void c5471_receive(struct c5471_driver_s *c5471)
               c5471_transmit(c5471);
             }
         }
-      else if (BUF->type == HTONS(UIP_ETHTYPE_ARP))
+      else if (BUF->type == HTONS(ETHTYPE_ARP))
         {
           arp_arpin(dev);
 
@@ -1403,7 +1403,7 @@ static void c5471_txdone(struct c5471_driver_s *c5471)
 
   /* Then poll uIP for new XMIT data */
 
-  (void)uip_poll(&c5471->c_dev, c5471_uiptxpoll);
+  (void)devif_poll(&c5471->c_dev, c5471_txpoll);
 }
 
 /****************************************************************************
@@ -1522,7 +1522,7 @@ static void c5471_txtimeout(int argc, uint32_t arg, ...)
 
   /* Then poll uIP for new XMIT data */
 
-  (void)uip_poll(&c5471->c_dev, c5471_uiptxpoll);
+  (void)devif_poll(&c5471->c_dev, c5471_txpoll);
 }
 
 /****************************************************************************
@@ -1554,7 +1554,7 @@ static void c5471_polltimer(int argc, uint32_t arg, ...)
     {
       /* If so, update TCP timing states and poll uIP for new XMIT data */
 
-      (void)uip_timer(&c5471->c_dev, c5471_uiptxpoll, C5471_POLLHSEC);
+      (void)devif_timer(&c5471->c_dev, c5471_txpoll, C5471_POLLHSEC);
     }
 
   /* Setup the watchdog poll timer again */
@@ -1580,7 +1580,7 @@ static void c5471_polltimer(int argc, uint32_t arg, ...)
  *
  ****************************************************************************/
 
-static int c5471_ifup(struct uip_driver_s *dev)
+static int c5471_ifup(struct net_driver_s *dev)
 {
   struct c5471_driver_s *c5471 = (struct c5471_driver_s *)dev->d_private;
   volatile uint32_t clearbits;
@@ -1640,7 +1640,7 @@ static int c5471_ifup(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int c5471_ifdown(struct uip_driver_s *dev)
+static int c5471_ifdown(struct net_driver_s *dev)
 {
   struct c5471_driver_s *c5471 = (struct c5471_driver_s *)dev->d_private;
   irqstate_t flags;
@@ -1695,7 +1695,7 @@ static int c5471_ifdown(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int c5471_txavail(struct uip_driver_s *dev)
+static int c5471_txavail(struct net_driver_s *dev)
 {
   struct c5471_driver_s *c5471 = (struct c5471_driver_s *)dev->d_private;
   irqstate_t flags;
@@ -1715,7 +1715,7 @@ static int c5471_txavail(struct uip_driver_s *dev)
        {
           /* If so, then poll uIP for new XMIT data */
 
-          (void)uip_poll(&c5471->c_dev, c5471_uiptxpoll);
+          (void)devif_poll(&c5471->c_dev, c5471_txpoll);
        }
     }
 
@@ -1742,7 +1742,7 @@ static int c5471_txavail(struct uip_driver_s *dev)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int c5471_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int c5471_addmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   FAR struct c5471_driver_s *priv = (FAR struct c5471_driver_s *)dev->d_private;
 
@@ -1772,7 +1772,7 @@ static int c5471_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int c5471_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int c5471_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   FAR struct c5471_driver_s *priv = (FAR struct c5471_driver_s *)dev->d_private;
 
@@ -2066,7 +2066,7 @@ static void c5471_reset(struct c5471_driver_s *c5471)
 
 static void c5471_macassign(struct c5471_driver_s *c5471)
 {
-  struct uip_driver_s *dev = &c5471->c_dev;
+  struct net_driver_s *dev = &c5471->c_dev;
   uint8_t *mptr = dev->d_mac.ether_addr_octet;
   register uint32_t tmp;
 

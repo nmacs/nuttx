@@ -2,7 +2,7 @@
  * arch/arm/src/sama5/sam_pio.c
  * General Purpose Input/Output (PIO) logic for the SAMA5
  *
- *   Copyright (C) 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -51,42 +51,94 @@
 #include "up_internal.h"
 #include "up_arch.h"
 
-#include "chip.h"
-#include "sam_pio.h"
 #include "chip/sam_pio.h"
+
+#include "chip.h"
+#include "sam_periphclks.h"
+#include "sam_pio.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
+
+/* Macros to convert a pin to a vanilla input */
+
+#define PIO_INPUT_BITS (PIO_INPUT | PIO_CFG_DEFAULT)
+#define MK_INPUT(p)    (((p) & (PIO_PORT_MASK | PIO_PIN_MASK)) | PIO_INPUT_BITS)
 
 /****************************************************************************
  * Private Types
  ****************************************************************************/
 
 /****************************************************************************
- * Private Data
+ * Public Data
  ****************************************************************************/
-
-#ifdef CONFIG_DEBUG_GPIO
-  static const char g_portchar[SAM_NPIO] =
-  {
-    'A', 'B', 'C', 'D', 'E'
-  };
-#endif
 
 /* SAM_PION_VBASE will only be defined if the PIO register blocks are
  * contiguous.  If not defined, then we need to do a table lookup.
  */
 
 #ifndef SAM_PION_VBASE
-  static const uintptr_t g_piobase[SAM_NPIO] =
-  {
-    SAM_PIOA_VBASE, SAM_PIOB_VBASE, SAM_PIOC_VBASE, SAM_PIOD_VBASE,
-    SAM_PIOE_VBASE
-  };
-
-# define SAM_PION_VBASE(n) (g_piobase[(n)])
+const uintptr_t g_piobase[SAM_NPIO] =
+{
+  SAM_PIOA_VBASE, SAM_PIOB_VBASE, SAM_PIOC_VBASE, SAM_PIOD_VBASE,
+  SAM_PIOE_VBASE
+};
 #endif
+
+/****************************************************************************
+ * Private Data
+ ****************************************************************************/
+/* Maps a port number to the standard port character */
+
+#ifdef CONFIG_DEBUG_GPIO
+static const char g_portchar[SAM_NPIO] =
+{
+  'A', 'B', 'C', 'D', 'E'
+};
+#endif
+
+/* Map a PIO number to the PIO peripheral identifier (PID) */
+
+static const uint8_t g_piopid[SAM_NPIO] =
+{
+  SAM_PID_PIOA, SAM_PID_PIOB, SAM_PID_PIOC, SAM_PID_PIOD, SAM_PID_PIOE
+};
+
+/* Used to determine if a PIO port is configured to support interrupts */
+
+static const bool g_piointerrupt[SAM_NPIO] =
+{
+#ifdef CONFIG_SAMA5_PIOA_IRQ
+  true,
+#else
+  false,
+#endif
+#ifdef CONFIG_SAMA5_PIOB_IRQ
+  true,
+#else
+  false,
+#endif
+#ifdef CONFIG_SAMA5_PIOC_IRQ
+  true,
+#else
+  false,
+#endif
+#ifdef CONFIG_SAMA5_PIOD_IRQ
+  true,
+#else
+  false,
+#endif
+#ifdef CONFIG_SAMA5_PIOE_IRQ
+  true
+#else
+  false
+#endif
+};
+
+/* This is an array of ports that PIO enable forced on */
+
+static uint32_t g_forced[SAM_NPIO];
 
 /****************************************************************************
  * Private Function Prototypes
@@ -105,7 +157,7 @@ static inline uintptr_t sam_piobase(pio_pinset_t cfgset)
 
   if (port < SAM_NPIO)
     {
-      return SAM_PION_VBASE(port);
+      return sam_pion_vbase(port);
     }
   else
     {
@@ -117,13 +169,111 @@ static inline uintptr_t sam_piobase(pio_pinset_t cfgset)
  * Name: sam_piopin
  *
  * Description:
- *   Returun the base address of the PIO register set
+ *   Return a bitmask corresponding to the bit position in a PIO register
  *
  ****************************************************************************/
 
-static inline int sam_piopin(pio_pinset_t cfgset)
+static inline uint32_t sam_piopin(pio_pinset_t cfgset)
 {
   return 1 << ((cfgset & PIO_PIN_MASK) >> PIO_PIN_SHIFT);
+}
+
+/****************************************************************************
+ * Name: sam_pio_enableclk
+ *
+ * Description:
+ *   Enable clocking on the selected PIO
+ *
+ ****************************************************************************/
+
+static void sam_pio_enableclk(pio_pinset_t cfgset)
+{
+  int port = (cfgset & PIO_PORT_MASK) >> PIO_PORT_SHIFT;
+  int pid;
+
+  if (port < SAM_NPIO)
+    {
+      /* Get the peripheral ID associated with the PIO port and enable
+       * clocking to the PIO block.
+       */
+
+      pid = g_piopid[port];
+      if (pid < 32)
+        {
+          sam_enableperiph0(pid);
+        }
+      else
+        {
+          sam_enableperiph1(pid);
+        }
+    }
+}
+
+/****************************************************************************
+ * Name: sam_pio_disableclk
+ *
+ * Description:
+ *   Disable clocking on the selected PIO if we can.  We can that if:
+ *
+ *   1) No pins are configured as PIO inputs (peripheral inputs don't need
+ *      clocking, and
+ *   2) Glitch and debounce filtering are not enabled.  Currently, this can
+ *      only happen if the the pin is a PIO input, but we may need to
+ *      implement glitch filtering on peripheral inputs as well in the
+ *      future???
+ *   3) The port is not configured for PIO interrupts.  At present, the logic
+ *      always keeps clocking on to ports that are configured for interrupts,
+ *      but that could be dynamically controlled as well be keeping track
+ *      of which PIOs have interrupts enabled.
+ *
+ * My!  Wouldn't is be much easier to just keep all of the PIO clocks
+ * enabled?  Is there a power management downside?
+ *
+ ****************************************************************************/
+
+static void sam_pio_disableclk(pio_pinset_t cfgset)
+{
+  int port = (cfgset & PIO_PORT_MASK) >> PIO_PORT_SHIFT;
+  uintptr_t base;
+  int pid;
+
+  /* Leave clocking enabled for configured interrupt ports or for ports that
+   * have forced enabling of PIO clocking.
+   */
+
+  if (port < SAM_NPIO && !g_piointerrupt[port] && g_forced[port] == 0)
+    {
+      /* Get the base address of the PIO port */
+
+      base = sam_pion_vbase(port);
+
+      /* Are any pins configured as PIO inputs?
+       *
+       * PSR - A bit set to "1" means that the corresponding pin is a PIO
+       * OSR - A bit set to "1" means that the corresponding pin is an output
+       */
+
+      if ((getreg32(base + SAM_PIO_PSR_OFFSET) &
+           ~getreg32(base + SAM_PIO_PSR_OFFSET)) == 0)
+        {
+          /* Any remaining configured pins are either not PIOs or all not
+           * PIO inputs.  Disable clocking to this PIO block.
+           *
+           * Get the peripheral ID associated with the PIO port and disable
+           * clocking to the PIO block.
+           */
+
+          pid = g_piopid[port];
+          if (pid < 32)
+            {
+              sam_disableperiph0(pid);
+            }
+          else
+            {
+              sam_disableperiph1(pid);
+            }
+        }
+    }
 }
 
 /****************************************************************************
@@ -187,17 +337,20 @@ static inline int sam_configinput(uintptr_t base, uint32_t pin,
     }
 
 #ifdef PIO_HAVE_SCHMITT
-  /* Enable/disable the Schmitt trigger */
+  /* Enable/disable the Schmitt trigger:  Zero enables.  Schmitt triggered
+   * inputs are enabled by default.
+   */
 
   regval = getreg32(base + SAM_PIO_SCHMITT_OFFSET);
-  if ((cfgset & PIO_CFG_PULLDOWN) != 0)
-    {
-      regval |= pin;
-    }
-  else
+  if ((cfgset & PIO_CFG_SCHMITT) != 0)
     {
       regval &= ~pin;
     }
+  else
+    {
+      regval |= pin;
+    }
+
   putreg32(regval, base + SAM_PIO_SCHMITT_OFFSET);
 #endif
 
@@ -224,6 +377,11 @@ static inline int sam_configinput(uintptr_t base, uint32_t pin,
   putreg32(regval, base + offset);
 #endif
 
+  /* Clear some output only bits.  Mostly this just simplifies debug. */
+
+  putreg32(pin, base + SAM_PIO_MDDR_OFFSET);
+  putreg32(pin, base + SAM_PIO_CODR_OFFSET);
+
   /* Configure the pin as an input and enable the PIO function */
 
   putreg32(pin, base + SAM_PIO_ODR_OFFSET);
@@ -234,7 +392,13 @@ static inline int sam_configinput(uintptr_t base, uint32_t pin,
    *         another, new API... perhaps sam_configfilter()
    */
 
- return OK;
+  /* "Reading the I/O line levels requires the clock of the PIO Controller
+   * to be enabled, otherwise PIO_PDSR reads the levels present on the I/O
+   * line at the time the clock was disabled."
+   */
+
+  sam_pio_enableclk(cfgset);
+  return OK;
 }
 
 /****************************************************************************
@@ -276,7 +440,11 @@ static inline int sam_configoutput(uintptr_t base, uint32_t pin,
     }
 #endif
 
-  /* Enable the open drain driver if requrested */
+  /* Disable glitch filtering */
+
+  putreg32(pin, base + SAM_PIO_IFDR_OFFSET);
+
+  /* Enable the open drain driver if requested */
 
   if ((cfgset & PIO_CFG_OPENDRAIN) != 0)
     {
@@ -287,7 +455,10 @@ static inline int sam_configoutput(uintptr_t base, uint32_t pin,
       putreg32(pin, base + SAM_PIO_MDDR_OFFSET);
     }
 
-  /* Set default value */
+  /* Set default value. This is to be done before the pin is configured as
+   * an output in order to avoid any glitches at the time of the
+   * configuration.
+   */
 
   if ((cfgset & PIO_OUTPUT_SET) != 0)
     {
@@ -302,6 +473,10 @@ static inline int sam_configoutput(uintptr_t base, uint32_t pin,
 
   putreg32(pin, base + SAM_PIO_OER_OFFSET);
   putreg32(pin, base + SAM_PIO_PER_OFFSET);
+
+  /* Clocking to the PIO block may no longer be necessary. */
+
+  sam_pio_disableclk(cfgset);
   return OK;
 }
 
@@ -347,6 +522,10 @@ static inline int sam_configperiph(uintptr_t base, uint32_t pin,
     }
 #endif
 
+  /* Disable glitch filtering */
+
+  putreg32(pin, base + SAM_PIO_IFDR_OFFSET);
+
 #ifdef PIO_HAVE_PERIPHCD
   /* Configure pin, depending upon the peripheral A, B, C or D
    *
@@ -366,6 +545,7 @@ static inline int sam_configperiph(uintptr_t base, uint32_t pin,
     {
       regval |= pin;
     }
+
   putreg32(regval, base + SAM_PIO_ABCDSR1_OFFSET);
 
   regval = getreg32(base + SAM_PIO_ABCDSR2_OFFSET);
@@ -378,6 +558,7 @@ static inline int sam_configperiph(uintptr_t base, uint32_t pin,
     {
       regval |= pin;
     }
+
   putreg32(regval, base + SAM_PIO_ABCDSR2_OFFSET);
 
 #else
@@ -396,12 +577,17 @@ static inline int sam_configperiph(uintptr_t base, uint32_t pin,
     {
       regval |= pin;
     }
+
   putreg32(regval, base + SAM_PIO_ABSR_OFFSET);
 #endif
 
   /* Disable PIO functionality */
 
   putreg32(pin, base + SAM_PIO_PDR_OFFSET);
+
+  /* Clocking to the PIO block may no longer be necessary. */
+
+  sam_pio_disableclk(cfgset);
   return OK;
 }
 
@@ -438,11 +624,29 @@ int sam_configpio(pio_pinset_t cfgset)
 
   flags = irqsave();
 
-  /* Enable writing to PIO registers */
+  /* Enable writing to PIO registers.  The following registers are protected:
+   *
+   *  - PIO Enable/Disable Registers (PER/PDR)
+   *  - PIO Output Enable/Disable Registers (OER/ODR)
+   *  - PIO Interrupt Security Level Register (ISLR)
+   *  - PIO Input Filter Enable/Disable Registers (IFER/IFDR)
+   *  - PIO Multi-driver Enable/Disable Registers (MDER/MDDR)
+   *  - PIO Pull-Up Enable/Disable Registers (PUER/PUDR)
+   *  - PIO Peripheral ABCD Select Register 1/2 (ABCDSR1/2)
+   *  - PIO Output Write Enable/Disable Registers
+   *  - PIO Pad Pull-Down Enable/Disable Registers (PPER/PPDR)
+   *
+   * I suspect that the default state is the WPMR is unprotected, so these
+   * operations could probably all be avoided.
+   */
 
   putreg32(PIO_WPMR_WPKEY, base + SAM_PIO_WPMR_OFFSET);
 
-  /* Handle the pin configuration according to pin type */
+  /* Put the pin in an intial state -- a vanilla input pint */
+
+  (void)sam_configinput(base, pin, MK_INPUT(cfgset));
+
+  /* Then handle the real pin configuration according to pin type */
 
   switch (cfgset & PIO_MODE_MASK)
     {
@@ -491,6 +695,11 @@ void sam_piowrite(pio_pinset_t pinset, bool value)
 
   if (base != 0)
     {
+      /* Set or clear the output as requested.  NOTE: that there is no
+       * check if the pin is actually configured as an output so this could,
+       * potentially, do nothing.
+       */
+
       if (value)
         {
           putreg32(pin, base + SAM_PIO_SODR_OFFSET);
@@ -518,21 +727,75 @@ bool sam_pioread(pio_pinset_t pinset)
 
   if (base != 0)
     {
-      pin  = sam_piopin(pinset);
+      pin = sam_piopin(pinset);
 
-      if ((pinset & PIO_MODE_MASK) == PIO_OUTPUT)
-        {
-          regval = getreg32(base + SAM_PIO_ODSR_OFFSET);
-        }
-      else
-        {
-          regval = getreg32(base + SAM_PIO_PDSR_OFFSET);
-        }
+      /* For output PIOs, the ODSR register provides the output value to
+       * drive the pin.  The PDSR register, on the the other hand, provides
+       * the current sensed value on a pin, whether the pin is configured
+       * as an input, an output or as a peripheral.
+       *
+       * There is small delay between the setting in ODSR and PDSR but
+       * otherwise the they should be the same unless something external
+       * is driving the pin.
+       *
+       * Let's assume that PDSR is what the caller wants.
+       */
 
+      regval = getreg32(base + SAM_PIO_PDSR_OFFSET);
       return (regval & pin) != 0;
     }
 
   return 0;
+}
+
+/************************************************************************************
+ * Name: sam_pio_forceclk
+ *
+ * Description:
+ *   Enable PIO clocking.  This logic is overly conservative and does not enable PIO
+ *   clocking unless necessary (PIO input selected, glitch/filtering enable, or PIO
+ *   interrupts enabled).  There are, however, certain conditions were we may want
+ *   for force the PIO clock to be enabled.  An example is reading the input value
+ *   from an open drain output.
+ *
+ *   The PIO automatic enable/disable logic is not smart enough enough to know about
+ *   these cases.  For those cases, sam_pio_forceclk() is provided.
+ *
+ ************************************************************************************/
+
+void sam_pio_forceclk(pio_pinset_t pinset, bool enable)
+{
+  unsigned int port;
+  uint32_t pin;
+  irqstate_t flags;
+
+  /* Extract the port number */
+
+  port = (pinset & PIO_PORT_MASK) >> PIO_PORT_SHIFT;
+  pin  = sam_piopin(pinset);
+
+  /* The remainder of this operation must be atomic */
+
+  flags = irqsave();
+
+  /* Are we enabling or disabling clocking */
+
+  if (enable)
+    {
+      /* Indicate that clocking is forced and enable the clock */
+
+      g_forced[port] |= pin;
+      sam_pio_enableclk(pinset);
+    }
+  else
+    {
+      /* Clocking is no longer forced for this pin */
+
+      g_forced[port] &= ~pin;
+      sam_pio_disableclk(pinset);
+    }
+
+  irqrestore(flags);
 }
 
 /************************************************************************************
@@ -548,45 +811,53 @@ int sam_dumppio(uint32_t pinset, const char *msg)
 {
   irqstate_t    flags;
   uintptr_t     base;
-  unsigned int  pin;
   unsigned int  port;
 
   /* Get the base address associated with the PIO port */
 
-  pin  = sam_piopin(pinset);
   port = (pinset & PIO_PORT_MASK) >> PIO_PORT_SHIFT;
-  base = SAM_PION_BASE(port);
+  base = sam_pion_vbase(port);
 
   /* The following requires exclusive access to the PIO registers */
 
   flags = irqsave();
   lldbg("PIO%c pinset: %08x base: %08x -- %s\n",
         g_portchar[port], pinset, base, msg);
-  lldbg("    PSR: %08x    OSR: %08x   IFSR: %08x   ODSR: %08x\n",
+
+#ifdef SAM_PIO_ISLR_OFFSET
+  lldbg("    PSR: %08x   ISLR: %08x    OSR: %08x   IFSR: %08x\n",
+        getreg32(base + SAM_PIO_PSR_OFFSET), getreg32(base + SAM_PIO_ISLR_OFFSET),
+        getreg32(base + SAM_PIO_OSR_OFFSET), getreg32(base + SAM_PIO_IFSR_OFFSET));
+#else
+  lldbg("    PSR: %08x    OSR: %08x   IFSR: %08x\n",
         getreg32(base + SAM_PIO_PSR_OFFSET), getreg32(base + SAM_PIO_OSR_OFFSET),
-        getreg32(base + SAM_PIO_IFSR_OFFSET), getreg32(base + SAM_PIO_ODSR_OFFSET));
-  lldbg("   PDSR: %08x    IMR: %08x    ISR: %08x   MDSR: %08x\n",
-        getreg32(base + SAM_PIO_PDSR_OFFSET), getreg32(base + SAM_PIO_IMR_OFFSET),
-        getreg32(base + SAM_PIO_ISR_OFFSET), getreg32(base + SAM_PIO_MDSR_OFFSET));
-  lldbg(" ABCDSR: %08x %08x         IFSCSR: %08x  PPDSR: %08x\n",
-        getreg32(base + SAM_PIO_ABCDSR1_OFFSET), getreg32(base + SAM_PIO_ABCDSR2_OFFSET),
-        getreg32(base + SAM_PIO_IFSCSR_OFFSET), getreg32(base + SAM_PIOC_PPDSR));
-  lldbg("   PUSR: %08x   SCDR: %08x   OWSR: %08x  AIMMR: %08x\n",
-        getreg32(base + SAM_PIO_PUSR_OFFSET), getreg32(base + SAM_PIO_SCDR_OFFSET),
-        getreg32(base + SAM_PIO_OWSR_OFFSET), getreg32(base + SAM_PIO_AIMMR_OFFSET));
-  lldbg("    ESR: %08x    LSR: %08x   ELSR: %08x FELLSR: %08x\n",
-        getreg32(base + SAM_PIO_ESR_OFFSET), getreg32(base + SAM_PIO_LSR_OFFSET),
-        getreg32(base + SAM_PIO_ELSR_OFFSET), getreg32(base + SAM_PIO_FELLSR_OFFSET));
-  lldbg(" FRLHSR: %08x LOCKSR: %08x   WPMR: %08x   WPSR: %08x\n",
-        getreg32(base + SAM_PIO_FRLHSR_OFFSET), getreg32(base + SAM_PIO_LOCKSR_OFFSET),
+        getreg32(base + SAM_PIO_IFSR_OFFSET));
+#endif
+  lldbg("   ODSR: %08x   PDSR: %08x    IMR: %08x    ISR: %08x\n",
+        getreg32(base + SAM_PIO_ODSR_OFFSET), getreg32(base + SAM_PIO_PDSR_OFFSET),
+        getreg32(base + SAM_PIO_IMR_OFFSET), getreg32(base + SAM_PIO_ISR_OFFSET));
+  lldbg("   MDSR: %08x   PUSR: %08x ABDCSR: %08x %08x\n",
+        getreg32(base + SAM_PIO_MDSR_OFFSET), getreg32(base + SAM_PIO_PUSR_OFFSET),
+        getreg32(base + SAM_PIO_ABCDSR1_OFFSET), getreg32(base + SAM_PIO_ABCDSR2_OFFSET));
+  lldbg(" IFSCSR: %08x   SCDR: %08x  PPDSR: %08x   OWSR: %08x\n",
+        getreg32(base + SAM_PIO_IFSCSR_OFFSET), getreg32(base + SAM_PIO_SCDR_OFFSET),
+        getreg32(base + SAM_PIO_PPDSR_OFFSET), getreg32(base + SAM_PIO_OWSR_OFFSET));
+#ifdef SAM_PIO_LOCKSR_OFFSET
+  lldbg("  AIMMR: %08x   ELSR: %08x FRLHSR: %08x LOCKSR: %08x\n",
+        getreg32(base + SAM_PIO_AIMMR_OFFSET), getreg32(base + SAM_PIO_ELSR_OFFSET),
+        getreg32(base + SAM_PIO_FRLHSR_OFFSET), getreg32(base + SAM_PIO_LOCKSR_OFFSET));
+#else
+  lldbg("  AIMMR: %08x   ELSR: %08x FRLHSR: %08x\n",
+        getreg32(base + SAM_PIO_AIMMR_OFFSET), getreg32(base + SAM_PIO_ELSR_OFFSET),
+        getreg32(base + SAM_PIO_FRLHSR_OFFSET));
+#endif
+  lldbg("SCHMITT: %08x DRIVER: %08x %08x\n",
+        getreg32(base + SAM_PIO_SCHMITT_OFFSET), getreg32(base + SAM_PIO_DRIVER1_OFFSET),
+        getreg32(base + SAM_PIO_DRIVER2_OFFSET));
+  lldbg("   WPMR: %08x   WPSR: %08x\n",
         getreg32(base + SAM_PIO_WPMR_OFFSET), getreg32(base + SAM_PIO_WPSR_OFFSET));
-  lldbg("   PCMR: %08x PCIMR: %08x   PCISR: %08x   PCRHR: %08x\n",
-        getreg32(base + SAM_PIO_PCMR_OFFSET), getreg32(base + SAM_PIO_PCIMR_OFFSET),
-        getreg32(base + SAM_PIO_PCISR_OFFSET), getreg32(base + SAM_PIO_PCRHR_OFFSET));
-  lldbg("SCHMITT: %08x\n",
-        getreg32(base + SAM_PIO_SCHMITT_OFFSET));
+
   irqrestore(flags);
   return OK;
 }
 #endif
-

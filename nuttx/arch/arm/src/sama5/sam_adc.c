@@ -319,12 +319,12 @@
 #ifdef CONFIG_SAMA5_ADC_DMA
 #  define DMA_FLAGS \
      DMACH_FLAG_FIFOCFG_LARGEST | \
-     ((SAM_IRQ_ADC << DMACH_FLAG_PERIPHPID_SHIFT) | DMACH_FLAG_PERIPHAHB_AHB_IF2 | \
+     DMACH_FLAG_PERIPHPID(SAM_IRQ_ADC) | DMACH_FLAG_PERIPHAHB_AHB_IF2 | \
      DMACH_FLAG_PERIPHH2SEL | DMACH_FLAG_PERIPHISPERIPH |  \
      DMACH_FLAG_PERIPHWIDTH_16BITS | DMACH_FLAG_PERIPHCHUNKSIZE_1 | \
-     ((0x3f) << DMACH_FLAG_MEMPID_SHIFT) | DMACH_FLAG_MEMAHB_AHB_IF0 | \
+     DMACH_FLAG_MEMPID_MAX | DMACH_FLAG_MEMAHB_AHB_IF0 | \
      DMACH_FLAG_MEMWIDTH_16BITS | DMACH_FLAG_MEMINCREMENT | \
-     DMACH_FLAG_MEMCHUNKSIZE_1)
+     DMACH_FLAG_MEMCHUNKSIZE_1 | DMACH_FLAG_MEMBURST_4)
 #endif
 
 /* Pick an unused channel number */
@@ -652,7 +652,7 @@ static void sam_adc_dmadone(void *arg)
        * newly DMAed data from RAM.
        */
 
-      cp15_invalidate_dcache((uintptr_t)buffer,
+      arch_invalidate_dcache((uintptr_t)buffer,
                              (uintptr_t)buffer + SAMA5_ADC_SAMPLES * sizeof(uint16_t));
 
       /* Process each sample */
@@ -1233,6 +1233,7 @@ static int sam_adc_settimer(struct sam_adc_s *priv, uint32_t frequency,
   uint32_t tcclks;
   uint32_t mode;
   uint32_t fdiv;
+  uint32_t regval;
   int ret;
 
   avdbg("frequency=%ld channel=%d\n", (long)frequency, channel);
@@ -1267,7 +1268,7 @@ static int sam_adc_settimer(struct sam_adc_s *priv, uint32_t frequency,
     }
 
   /* The divider returned by sam_tc_divisor() is the reload value that will
-   * achieve a 1HZ rate.  We need to multiply this to get the desired
+   * achieve a 1Hz rate.  We need to multiply this to get the desired
    * frequency.  sam_tc_divisor() should have already assure that we can
    * do this without overflowing a 32-bit unsigned integer.
    */
@@ -1275,12 +1276,18 @@ static int sam_adc_settimer(struct sam_adc_s *priv, uint32_t frequency,
   fdiv = div * frequency;
   DEBUGASSERT(div > 0 && div <= fdiv); /* Will check for integer overflow */
 
+  /* Calculate the actual counter value from this divider and the tc input
+   * frequency.
+   */
+
+  regval = sam_tc_infreq() / fdiv;
+
   /* Set up TC_RA and TC_RC.  The frequency is determined by RA and RC:  TIOA is
    * cleared on RA match; TIOA is set on RC match.
    */
 
-  sam_tc_setregister(priv->tc, TC_REGA, fdiv << 1);
-  sam_tc_setregister(priv->tc, TC_REGC, fdiv);
+  sam_tc_setregister(priv->tc, TC_REGA, regval >> 1);
+  sam_tc_setregister(priv->tc, TC_REGC, regval);
 
   /* And start the timer */
 

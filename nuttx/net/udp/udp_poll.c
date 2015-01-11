@@ -48,10 +48,10 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/udp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "udp/udp.h"
 
 /****************************************************************************
@@ -92,7 +92,7 @@
  *
  ****************************************************************************/
 
-void udp_poll(FAR struct uip_driver_s *dev, FAR struct udp_conn_s *conn)
+void udp_poll(FAR struct net_driver_s *dev, FAR struct udp_conn_s *conn)
 {
   /* Verify that the UDP connection is valid */
 
@@ -100,15 +100,15 @@ void udp_poll(FAR struct uip_driver_s *dev, FAR struct udp_conn_s *conn)
     {
       /* Set-up for the application callback */
 
-      dev->d_appdata = &dev->d_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN];
-      dev->d_snddata = &dev->d_buf[UIP_LLH_LEN + UIP_IPUDPH_LEN];
+      dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
+      dev->d_snddata = &dev->d_buf[NET_LL_HDRLEN + IPUDP_HDRLEN];
 
       dev->d_len     = 0;
       dev->d_sndlen  = 0;
 
       /* Perform the application callback */
 
-      (void)udp_callback(dev, conn, UIP_POLL);
+      (void)udp_callback(dev, conn, UDP_POLL);
 
       /* If the application has data to send, setup the UDP/IP header */
 

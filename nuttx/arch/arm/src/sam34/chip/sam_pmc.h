@@ -419,7 +419,7 @@
 #  define PMC_PCK_CSS_MAIN               (1 << PMC_PCK_CSS_SHIFT) /* Main Clock */
 #  define PMC_PCK_CSS_PLLA               (2 << PMC_PCK_CSS_SHIFT) /* PLLA Clock */
 
-#if defined(CONFIG_ARCH_CHIP_SAM4S)
+#if defined(CONFIG_ARCH_CHIP_SAM4CM) || defined(CONFIG_ARCH_CHIP_SAM4S)
 #  define PMC_PCK_CSS_PLLB               (3 << PMC_PCK_CSS_SHIFT) /* PLLB Clock */
 #elif defined(CONFIG_ARCH_CHIP_SAM3X) || defined(CONFIG_ARCH_CHIP_SAM3A) || \
       defined(CONFIG_ARCH_CHIP_SAM3U)

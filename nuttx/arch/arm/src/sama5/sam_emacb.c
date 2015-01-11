@@ -58,6 +58,13 @@
 
 #include <nuttx/config.h>
 
+#if defined(CONFIG_DEBUG) && defined(CONFIG_SAMA5_EMACB_DEBUG)
+  /* Force debug output (from this file only) */
+
+#  undef  CONFIG_DEBUG_NET
+#  define CONFIG_DEBUG_NET 1
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
@@ -67,11 +74,12 @@
 #include <queue.h>
 #include <errno.h>
 
+#include <arpa/inet.h>
+
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/net/mii.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 
@@ -94,164 +102,170 @@
  * Pre-processor Definitions
  ****************************************************************************/
 /* EMAC0 Configuration ******************************************************/
-/* Number of buffers for RX */
 
-#ifndef CONFIG_SAMA5_EMAC0_NRXBUFFERS
-#  define CONFIG_SAMA5_EMAC0_NRXBUFFERS  16
-#endif
+#ifdef CONFIG_SAMA5_EMAC0
+  /* Number of buffers for RX */
 
-/* Number of buffers for TX */
+#  ifndef CONFIG_SAMA5_EMAC0_NRXBUFFERS
+#    define CONFIG_SAMA5_EMAC0_NRXBUFFERS  16
+#  endif
 
-#ifndef CONFIG_SAMA5_EMAC0_NTXBUFFERS
-#  define CONFIG_SAMA5_EMAC0_NTXBUFFERS  8
-#endif
+  /* Number of buffers for TX */
 
-#ifndef CONFIG_SAMA5_EMAC0_PHYADDR
-#  error "CONFIG_SAMA5_EMAC0_PHYADDR must be defined in the NuttX configuration"
-#endif
+#  ifndef CONFIG_SAMA5_EMAC0_NTXBUFFERS
+#    define CONFIG_SAMA5_EMAC0_NTXBUFFERS  8
+#  endif
 
-#if !defined(CONFIG_SAMA5_EMAC0_MII) && !defined(CONFIG_SAMA5_EMAC0_RMII)
-#  warning "Neither CONFIG_SAMA5_EMAC0_MII nor CONFIG_SAMA5_EMAC0_RMII defined"
-#endif
+#  ifndef CONFIG_SAMA5_EMAC0_PHYADDR
+#    error "CONFIG_SAMA5_EMAC0_PHYADDR must be defined in the NuttX configuration"
+#  endif
 
-#if defined(CONFIG_SAMA5_EMAC0_MII) && defined(CONFIG_SAMA5_EMAC0_RMII)
-#  error "Both CONFIG_SAMA5_EMAC0_MII and CONFIG_SAMA5_EMAC0_RMII defined"
-#endif
+#  if !defined(CONFIG_SAMA5_EMAC0_MII) && !defined(CONFIG_SAMA5_EMAC0_RMII)
+#    warning "Neither CONFIG_SAMA5_EMAC0_MII nor CONFIG_SAMA5_EMAC0_RMII defined"
+#  endif
 
-#ifndef CONFIG_SAMA5_EMAC0_PHYSR
-#  error "CONFIG_SAMA5_EMAC0_PHYSR must be defined in the NuttX configuration"
-#endif
+#  if defined(CONFIG_SAMA5_EMAC0_MII) && defined(CONFIG_SAMA5_EMAC0_RMII)
+#    error "Both CONFIG_SAMA5_EMAC0_MII and CONFIG_SAMA5_EMAC0_RMII defined"
+#  endif
 
-#ifdef CONFIG_SAMA5_EMAC0_AUTONEG
-#  ifdef CONFIG_SAMA5_EMAC0_PHYSR_ALTCONFIG
-#    ifndef CONFIG_SAMA5_EMAC0_PHYSR_ALTMODE
-#      error "CONFIG_SAMA5_EMAC0_PHYSR_ALTMODE must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC0_PHYSR_10HD
-#      error "CONFIG_SAMA5_EMAC0_PHYSR_10HD must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC0_PHYSR_100HD
-#      error "CONFIG_SAMA5_EMAC0_PHYSR_100HD must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC0_PHYSR_10FD
-#      error "CONFIG_SAMA5_EMAC0_PHYSR_10FD must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC0_PHYSR_100FD
-#      error "CONFIG_SAMA5_EMAC0_PHYSR_100FD must be defined in the NuttX configuration"
-#    endif
-#  else
-#    ifndef CONFIG_SAMA5_EMAC0_PHYSR_SPEED
-#      error "CONFIG_SAMA5_EMAC0_PHYSR_SPEED must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC0_PHYSR_100MBPS
-#      error "CONFIG_SAMA5_EMAC0_PHYSR_100MBPS must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC0_PHYSR_MODE
-#      error "CONFIG_SAMA5_EMAC0_PHYSR_MODE must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC0_PHYSR_FULLDUPLEX
-#      error "CONFIG_SAMA5_EMAC0_PHYSR_FULLDUPLEX must be defined in the NuttX configuration"
+#  ifndef CONFIG_SAMA5_EMAC0_PHYSR
+#    error "CONFIG_SAMA5_EMAC0_PHYSR must be defined in the NuttX configuration"
+#  endif
+
+#  ifdef CONFIG_SAMA5_EMAC0_AUTONEG
+#    ifdef CONFIG_SAMA5_EMAC0_PHYSR_ALTCONFIG
+#      ifndef CONFIG_SAMA5_EMAC0_PHYSR_ALTMODE
+#        error "CONFIG_SAMA5_EMAC0_PHYSR_ALTMODE must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC0_PHYSR_10HD
+#        error "CONFIG_SAMA5_EMAC0_PHYSR_10HD must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC0_PHYSR_100HD
+#        error "CONFIG_SAMA5_EMAC0_PHYSR_100HD must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC0_PHYSR_10FD
+#        error "CONFIG_SAMA5_EMAC0_PHYSR_10FD must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC0_PHYSR_100FD
+#        error "CONFIG_SAMA5_EMAC0_PHYSR_100FD must be defined in the NuttX configuration"
+#      endif
+#    else
+#      ifndef CONFIG_SAMA5_EMAC0_PHYSR_SPEED
+#        error "CONFIG_SAMA5_EMAC0_PHYSR_SPEED must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC0_PHYSR_100MBPS
+#        error "CONFIG_SAMA5_EMAC0_PHYSR_100MBPS must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC0_PHYSR_MODE
+#        error "CONFIG_SAMA5_EMAC0_PHYSR_MODE must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC0_PHYSR_FULLDUPLEX
+#        error "CONFIG_SAMA5_EMAC0_PHYSR_FULLDUPLEX must be defined in the NuttX configuration"
+#      endif
 #    endif
 #  endif
-#endif
 
-/* PHY definitions */
+  /* PHY definitions */
 
-#if defined(SAMA5_EMAC0_PHY_DM9161)
-#  define EMAC0_MII_OUI_MSB    0x0181
-#  define EMAC0_MII_OUI_LSB    0x2e
-#elif defined(SAMA5_EMAC0_PHY_LAN8700)
-#  define EMAC0_MII_OUI_MSB    0x0007
-#  define EMAC0_MII_OUI_LSB    0x30
-#elif defined(SAMA5_EMAC0_PHY_KSZ8051)
-#  define EMAC0_MII_OUI_MSB    0x0022
-#  define EMAC0_MII_OUI_LSB    0x05
-#elif defined(SAMA5_EMAC0_PHY_KSZ8081)
-#  define EMAC0_MII_OUI_MSB    0x0022
-#  define EMAC0_MII_OUI_LSB    0x05
-#else
-#  error EMAC PHY unrecognized
-#endif
+#  if defined(SAMA5_EMAC0_PHY_DM9161)
+#    define EMAC0_MII_OUI_MSB    0x0181
+#    define EMAC0_MII_OUI_LSB    0x2e
+#  elif defined(SAMA5_EMAC0_PHY_LAN8700)
+#    define EMAC0_MII_OUI_MSB    0x0007
+#    define EMAC0_MII_OUI_LSB    0x30
+#  elif defined(SAMA5_EMAC0_PHY_KSZ8051)
+#    define EMAC0_MII_OUI_MSB    0x0022
+#    define EMAC0_MII_OUI_LSB    0x05
+#  elif defined(SAMA5_EMAC0_PHY_KSZ8081)
+#    define EMAC0_MII_OUI_MSB    0x0022
+#    define EMAC0_MII_OUI_LSB    0x05
+#  else
+#    error EMAC PHY unrecognized
+#  endif
+#endif /* CONFIG_SAMA5_EMAC0 */
 
 /* EMAC1 Configuration ******************************************************/
-/* Number of buffers for RX */
 
-#ifndef CONFIG_SAMA5_EMAC1_NRXBUFFERS
-#  define CONFIG_SAMA5_EMAC1_NRXBUFFERS  16
-#endif
+#ifdef CONFIG_SAMA5_EMAC1
+  /* Number of buffers for RX */
 
-/* Number of buffers for TX */
+#  ifndef CONFIG_SAMA5_EMAC1_NRXBUFFERS
+#    define CONFIG_SAMA5_EMAC1_NRXBUFFERS  16
+#  endif
 
-#ifndef CONFIG_SAMA5_EMAC1_NTXBUFFERS
-#  define CONFIG_SAMA5_EMAC1_NTXBUFFERS  8
-#endif
+  /* Number of buffers for TX */
 
-#ifndef CONFIG_SAMA5_EMAC1_PHYADDR
-#  error "CONFIG_SAMA5_EMAC1_PHYADDR must be defined in the NuttX configuration"
-#endif
+#  ifndef CONFIG_SAMA5_EMAC1_NTXBUFFERS
+#    define CONFIG_SAMA5_EMAC1_NTXBUFFERS  8
+#  endif
 
-#if !defined(CONFIG_SAMA5_EMAC1_MII) && !defined(CONFIG_SAMA5_EMAC1_RMII)
-#  warning "Neither CONFIG_SAMA5_EMAC1_MII nor CONFIG_SAMA5_EMAC1_RMII defined"
-#endif
+#  ifndef CONFIG_SAMA5_EMAC1_PHYADDR
+#    error "CONFIG_SAMA5_EMAC1_PHYADDR must be defined in the NuttX configuration"
+#  endif
 
-#if defined(CONFIG_SAMA5_EMAC1_MII) && defined(CONFIG_SAMA5_EMAC1_RMII)
-#  error "Both CONFIG_SAMA5_EMAC1_MII and CONFIG_SAMA5_EMAC1_RMII defined"
-#endif
+#  if !defined(CONFIG_SAMA5_EMAC1_MII) && !defined(CONFIG_SAMA5_EMAC1_RMII)
+#    warning "Neither CONFIG_SAMA5_EMAC1_MII nor CONFIG_SAMA5_EMAC1_RMII defined"
+#  endif
 
-#ifndef CONFIG_SAMA5_EMAC1_PHYSR
-#  error "CONFIG_SAMA5_EMAC1_PHYSR must be defined in the NuttX configuration"
-#endif
+#  if defined(CONFIG_SAMA5_EMAC1_MII) && defined(CONFIG_SAMA5_EMAC1_RMII)
+#    error "Both CONFIG_SAMA5_EMAC1_MII and CONFIG_SAMA5_EMAC1_RMII defined"
+#  endif
 
-#ifdef CONFIG_SAMA5_EMAC1_AUTONEG
-#  ifdef CONFIG_SAMA5_EMAC1_PHYSR_ALTCONFIG
-#    ifndef CONFIG_SAMA5_EMAC1_PHYSR_ALTMODE
-#      error "CONFIG_SAMA5_EMAC1_PHYSR_ALTMODE must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC1_PHYSR_10HD
-#      error "CONFIG_SAMA5_EMAC1_PHYSR_10HD must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC1_PHYSR_100HD
-#      error "CONFIG_SAMA5_EMAC1_PHYSR_100HD must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC1_PHYSR_10FD
-#      error "CONFIG_SAMA5_EMAC1_PHYSR_10FD must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC1_PHYSR_100FD
-#      error "CONFIG_SAMA5_EMAC1_PHYSR_100FD must be defined in the NuttX configuration"
-#    endif
-#  else
-#    ifndef CONFIG_SAMA5_EMAC1_PHYSR_SPEED
-#      error "CONFIG_SAMA5_EMAC1_PHYSR_SPEED must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC1_PHYSR_100MBPS
-#      error "CONFIG_SAMA5_EMAC1_PHYSR_100MBPS must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC1_PHYSR_MODE
-#      error "CONFIG_SAMA5_EMAC1_PHYSR_MODE must be defined in the NuttX configuration"
-#    endif
-#    ifndef CONFIG_SAMA5_EMAC1_PHYSR_FULLDUPLEX
-#      error "CONFIG_SAMA5_EMAC1_PHYSR_FULLDUPLEX must be defined in the NuttX configuration"
+#  ifndef CONFIG_SAMA5_EMAC1_PHYSR
+#    error "CONFIG_SAMA5_EMAC1_PHYSR must be defined in the NuttX configuration"
+#  endif
+
+#  ifdef CONFIG_SAMA5_EMAC1_AUTONEG
+#    ifdef CONFIG_SAMA5_EMAC1_PHYSR_ALTCONFIG
+#      ifndef CONFIG_SAMA5_EMAC1_PHYSR_ALTMODE
+#        error "CONFIG_SAMA5_EMAC1_PHYSR_ALTMODE must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC1_PHYSR_10HD
+#        error "CONFIG_SAMA5_EMAC1_PHYSR_10HD must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC1_PHYSR_100HD
+#        error "CONFIG_SAMA5_EMAC1_PHYSR_100HD must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC1_PHYSR_10FD
+#        error "CONFIG_SAMA5_EMAC1_PHYSR_10FD must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC1_PHYSR_100FD
+#        error "CONFIG_SAMA5_EMAC1_PHYSR_100FD must be defined in the NuttX configuration"
+#      endif
+#    else
+#      ifndef CONFIG_SAMA5_EMAC1_PHYSR_SPEED
+#        error "CONFIG_SAMA5_EMAC1_PHYSR_SPEED must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC1_PHYSR_100MBPS
+#        error "CONFIG_SAMA5_EMAC1_PHYSR_100MBPS must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC1_PHYSR_MODE
+#        error "CONFIG_SAMA5_EMAC1_PHYSR_MODE must be defined in the NuttX configuration"
+#      endif
+#      ifndef CONFIG_SAMA5_EMAC1_PHYSR_FULLDUPLEX
+#        error "CONFIG_SAMA5_EMAC1_PHYSR_FULLDUPLEX must be defined in the NuttX configuration"
+#      endif
 #    endif
 #  endif
-#endif
 
-/* PHY definitions */
+  /* PHY definitions */
 
-#if defined(SAMA5_EMAC1_PHY_DM9161)
-#  define EMAC1_MII_OUI_MSB    0x0181
-#  define EMAC1_MII_OUI_LSB    0x2e
-#elif defined(SAMA5_EMAC1_PHY_LAN8700)
-#  define EMAC1_MII_OUI_MSB    0x0007
-#  define EMAC1_MII_OUI_LSB    0x30
-#elif defined(SAMA5_EMAC1_PHY_KSZ8051)
-#  define EMAC1_MII_OUI_MSB    0x0022
-#  define EMAC1_MII_OUI_LSB    0x05
-#elif defined(SAMA5_EMAC1_PHY_KSZ8081)
-#  define EMAC1_MII_OUI_MSB    0x0022
-#  define EMAC1_MII_OUI_LSB    0x05
-#else
-#  error EMAC PHY unrecognized
-#endif
+#  if defined(SAMA5_EMAC1_PHY_DM9161)
+#    define EMAC1_MII_OUI_MSB    0x0181
+#    define EMAC1_MII_OUI_LSB    0x2e
+#  elif defined(SAMA5_EMAC1_PHY_LAN8700)
+#    define EMAC1_MII_OUI_MSB    0x0007
+#    define EMAC1_MII_OUI_LSB    0x30
+#  elif defined(SAMA5_EMAC1_PHY_KSZ8051)
+#    define EMAC1_MII_OUI_MSB    0x0022
+#    define EMAC1_MII_OUI_LSB    0x05
+#  elif defined(SAMA5_EMAC1_PHY_KSZ8081)
+#    define EMAC1_MII_OUI_MSB    0x0022
+#    define EMAC1_MII_OUI_LSB    0x05
+#  else
+#    error EMAC PHY unrecognized
+#  endif
+#endif /* CONFIG_SAMA5_EMAC0 */
 
 /* Common Configuration *****************************************************/
 
@@ -387,7 +401,7 @@ struct sam_emac_s
 
   /* This holds the information visible to uIP/NuttX */
 
-  struct uip_driver_s   dev;         /* Interface understood by uIP */
+  struct net_driver_s   dev;         /* Interface understood by uIP */
 
   /* Constant and configured attributes of the EMAC */
 
@@ -438,7 +452,7 @@ static void sam_buffer_free(struct sam_emac_s *priv);
 /* Common TX logic */
 
 static int  sam_transmit(struct sam_emac_s *priv);
-static int  sam_uiptxpoll(struct uip_driver_s *dev);
+static int  sam_txpoll(struct net_driver_s *dev);
 static void sam_dopoll(struct sam_emac_s *priv);
 
 /* Interrupt handling */
@@ -461,12 +475,12 @@ static void sam_txtimeout(int argc, uint32_t arg, ...);
 
 /* NuttX callback functions */
 
-static int  sam_ifup(struct uip_driver_s *dev);
-static int  sam_ifdown(struct uip_driver_s *dev);
-static int  sam_txavail(struct uip_driver_s *dev);
+static int  sam_ifup(struct net_driver_s *dev);
+static int  sam_ifdown(struct net_driver_s *dev);
+static int  sam_txavail(struct net_driver_s *dev);
 #ifdef CONFIG_NET_IGMP
-static int  sam_addmac(struct uip_driver_s *dev, const uint8_t *mac);
-static int  sam_rmmac(struct uip_driver_s *dev, const uint8_t *mac);
+static int  sam_addmac(struct net_driver_s *dev, const uint8_t *mac);
+static int  sam_rmmac(struct net_driver_s *dev, const uint8_t *mac);
 #endif
 
 /* PHY Initialization */
@@ -830,7 +844,7 @@ static uint16_t sam_txinuse(struct sam_emac_s *priv)
   uint32_t txhead32 = (uint32_t)priv->txhead;
   if ((uint32_t)priv->txtail > txhead32)
     {
-      return txhead32 += priv->attr->ntxbuffers;
+      txhead32 += priv->attr->ntxbuffers;
     }
 
   return (uint16_t)(txhead32 - (uint32_t)priv->txtail);
@@ -1009,7 +1023,7 @@ static void sam_buffer_free(struct sam_emac_s *priv)
 
 static int sam_transmit(struct sam_emac_s *priv)
 {
-  struct uip_driver_s *dev = &priv->dev;
+  struct net_driver_s *dev = &priv->dev;
   volatile struct emac_txdesc_s *txdesc;
   uintptr_t virtaddr;
   uint32_t regval;
@@ -1046,7 +1060,7 @@ static int sam_transmit(struct sam_emac_s *priv)
 
       virtaddr = sam_virtramaddr(txdesc->addr);
       memcpy((void *)virtaddr, dev->d_buf, dev->d_len);
-      cp15_clean_dcache((uint32_t)virtaddr, (uint32_t)virtaddr + dev->d_len);
+      arch_clean_dcache((uint32_t)virtaddr, (uint32_t)virtaddr + dev->d_len);
     }
 
   /* Update TX descriptor status. */
@@ -1060,7 +1074,7 @@ static int sam_transmit(struct sam_emac_s *priv)
   /* Update the descriptor status and flush the updated value to RAM */
 
   txdesc->status = status;
-  cp15_clean_dcache((uint32_t)txdesc,
+  arch_clean_dcache((uint32_t)txdesc,
                     (uint32_t)txdesc + sizeof(struct emac_txdesc_s));
 
   /* Increment the head index */
@@ -1089,8 +1103,8 @@ static int sam_transmit(struct sam_emac_s *priv)
 
   /* If we have no more available TX descriptors, then we must disable the
    * RCOMP interrupt to stop further RX processing.  Why?  Because EACH RX
-   * packet that is dispatch is also an opportunity to replay with the a TX
-   * packet.  So, if we cannot handle an RX packet replay, then we disable
+   * packet that is dispatched is also an opportunity to replay with a TX
+   * packet.  So, if we cannot handle an RX packet reply, then we disable
    * all RX packet processing.
    */
 
@@ -1104,11 +1118,11 @@ static int sam_transmit(struct sam_emac_s *priv)
 }
 
 /****************************************************************************
- * Function: sam_uiptxpoll
+ * Function: sam_txpoll
  *
  * Description:
  *   The transmitter is available, check if uIP has any outgoing packets ready
- *   to send.  This is a callback from uip_poll().  uip_poll() may be called:
+ *   to send.  This is a callback from devif_poll().  devif_poll() may be called:
  *
  *   1. When the preceding TX packet send is complete,
  *   2. When the preceding TX packet send timesout and the interface is reset
@@ -1127,7 +1141,7 @@ static int sam_transmit(struct sam_emac_s *priv)
  *
  ****************************************************************************/
 
-static int sam_uiptxpoll(struct uip_driver_s *dev)
+static int sam_txpoll(struct net_driver_s *dev)
 {
   struct sam_emac_s *priv = (struct sam_emac_s *)dev->d_private;
 
@@ -1182,7 +1196,7 @@ static int sam_uiptxpoll(struct uip_driver_s *dev)
 
 static void sam_dopoll(struct sam_emac_s *priv)
 {
-  struct uip_driver_s *dev = &priv->dev;
+  struct net_driver_s *dev = &priv->dev;
 
   /* Check if the there are any free TX descriptors.  We cannot perform the
    * TX poll if we do not have buffering for another packet.
@@ -1192,7 +1206,7 @@ static void sam_dopoll(struct sam_emac_s *priv)
     {
       /* If we have the descriptor, then poll uIP for new XMIT data. */
 
-      (void)uip_poll(dev, sam_uiptxpoll);
+      (void)devif_poll(dev, sam_txpoll);
     }
 }
 
@@ -1222,7 +1236,7 @@ static void sam_dopoll(struct sam_emac_s *priv)
 static int sam_recvframe(struct sam_emac_s *priv)
 {
   struct emac_rxdesc_s *rxdesc;
-  struct uip_driver_s *dev;
+  struct net_driver_s *dev;
   const uint8_t *src;
   uint8_t  *dest;
   uintptr_t physaddr;
@@ -1238,15 +1252,17 @@ static int sam_recvframe(struct sam_emac_s *priv)
   dev        = &priv->dev;
   dev->d_len = 0;
 
+  dest       = dev->d_buf;
+  pktlen     = 0;
+
   rxndx      = priv->rxndx;
   rxdesc     = &priv->rxdesc[rxndx];
   isframe    = false;
 
   /* Invalidate the RX descriptor to force re-fetching from RAM */
 
-  cp15_invalidate_dcache((uintptr_t)rxdesc,
+  arch_invalidate_dcache((uintptr_t)rxdesc,
                          (uintptr_t)rxdesc + sizeof(struct emac_rxdesc_s));
-
   nllvdbg("rxndx: %d\n", rxndx);
 
   while ((rxdesc->addr & EMACRXD_ADDR_OWNER) != 0)
@@ -1268,7 +1284,7 @@ static int sam_recvframe(struct sam_emac_s *priv)
 
               /* Flush the modified RX descriptor to RAM */
 
-              cp15_clean_dcache((uintptr_t)rxdesc,
+              arch_clean_dcache((uintptr_t)rxdesc,
                                 (uintptr_t)rxdesc +
                                 sizeof(struct emac_rxdesc_s));
 
@@ -1313,7 +1329,7 @@ static int sam_recvframe(struct sam_emac_s *priv)
 
                   /* Flush the modified RX descriptor to RAM */
 
-                  cp15_clean_dcache((uintptr_t)rxdesc,
+                  arch_clean_dcache((uintptr_t)rxdesc,
                                     (uintptr_t)rxdesc +
                                     sizeof(struct emac_rxdesc_s));
 
@@ -1343,7 +1359,7 @@ static int sam_recvframe(struct sam_emac_s *priv)
           physaddr = (uintptr_t)(rxdesc->addr & EMACRXD_ADDR_MASK);
           src = (const uint8_t *)sam_virtramaddr(physaddr);
 
-          cp15_invalidate_dcache((uintptr_t)src, (uintptr_t)src + copylen);
+          arch_invalidate_dcache((uintptr_t)src, (uintptr_t)src + copylen);
 
           /* And do the copy */
 
@@ -1373,7 +1389,7 @@ static int sam_recvframe(struct sam_emac_s *priv)
 
                   /* Flush the modified RX descriptor to RAM */
 
-                  cp15_clean_dcache((uintptr_t)rxdesc,
+                  arch_clean_dcache((uintptr_t)rxdesc,
                                     (uintptr_t)rxdesc +
                                     sizeof(struct emac_rxdesc_s));
 
@@ -1390,10 +1406,10 @@ static int sam_recvframe(struct sam_emac_s *priv)
                */
 
               nllvdbg("rxndx: %d d_len: %d\n", priv->rxndx, dev->d_len);
-
               if (pktlen < dev->d_len)
                 {
-                  nlldbg("ERROR: Buffer size %d; frame size %d\n", dev->d_len, pktlen);
+                  nlldbg("ERROR: Buffer size %d; frame size %d\n",
+                         dev->d_len, pktlen);
                   return -E2BIG;
                 }
 
@@ -1413,7 +1429,7 @@ static int sam_recvframe(struct sam_emac_s *priv)
 
           /* Flush the modified RX descriptor to RAM */
 
-          cp15_clean_dcache((uintptr_t)rxdesc,
+          arch_clean_dcache((uintptr_t)rxdesc,
                             (uintptr_t)rxdesc +
                             sizeof(struct emac_rxdesc_s));
 
@@ -1426,7 +1442,7 @@ static int sam_recvframe(struct sam_emac_s *priv)
 
     /* Invalidate the RX descriptor to force re-fetching from RAM */
 
-    cp15_invalidate_dcache((uintptr_t)rxdesc,
+    arch_invalidate_dcache((uintptr_t)rxdesc,
                            (uintptr_t)rxdesc + sizeof(struct emac_rxdesc_s));
   }
 
@@ -1441,8 +1457,8 @@ static int sam_recvframe(struct sam_emac_s *priv)
  * Function: sam_receive
  *
  * Description:
- *   An interrupt was received indicating the availability of a new RX packet
- *   in FIFO memory.
+ *   An interrupt was received indicating the availability of one or more
+ *   new RX packets in FIFO memory.
  *
  * Parameters:
  *   priv  - Reference to the driver state structure
@@ -1457,7 +1473,7 @@ static int sam_recvframe(struct sam_emac_s *priv)
 
 static void sam_receive(struct sam_emac_s *priv)
 {
-  struct uip_driver_s *dev = &priv->dev;
+  struct net_driver_s *dev = &priv->dev;
 
   /* Loop while while sam_recvframe() successfully retrieves valid
    * EMAC frames.
@@ -1479,9 +1495,9 @@ static void sam_receive(struct sam_emac_s *priv)
       /* We only accept IP packets of the configured type and ARP packets */
 
 #ifdef CONFIG_NET_IPv6
-      else if (BUF->type == HTONS(UIP_ETHTYPE_IP6))
+      else if (BUF->type == HTONS(ETHTYPE_IP6))
 #else
-      else if (BUF->type == HTONS(UIP_ETHTYPE_IP))
+      else if (BUF->type == HTONS(ETHTYPE_IP))
 #endif
         {
           nllvdbg("IP frame\n");
@@ -1489,7 +1505,7 @@ static void sam_receive(struct sam_emac_s *priv)
           /* Handle ARP on input then give the IP packet to uIP */
 
           arp_ipin(&priv->dev);
-          uip_input(&priv->dev);
+          devif_input(&priv->dev);
 
           /* If the above function invocation resulted in data that should be
            * sent out on the network, the field  d_len will set to a value > 0.
@@ -1501,7 +1517,7 @@ static void sam_receive(struct sam_emac_s *priv)
              sam_transmit(priv);
            }
         }
-      else if (BUF->type == htons(UIP_ETHTYPE_ARP))
+      else if (BUF->type == htons(ETHTYPE_ARP))
         {
           nllvdbg("ARP frame\n");
 
@@ -1529,8 +1545,8 @@ static void sam_receive(struct sam_emac_s *priv)
  * Function: sam_txdone
  *
  * Description:
- *   An interrupt was received indicating that a frame has completed
- *   transmission.
+ *   An interrupt was received indicating that one or more frames have
+ *   completed transmission.
  *
  * Parameters:
  *   priv  - Reference to the driver state structure
@@ -1546,10 +1562,13 @@ static void sam_receive(struct sam_emac_s *priv)
 static void sam_txdone(struct sam_emac_s *priv)
 {
   struct emac_txdesc_s *txdesc;
+#ifndef __NO_KLUDGES__
+  int ntxdone = 0;
+#endif
 
   /* Are there any outstanding transmissions?  Loop until either (1) all of
-   * the TX have been examined, or (2) until we encounter the first
-   * descriptor that is still in use by the hardware.
+   * the TX descriptors have been examined, or (2) until we encounter the
+   * first descriptor that is still in use by the hardware.
    */
 
   while (priv->txhead != priv->txtail)
@@ -1557,12 +1576,25 @@ static void sam_txdone(struct sam_emac_s *priv)
       /* Yes.. check the next buffer at the tail of the list */
 
       txdesc = &priv->txdesc[priv->txtail];
-      cp15_invalidate_dcache((uintptr_t)txdesc,
+      arch_invalidate_dcache((uintptr_t)txdesc,
                              (uintptr_t)txdesc + sizeof(struct emac_txdesc_s));
 
       /* Is this TX descriptor still in use? */
 
+#ifndef __NO_KLUDGES__
+# warning REVISIT
+      /* I have seen cases where we receive interrupts, but the USED
+       * bit is never set in the TX descriptor.  This logic assumes
+       * that if we got the interrupt, then there most be at least
+       * one packet that completed.  This is not necessarily a safe
+       * assumption.
+       */
+
+      ntxdone++;
+      if ((txdesc->status & EMACTXD_STA_USED) == 0 && ntxdone > 1)
+#else
       if ((txdesc->status & EMACTXD_STA_USED) == 0)
+#endif
         {
           /* Yes.. the descriptor is still in use.  However, I have seen a
            * case (only repeatable on start-up) where the USED bit is never
@@ -1577,7 +1609,7 @@ static void sam_txdone(struct sam_emac_s *priv)
               sam_physramaddr((uintptr_t)txdesc) != sam_getreg(priv, SAM_EMAC_TBQB_OFFSET))
             {
               txdesc->status = (uint32_t)EMACTXD_STA_USED;
-              cp15_clean_dcache((uintptr_t)txdesc,
+              arch_clean_dcache((uintptr_t)txdesc,
                                 (uintptr_t)txdesc + sizeof(struct emac_txdesc_s));
             }
           else
@@ -1591,6 +1623,14 @@ static void sam_txdone(struct sam_emac_s *priv)
             }
         }
 
+#ifndef __NO_KLUDGES__
+      /* Make sure that the USED bit is set */
+
+      txdesc->status = (uint32_t)EMACTXD_STA_USED;
+      arch_clean_dcache((uintptr_t)txdesc,
+                        (uintptr_t)txdesc + sizeof(struct emac_txdesc_s));
+#endif
+
       /* Increment the tail index */
 
       if (++priv->txtail >= priv->attr->ntxbuffers)
@@ -1602,7 +1642,7 @@ static void sam_txdone(struct sam_emac_s *priv)
 
       /* At least one TX descriptor is available.  Re-enable RX interrupts.
        * RX interrupts may previously have been disabled when we ran out of
-       * TX desciptors (see commits in sam_transmit()).
+       * TX descriptors (see comments in sam_transmit()).
        */
 
       sam_putreg(priv, SAM_EMAC_IER_OFFSET, EMAC_INT_RCOMP);
@@ -1620,7 +1660,7 @@ static void sam_txdone(struct sam_emac_s *priv)
  *   Common hardware interrupt handler
  *
  * Parameters:
- *   priv    - Reference to the EMAC private state strucure
+ *   priv    - Reference to the EMAC private state structure
  *
  * Returned Value:
  *   OK on success
@@ -1721,7 +1761,7 @@ static int sam_emac_interrupt(struct sam_emac_s *priv)
   /* Check for the receipt of an RX packet.
    *
    * RXCOMP indicates that a packet has been received and stored in memory.
-   *   The RXCOMP bit is cleared whent he interrupt status register was read.
+   *   The RXCOMP bit is cleared when the interrupt status register was read.
    * RSR:REC indicates that one or more frames have been received and placed
    *   in memory. This indication is cleared by writing a one to this bit.
    */
@@ -1773,7 +1813,7 @@ static int sam_emac_interrupt(struct sam_emac_s *priv)
     }
 
 #ifdef CONFIG_DEBUG_NET
-  /* Check for PAUSE Frame recieved (PFRE).
+  /* Check for PAUSE Frame received (PFRE).
    *
    * ISR:PFRE indicates that a pause frame has been received with non-zero
    * pause quantum.  Cleared on a read.
@@ -1887,7 +1927,7 @@ static void sam_txtimeout(int argc, uint32_t arg, ...)
 static void sam_polltimer(int argc, uint32_t arg, ...)
 {
   struct sam_emac_s *priv = (struct sam_emac_s *)arg;
-  struct uip_driver_s   *dev  = &priv->dev;
+  struct net_driver_s   *dev  = &priv->dev;
 
   /* Check if the there are any free TX descriptors.  We cannot perform the
    * TX poll if we do not have buffering for another packet.
@@ -1897,7 +1937,7 @@ static void sam_polltimer(int argc, uint32_t arg, ...)
     {
       /* Update TCP timing states and poll uIP for new XMIT data. */
 
-      (void)uip_timer(dev, sam_uiptxpoll, SAM_POLLHSEC);
+      (void)devif_timer(dev, sam_txpoll, SAM_POLLHSEC);
     }
 
   /* Setup the watchdog poll timer again */
@@ -1922,7 +1962,7 @@ static void sam_polltimer(int argc, uint32_t arg, ...)
  *
  ****************************************************************************/
 
-static int sam_ifup(struct uip_driver_s *dev)
+static int sam_ifup(struct net_driver_s *dev)
 {
   struct sam_emac_s *priv = (struct sam_emac_s *)dev->d_private;
   int ret;
@@ -1992,7 +2032,7 @@ static int sam_ifup(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int sam_ifdown(struct uip_driver_s *dev)
+static int sam_ifdown(struct net_driver_s *dev)
 {
   struct sam_emac_s *priv = (struct sam_emac_s *)dev->d_private;
   irqstate_t flags;
@@ -2042,7 +2082,7 @@ static int sam_ifdown(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int sam_txavail(struct uip_driver_s *dev)
+static int sam_txavail(struct net_driver_s *dev)
 {
   struct sam_emac_s *priv = (struct sam_emac_s *)dev->d_private;
   irqstate_t flags;
@@ -2087,7 +2127,7 @@ static int sam_txavail(struct uip_driver_s *dev)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int sam_addmac(struct uip_driver_s *dev, const uint8_t *mac)
+static int sam_addmac(struct net_driver_s *dev, const uint8_t *mac)
 {
   struct sam_emac_s *priv = (struct sam_emac_s *)dev->d_private;
 
@@ -2121,7 +2161,7 @@ static int sam_addmac(struct uip_driver_s *dev, const uint8_t *mac)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int sam_rmmac(struct uip_driver_s *dev, const uint8_t *mac)
+static int sam_rmmac(struct net_driver_s *dev, const uint8_t *mac)
 {
   struct sam_emac_s *priv = (struct sam_emac_s *)dev->d_private;
 
@@ -2762,7 +2802,7 @@ static int sam_autonegotiate(struct sam_emac_s *priv)
   /* Setup the EMAC link speed */
 
   regval  = sam_getreg(priv, SAM_EMAC_NCFGR_OFFSET);
-  regval &= (EMAC_NCFGR_SPD | EMAC_NCFGR_FD);
+  regval &= ~(EMAC_NCFGR_SPD | EMAC_NCFGR_FD);
 
   if (((advertise & lpa) & MII_ADVERTISE_100BASETXFULL) != 0)
     {
@@ -3135,7 +3175,7 @@ static void sam_txreset(struct sam_emac_s *priv)
 
   /* Flush the entire TX descriptor table to RAM */
 
-  cp15_clean_dcache((uintptr_t)txdesc,
+  arch_clean_dcache((uintptr_t)txdesc,
                     (uintptr_t)txdesc +
                     priv->attr->ntxbuffers * sizeof(struct emac_txdesc_s));
 
@@ -3199,7 +3239,7 @@ static void sam_rxreset(struct sam_emac_s *priv)
 
   /* Flush the entire RX descriptor table to RAM */
 
-  cp15_clean_dcache((uintptr_t)rxdesc,
+  arch_clean_dcache((uintptr_t)rxdesc,
                     (uintptr_t)rxdesc +
                     priv->attr->nrxbuffers * sizeof(struct emac_rxdesc_s));
 
@@ -3311,8 +3351,6 @@ static void sam_emac_disableclk(struct sam_emac_s *priv)
 
 static void sam_emac_reset(struct sam_emac_s *priv)
 {
-  uint32_t regval;
-
   /* Disable all EMAC interrupts */
 
   sam_putreg(priv, SAM_EMAC_IDR_OFFSET, EMAC_INT_ALL);
@@ -3322,10 +3360,9 @@ static void sam_emac_reset(struct sam_emac_s *priv)
   sam_rxreset(priv);
   sam_txreset(priv);
 
-  /* Disable RX, TX, and statistics */
+  /* Make sure that RX and TX are disabled; clear statistics registers */
 
-  regval = EMAC_NCR_TXEN | EMAC_NCR_RXEN | EMAC_NCR_WESTAT | EMAC_NCR_CLRSTAT;
-  sam_putreg(priv, SAM_EMAC_NCR_OFFSET, regval);
+  sam_putreg(priv, SAM_EMAC_NCR_OFFSET, EMAC_NCR_CLRSTAT);
 
   /* Disable clocking to the EMAC peripheral */
 
@@ -3350,7 +3387,7 @@ static void sam_emac_reset(struct sam_emac_s *priv)
 
 static void sam_macaddress(struct sam_emac_s *priv)
 {
-  struct uip_driver_s *dev = &priv->dev;
+  struct net_driver_s *dev = &priv->dev;
   uint32_t regval;
 
   nllvdbg("%s MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
@@ -3398,14 +3435,10 @@ static int sam_emac_configure(struct sam_emac_s *priv)
 
   sam_emac_enableclk(priv);
 
-  /* Disable TX, RX, interrupts, etc. */
+  /* Disable TX, RX, clear statistics.  Disable all interrupts. */
 
-  sam_putreg(priv, SAM_EMAC_NCR_OFFSET, 0);
+  sam_putreg(priv, SAM_EMAC_NCR_OFFSET, EMAC_NCR_CLRSTAT);
   sam_putreg(priv, SAM_EMAC_IDR_OFFSET, EMAC_INT_ALL);
-
-  regval = sam_getreg(priv, SAM_EMAC_NCR_OFFSET);
-  regval |= EMAC_NCR_CLRSTAT;
-  sam_putreg(priv, SAM_EMAC_NCR_OFFSET, regval);
 
   /* Clear all status bits in the receive status register. */
 
@@ -3448,7 +3481,7 @@ static int sam_emac_configure(struct sam_emac_s *priv)
   sam_rxreset(priv);
   sam_txreset(priv);
 
-  /* Enable Rx and Tx, plus the stats register. */
+  /* Enable Rx and Tx, plus the statistics registers. */
 
   regval  = sam_getreg(priv, SAM_EMAC_NCR_OFFSET);
   regval |= (EMAC_NCR_RXEN | EMAC_NCR_TXEN | EMAC_NCR_WESTAT);

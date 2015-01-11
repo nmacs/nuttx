@@ -1,8 +1,8 @@
 /****************************************************************************
  * crypto/cryptodev.c
  *
- *   Copyright (C) 2007, 2008, 2013 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ *   Copyright (C) 2014 Gregory Nutt. All rights reserved.
+ *   Author:  Max Nekludov <macscomp@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,18 +44,24 @@
 #include <string.h>
 #include <poll.h>
 #include <errno.h>
+
 #include <nuttx/fs/fs.h>
-#include <crypto/crypto.h>
-#include <crypto/cryptodev.h>
+
+#include <crypto/nuttx/crypto.h>
+#include <crypto/nuttx/cryptodev.h>
 
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
 
 /* Character driver methods */
-static ssize_t cryptodev_read(FAR struct file *filep, FAR char *buffer, size_t len);
-static ssize_t cryptodev_write(FAR struct file *filep, FAR const char *buffer, size_t len);
-static int cryptodev_ioctl(FAR struct file *filep, int cmd, unsigned long arg);
+
+static ssize_t cryptodev_read(FAR struct file *filep, FAR char *buffer,
+                              size_t len);
+static ssize_t cryptodev_write(FAR struct file *filep, FAR const char *buffer,
+                               size_t len);
+static int cryptodev_ioctl(FAR struct file *filep, int cmd,
+                           unsigned long arg);
 
 /****************************************************************************
  * Private Data
@@ -76,12 +82,14 @@ static const struct file_operations g_cryptodevops =
  * Private Functions
  ****************************************************************************/
 
-static ssize_t cryptodev_read(FAR struct file *filep, FAR char *buffer, size_t len)
+static ssize_t cryptodev_read(FAR struct file *filep, FAR char *buffer,
+                              size_t len)
 {
   return -EACCES;
 }
 
-static ssize_t cryptodev_write(FAR struct file *filep, FAR const char *buffer, size_t len)
+static ssize_t cryptodev_write(FAR struct file *filep, FAR const char *buffer,
+                               size_t len)
 {
   return -EACCES;
 }
@@ -91,46 +99,60 @@ static int cryptodev_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
   switch(cmd)
   {
   case CIOCGSESSION:
-  {
-    struct session_op *ses = (struct session_op*)arg;
-    ses->ses = (uint32_t)ses;
-    return OK;
-  }
-  case CIOCFSESSION:
-  {
-    return OK;
-  }
-  case CIOCCRYPT:
-  {
-    struct crypt_op *op = (struct crypt_op*)arg;
-    struct session_op *ses = (struct session_op*)op->ses;
-    int encrypt;
-    switch(op->op)
     {
-    case COP_ENCRYPT:
-      encrypt = 1;
-      break;
-    case COP_DECRYPT:
-      encrypt = 0;
-      break;
-    default:
-      return -EINVAL;
+      struct session_op *ses = (struct session_op*)arg;
+      ses->ses = (uint32_t)ses;
+      return OK;
     }
-    switch(ses->cipher) {
+
+  case CIOCFSESSION:
+    {
+      return OK;
+    }
+
+  case CIOCCRYPT:
+    {
+      FAR struct crypt_op *op = (struct crypt_op*)arg;
+      FAR struct session_op *ses = (struct session_op*)op->ses;
+      int encrypt;
+
+      switch (op->op)
+      {
+      case COP_ENCRYPT:
+        encrypt = 1;
+        break;
+
+      case COP_DECRYPT:
+        encrypt = 0;
+        break;
+
+      default:
+        return -EINVAL;
+      }
+
+      switch (ses->cipher)
+      {
+
 #if defined(CONFIG_CRYPTO_AES)
 #  define AES_CYPHER(mode) aes_cypher(op->dst, op->src, op->len, op->iv, ses->key, ses->keylen, mode, encrypt)
-    case CRYPTO_AES_ECB:
-      return AES_CYPHER(AES_MODE_ECB);
-    case CRYPTO_AES_CBC:
-      return AES_CYPHER(AES_MODE_CBC);
-    case CRYPTO_AES_CTR:
-      return AES_CYPHER(AES_MODE_CTR);
+
+      case CRYPTO_AES_ECB:
+        return AES_CYPHER(AES_MODE_ECB);
+
+      case CRYPTO_AES_CBC:
+        return AES_CYPHER(AES_MODE_CBC);
+
+      case CRYPTO_AES_CTR:
+        return AES_CYPHER(AES_MODE_CTR);
+
 #  undef AES_CYPHER
 #endif
-    default:
-      return -EINVAL;
+
+      default:
+        return -EINVAL;
+      }
     }
-  }
+
   default:
     return -EINVAL;
   }

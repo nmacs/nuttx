@@ -25,9 +25,19 @@ config NX_NPLANES
 	int "Number of Color Planes"
 	default 1
 	---help---
-		Some YUV color formats requires support for multiple planes, one for each
-		color component.  Unless you have such special hardware, this value should be
-		undefined or set to 1.
+		Some YUV color formats requires support for multiple planes, one for
+		each color component.  Unless you have such special hardware (and
+		are willing to debug a lot of untested logic), this value should be
+		set to 1.
+
+config NX_BGCOLOR
+	hex "Initial background color"
+	default 0x0
+	---help---
+		NX will clear the background plane initially.  This is the default
+		color that will be used when the background is cleared.  Note: This
+		logic would have to be extended if you want to support multiple
+		color planes.
 
 config NX_WRITEONLY
 	bool "Write-only Graphics Device"
@@ -108,11 +118,42 @@ config NX_PACKEDMSFIRST
 
 menu "Input Devices"
 
-config NX_MOUSE
-	bool "Mouse/Touchscreen Support"
+config NX_XYINPUT
+	bool
 	default n
+
+choice
+	prompt "Mouse/Touchscreen Support"
+	default NX_XYINPUT_NONE
+
+config NX_XYINPUT_NONE
+	bool "No X/Y input device"
 	---help---
-		Build in support for mouse or touchscreeninput.
+		There is no X/Y positional input device connected
+
+config NX_XYINPUT_MOUSE
+	bool "Mouse device support"
+	select NX_XYINPUT
+	---help---
+		X/Y positional input is provided by a mouse.  The only difference
+		between the mouse and touchscreen selection is in the presence or
+		absence of the mouse buttons.  This difference is not used within
+		NuttX itself, however, graphics applications may need this
+		information, for example, to handle the different ways that graphic
+		elements are selected and dragged.
+
+config NX_XYINPUT_TOUCHSCREEN
+	bool "Touchscreen device support"
+	select NX_XYINPUT
+	---help---
+		X/Y positional input is provided by a touchscreen.  The only difference
+		between the mouse and touchscreen selection is in the presence or
+		absence of the mouse buttons.  This difference is not used within
+		NuttX itself, however, graphics applications may need this
+		information, for example, to handle the different ways that graphic
+		elements are selected and dragged.
+
+endchoice # Mouse/Touchscreen Support
 
 config NX_KBD
 	bool "Keyboard Support"

@@ -57,9 +57,8 @@
 #include <nuttx/irq.h>
 #include <nuttx/net/net.h>
 #include <nuttx/clock.h>
-
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/ip.h>
 
 #if defined(CONFIG_NET) && defined(CONFIG_NET_SLIP)
 
@@ -75,8 +74,8 @@
 
 /* Configuration ************************************************************/
 
-#if UIP_LLH_LEN > 0
-#  error "UIP_LLH_LEN must be set to zero"
+#if NET_LL_HDRLEN > 0
+#  error "NET_LL_HDRLEN must be set to zero"
 #endif
 
 #ifndef CONFIG_NET_NOINTS
@@ -103,7 +102,7 @@
  * a MTU of 296 and window of 256, but actually only sends 168 bytes of data:
  * 40 + 128.  I believe that is to allow for the 2x worst cast packet
  * expansion.  Ideally we would like to advertise the 256 MSS, but restrict
- * uIP to 128 bytes (possibly by modifying the uip_mss() macro).
+ * uIP to 128 bytes (possibly by modifying the tcp_mss() macro).
  */
 
 #if CONFIG_NET_BUFSIZE < 296
@@ -178,7 +177,7 @@ struct slip_driver_s
 
   /* This holds the information visible to uIP/NuttX */
 
-  struct uip_driver_s dev;  /* Interface understood by uIP */
+  struct net_driver_s dev;  /* Interface understood by uIP */
   uint8_t rxbuf[CONFIG_NET_BUFSIZE + 2];
   uint8_t txbuf[CONFIG_NET_BUFSIZE + 2];
 };
@@ -204,7 +203,7 @@ static void slip_semtake(FAR struct slip_driver_s *priv);
 static void slip_write(FAR struct slip_driver_s *priv, const uint8_t *buffer, int len);
 static void slip_putc(FAR struct slip_driver_s *priv, int ch);
 static int slip_transmit(FAR struct slip_driver_s *priv);
-static int slip_uiptxpoll(struct uip_driver_s *dev);
+static int slip_txpoll(struct net_driver_s *dev);
 static void slip_txtask(int argc, char *argv[]);
 
 /* Packet receiver task */
@@ -215,12 +214,12 @@ static int slip_rxtask(int argc, char *argv[]);
 
 /* NuttX callback functions */
 
-static int slip_ifup(struct uip_driver_s *dev);
-static int slip_ifdown(struct uip_driver_s *dev);
-static int slip_txavail(struct uip_driver_s *dev);
+static int slip_ifup(struct net_driver_s *dev);
+static int slip_ifdown(struct net_driver_s *dev);
+static int slip_txavail(struct net_driver_s *dev);
 #ifdef CONFIG_NET_IGMP
-static int slip_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
-static int slip_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
+static int slip_addmac(struct net_driver_s *dev, FAR const uint8_t *mac);
+static int slip_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac);
 #endif
 
 /****************************************************************************
@@ -359,10 +358,10 @@ static int slip_transmit(FAR struct slip_driver_s *priv)
                 {
                   slip_write(priv, start, len);
                 }
-                /* Reset */
+                  /* Reset */
 
-                start = src + 1;
-                len   = 0;
+                  start = src + 1;
+                  len   = 0;
 
               /* Then send the escape sequence */
 
@@ -400,11 +399,11 @@ static int slip_transmit(FAR struct slip_driver_s *priv)
 }
 
 /****************************************************************************
- * Function: slip_uiptxpoll
+ * Function: slip_txpoll
  *
  * Description:
  *   Check if uIP has any outgoing packets ready to send.  This is a
- *   callback from uip_poll().  uip_poll() may be called:
+ *   callback from devif_poll().  devif_poll() may be called:
  *
  *   1. When the preceding TX packet send is complete, or
  *   2. When the preceding TX packet send times o ]ut and the interface is reset
@@ -421,7 +420,7 @@ static int slip_transmit(FAR struct slip_driver_s *priv)
  *
  ****************************************************************************/
 
-static int slip_uiptxpoll(struct uip_driver_s *dev)
+static int slip_txpoll(struct net_driver_s *dev)
 {
   FAR struct slip_driver_s *priv = (FAR struct slip_driver_s *)dev->d_private;
 
@@ -459,7 +458,7 @@ static void slip_txtask(int argc, char *argv[])
 {
   FAR struct slip_driver_s *priv;
   unsigned int index = *(argv[1]) - '0';
-  uip_lock_t flags;
+  net_lock_t flags;
   unsigned int msec_now, msec_start;
   unsigned int hsec;
 
@@ -484,7 +483,7 @@ static void slip_txtask(int argc, char *argv[])
       if (!priv->txnodelay)
         {
           slip_semgive(priv);
-          usleep(SLIP_WDDELAY);
+      usleep(SLIP_WDDELAY);
         }
       else
         {
@@ -505,14 +504,14 @@ static void slip_txtask(int argc, char *argv[])
           /* Poll uIP for new XMIT data.
            */
 
-          flags = uip_lock();
+          flags = net_lock();
           priv->dev.d_buf = priv->txbuf;
 
           msec_now = clock_systimer() * MSEC_PER_TICK;
           hsec = (unsigned int)(msec_now - msec_start) / (MSEC_PER_SEC / 2);
           if (hsec)
             {
-              (void)uip_timer(&priv->dev, slip_uiptxpoll, hsec);
+              (void)devif_timer(&priv->dev, slip_txpoll, hsec);
               msec_start += hsec * (MSEC_PER_SEC / 2);
             }
           else
@@ -520,7 +519,7 @@ static void slip_txtask(int argc, char *argv[])
               (void)uip_poll(&priv->dev, slip_uiptxpoll);
             }
 
-          uip_unlock(flags);
+          net_unlock(flags);
           slip_semgive(priv);
         }
     }
@@ -670,7 +669,7 @@ static int slip_rxtask(int argc, char *argv[])
 {
   FAR struct slip_driver_s *priv;
   unsigned int index = *(argv[1]) - '0';
-  uip_lock_t flags;
+  net_lock_t flags;
   int ch;
 
   ndbg("index: %d\n", index);
@@ -733,7 +732,7 @@ static int slip_rxtask(int argc, char *argv[])
        * enough to hold an IP header.
        */
 
-      if (priv->rxlen >= UIP_IPH_LEN)
+      if (priv->rxlen >= IP_HDRLEN)
         {
           /* Handle the IP input.  Get exclusive access to uIP. */
 
@@ -741,8 +740,8 @@ static int slip_rxtask(int argc, char *argv[])
           priv->dev.d_buf = priv->rxbuf;
           priv->dev.d_len = priv->rxlen;
 
-          flags = uip_lock();
-          uip_input(&priv->dev);
+          flags = net_lock();
+          devif_input(&priv->dev);
 
           /* If the above function invocation resulted in data that should
            * be sent out on the network, the field  d_len will set to a
@@ -754,7 +753,7 @@ static int slip_rxtask(int argc, char *argv[])
               slip_transmit(priv);
               kill(priv->txpid, SIGALRM);
             }
-          uip_unlock(flags);
+          net_unlock(flags);
           slip_semgive(priv);
         }
       else
@@ -785,7 +784,7 @@ static int slip_rxtask(int argc, char *argv[])
  *
  ****************************************************************************/
 
-static int slip_ifup(struct uip_driver_s *dev)
+static int slip_ifup(struct net_driver_s *dev)
 {
   FAR struct slip_driver_s *priv = (FAR struct slip_driver_s *)dev->d_private;
 
@@ -815,7 +814,7 @@ static int slip_ifup(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int slip_ifdown(struct uip_driver_s *dev)
+static int slip_ifdown(struct net_driver_s *dev)
 {
   FAR struct slip_driver_s *priv = (FAR struct slip_driver_s *)dev->d_private;
 
@@ -841,7 +840,7 @@ static int slip_ifdown(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int slip_txavail(struct uip_driver_s *dev)
+static int slip_txavail(struct net_driver_s *dev)
 {
   FAR struct slip_driver_s *priv = (FAR struct slip_driver_s *)dev->d_private;
 
@@ -880,7 +879,7 @@ static int slip_txavail(struct uip_driver_s *dev)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int slip_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int slip_addmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   FAR struct slip_driver_s *priv = (FAR struct slip_driver_s *)dev->d_private;
 
@@ -909,7 +908,7 @@ static int slip_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int slip_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int slip_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   FAR struct slip_driver_s *priv = (FAR struct slip_driver_s *)dev->d_private;
 

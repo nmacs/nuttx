@@ -104,6 +104,42 @@
 #  define CONFIG_NSH_TMPDIR "/tmp"
 #endif
 
+/* Networking support.  Make sure that all non-boolean configuration
+ * settings have some value.
+ */
+
+#ifndef CONFIG_NSH_IPADDR
+#  define CONFIG_NSH_IPADDR    0x0a000002
+#endif
+
+#ifndef CONFIG_NSH_DRIPADDR
+#  define CONFIG_NSH_DRIPADDR  0x0a000001
+#endif
+
+#ifndef CONFIG_NSH_NETMASK
+#  define CONFIG_NSH_NETMASK   0xffffff00
+#endif
+
+#ifndef CONFIG_NSH_DNSIPADDR
+#  define CONFIG_NSH_DNSIPADDR CONFIG_NSH_DRIPADDR
+#endif
+
+#ifndef CONFIG_NSH_MACADDR
+#  define CONFIG_NSH_MACADDR   0x00e0deadbeef
+#endif
+
+#ifndef CONFIG_NSH_NETINIT_THREAD_STACKSIZE
+#  define CONFIG_NSH_NETINIT_THREAD_STACKSIZE 1568
+#endif
+
+#ifndef CONFIG_NSH_NETINIT_THREAD_PRIORITY
+#  define CONFIG_NSH_NETINIT_THREAD_PRIORITY   100
+#endif
+
+#ifndef CONFIG_NET
+#  undef CONFIG_NSH_ARCHMAC
+#endif
+
 /* Telnetd requires networking support */
 
 #ifndef CONFIG_NET
@@ -146,19 +182,53 @@
 
 #ifdef HAVE_USB_CONSOLE
 
-/* The default USB console device minor number is 0*/
+/* The default USB console device minor number is 0 */
 
 #  ifndef CONFIG_NSH_USBDEV_MINOR
 #    define CONFIG_NSH_USBDEV_MINOR 0
 #  endif
 
-/* The default console device is always /dev/console */
+/* The default USB serial console device */
 
 #  ifndef CONFIG_NSH_USBCONDEV
-#    define CONFIG_NSH_USBCONDEV "/dev/console"
+#    if defined(CONFIG_CDCACM)
+#      define CONFIG_NSH_USBCONDEV "/dev/ttyACM0"
+#    elif defined(CONFIG_PL2303)
+#      define CONFIG_NSH_USBCONDEV "/dev/ttyUSB0"
+#    else
+#      define CONFIG_NSH_USBCONDEV "/dev/console"
+#    endif
 #  endif
 
 #endif /* HAVE_USB_CONSOLE */
+
+/* If a USB keyboard device is selected for NSH input then we need to handle
+ * some special start-up conditions.
+ */
+
+#undef HAVE_USB_KEYBOARD
+
+/* Check pre-requisites */
+
+#if !defined(CONFIG_USBHOST) || !defined(CONFIG_USBHOST_HIDKBD) || \
+    defined(HAVE_USB_CONSOLE)
+#  undef CONFIG_NSH_USBKBD
+#endif
+
+/* Check default settings */
+
+#if defined(CONFIG_NSH_USBKBD)
+
+/* Check for a USB HID keyboard in the configuration */
+
+#  define HAVE_USB_KEYBOARD 1
+
+/* The default keyboard device is /dev/kbda */
+
+#  ifndef NSH_USBKBD_DEVNAME
+#    define NSH_USBKBD_DEVNAME "/dev/kbda"
+#  endif
+#endif /* HAVE_USB_KEYBOARD */
 
 /* USB trace settings */
 
@@ -638,6 +708,10 @@ int nsh_archinitialize(void);
 #  define nsh_archinitialize() (-ENOSYS)
 #endif
 
+#ifdef CONFIG_NSH_ARCHMAC
+int nsh_arch_macaddress(uint8_t *mac);
+#endif
+
 /* Basic session and message handling */
 
 struct console_stdio_s;
@@ -713,10 +787,8 @@ void nsh_usbtrace(void);
   int cmd_lbracket(FAR struct nsh_vtbl_s *vtbl, int argc, char **argv);
 #endif
 
-#ifndef CONFIG_DISABLE_CLOCK
-#  if defined (CONFIG_RTC) && !defined(CONFIG_NSH_DISABLE_DATE)
-   int cmd_date(FAR struct nsh_vtbl_s *vtbl, int argc, char **argv);
-#  endif
+#if defined (CONFIG_RTC) && !defined(CONFIG_NSH_DISABLE_DATE)
+  int cmd_date(FAR struct nsh_vtbl_s *vtbl, int argc, char **argv);
 #endif
 
 #if CONFIG_NFILE_DESCRIPTORS > 0
@@ -832,7 +904,7 @@ void nsh_usbtrace(void);
 #    endif
 #  endif
 #  if defined(CONFIG_NET_ICMP) && defined(CONFIG_NET_ICMP_PING) && \
-     !defined(CONFIG_DISABLE_CLOCK) && !defined(CONFIG_DISABLE_SIGNALS)
+     !defined(CONFIG_DISABLE_SIGNALS)
 #    ifndef CONFIG_NSH_DISABLE_PING
         int cmd_ping(FAR struct nsh_vtbl_s *vtbl, int argc, char **argv);
 #    endif

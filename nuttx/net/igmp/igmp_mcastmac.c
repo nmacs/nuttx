@@ -47,9 +47,10 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
+#include <nuttx/net/ip.h>
+#include <nuttx/net/igmp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "igmp/igmp.h"
 
 #ifdef CONFIG_NET_IGMP
@@ -63,7 +64,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name:  uip_mcastmac
+ * Name:  igmp_mcastmac
  *
  * Description:
  *   Given an IP address (in network order), create a IGMP multicast MAC
@@ -71,7 +72,7 @@
  *
  ****************************************************************************/
 
-static void uip_mcastmac(uip_ipaddr_t *ip, FAR uint8_t *mac)
+static void igmp_mcastmac(net_ipaddr_t *ip, FAR uint8_t *mac)
 {
   /* This mapping is from the IETF IN RFC 1700 */
 
@@ -98,14 +99,14 @@ static void uip_mcastmac(uip_ipaddr_t *ip, FAR uint8_t *mac)
  *
  ****************************************************************************/
 
-void igmp_addmcastmac(FAR struct uip_driver_s *dev, FAR uip_ipaddr_t *ip)
+void igmp_addmcastmac(FAR struct net_driver_s *dev, FAR net_ipaddr_t *ip)
 {
   uint8_t mcastmac[6];
 
   nvdbg("Adding: IP %08x\n", *ip);
   if (dev->d_addmac)
     {
-      uip_mcastmac(ip, mcastmac);
+      igmp_mcastmac(ip, mcastmac);
       dev->d_addmac(dev, mcastmac);
     }
 }
@@ -118,14 +119,14 @@ void igmp_addmcastmac(FAR struct uip_driver_s *dev, FAR uip_ipaddr_t *ip)
  *
  ****************************************************************************/
 
-void igmp_removemcastmac(FAR struct uip_driver_s *dev, FAR uip_ipaddr_t *ip)
+void igmp_removemcastmac(FAR struct net_driver_s *dev, FAR net_ipaddr_t *ip)
 {
   uint8_t mcastmac[6];
 
   nvdbg("Removing: IP %08x\n", *ip);
   if (dev->d_rmmac)
     {
-      uip_mcastmac(ip, mcastmac);
+      igmp_mcastmac(ip, mcastmac);
       dev->d_rmmac(dev, mcastmac);
     }
 }

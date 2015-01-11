@@ -49,12 +49,16 @@
 #include <debug.h>
 
 #include <net/if.h>
-#include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
-#include <nuttx/net/netdev.h>
+#include <arpa/inet.h>
 
-#include "uip/uip.h"
+#include <nuttx/net/netconfig.h>
+#include <nuttx/net/netdev.h>
+#include <nuttx/net/netstats.h>
+#include <nuttx/net/ip.h>
+
+#include "devif/devif.h"
 #include "icmp/icmp.h"
+#include "utils/utils.h"
 
 #ifdef CONFIG_NET_ICMP
 
@@ -62,7 +66,7 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define ICMPBUF ((struct icmp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+#define ICMPBUF ((struct icmp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
 
 /****************************************************************************
  * Public Variables
@@ -73,7 +77,7 @@
  ****************************************************************************/
 
 #ifdef CONFIG_NET_ICMP_PING
-FAR struct uip_callback_s *g_echocallback = NULL;
+FAR struct devif_callback_s *g_echocallback = NULL;
 #endif
 
 /****************************************************************************
@@ -102,12 +106,12 @@ FAR struct uip_callback_s *g_echocallback = NULL;
  *
  ****************************************************************************/
 
-void icmp_input(FAR struct uip_driver_s *dev)
+void icmp_input(FAR struct net_driver_s *dev)
 {
   FAR struct icmp_iphdr_s *picmp = ICMPBUF;
 
 #ifdef CONFIG_NET_STATISTICS
-  uip_stat.icmp.recv++;
+  g_netstats.icmp.recv++;
 #endif
 
 #ifndef CONFIG_NET_IPv6
@@ -138,8 +142,8 @@ void icmp_input(FAR struct uip_driver_s *dev)
 
       /* Swap IP addresses. */
 
-      uiphdr_ipaddr_copy(picmp->destipaddr, picmp->srcipaddr);
-      uiphdr_ipaddr_copy(picmp->srcipaddr, &dev->d_ipaddr);
+      net_ipaddr_hdrcopy(picmp->destipaddr, picmp->srcipaddr);
+      net_ipaddr_hdrcopy(picmp->srcipaddr, &dev->d_ipaddr);
 
       /* Recalculate the ICMP checksum */
 
@@ -147,7 +151,7 @@ void icmp_input(FAR struct uip_driver_s *dev)
       /* The slow way... sum over the ICMP message */
 
       picmp->icmpchksum = 0;
-      picmp->icmpchksum = ~icmp_chksum(dev, (((uint16_t)picmp->len[0] << 8) | (uint16_t)picmp->len[1]) - UIP_IPH_LEN);
+      picmp->icmpchksum = ~icmp_chksum(dev, (((uint16_t)picmp->len[0] << 8) | (uint16_t)picmp->len[1]) - IP_HDRLEN);
       if (picmp->icmpchksum == 0)
         {
           picmp->icmpchksum = 0xffff;
@@ -171,8 +175,8 @@ void icmp_input(FAR struct uip_driver_s *dev)
               dev->d_len, (picmp->len[0] << 8) | picmp->len[1]);
 
 #ifdef CONFIG_NET_STATISTICS
-      uip_stat.icmp.sent++;
-      uip_stat.ip.sent++;
+      g_netstats.icmp.sent++;
+      g_netstats.ip.sent++;
 #endif
     }
 
@@ -183,7 +187,7 @@ void icmp_input(FAR struct uip_driver_s *dev)
 #ifdef CONFIG_NET_ICMP_PING
   else if (picmp->type == ICMP_ECHO_REPLY && g_echocallback)
     {
-      (void)uip_callbackexecute(dev, picmp, UIP_ECHOREPLY, g_echocallback);
+      (void)devif_callback_execute(dev, picmp, ICMP_ECHOREPLY, g_echocallback);
     }
 #endif
 
@@ -199,8 +203,8 @@ void icmp_input(FAR struct uip_driver_s *dev)
 
 typeerr:
 #ifdef CONFIG_NET_STATISTICS
-  uip_stat.icmp.typeerr++;
-  uip_stat.icmp.drop++;
+  g_netstats.icmp.typeerr++;
+  g_netstats.icmp.drop++;
 #endif
   dev->d_len = 0;
 
@@ -212,13 +216,13 @@ typeerr:
 
   if (picmp->type == ICMP6_NEIGHBOR_SOLICITATION)
     {
-      if (uip_ipaddr_cmp(picmp->icmp6data, dev->d_ipaddr))
+      if (net_ipaddr_cmp(picmp->icmp6data, dev->d_ipaddr))
         {
           if (picmp->options[0] == ICMP6_OPTION_SOURCE_LINK_ADDRESS)
             {
               /* Save the sender's address in our neighbor list. */
 
-              //uiphdr_neighbor_add(picmp->srcipaddr, &(picmp->options[2]));
+              net_neighbor_add(picmp->srcipaddr, &(picmp->options[2]));
             }
 
           /* We should now send a neighbor advertisement back to where the
@@ -230,8 +234,8 @@ typeerr:
 
           picmp->reserved1 = picmp->reserved2 = picmp->reserved3 = 0;
 
-          uiphdr_ipaddr_copy(picmp->destipaddr, picmp->srcipaddr);
-          uiphdr_ipaddr_copy(picmp->srcipaddr, &dev->d_ipaddr);
+          net_ipaddr_hdrcopy(picmp->destipaddr, picmp->srcipaddr);
+          net_ipaddr_hdrcopy(picmp->srcipaddr, &dev->d_ipaddr);
           picmp->options[0] = ICMP6_OPTION_TARGET_LINK_ADDRESS;
           picmp->options[1] = 1;  /* Options length, 1 = 8 bytes. */
           memcpy(&(picmp->options[2]), &dev->d_mac, IFHWADDRLEN);
@@ -252,8 +256,8 @@ typeerr:
 
       picmp->type = ICMP6_ECHO_REPLY;
 
-      uiphdr_ipaddr_copy(picmp->destipaddr, picmp->srcipaddr);
-      uiphdr_ipaddr_copy(picmp->srcipaddr, &dev->d_ipaddr);
+      net_ipaddr_hdrcopy(picmp->destipaddr, picmp->srcipaddr);
+      net_ipaddr_hdrcopy(picmp->srcipaddr, &dev->d_ipaddr);
       picmp->icmpchksum = 0;
       picmp->icmpchksum = ~icmp_6chksum(dev);
     }
@@ -265,18 +269,18 @@ typeerr:
 #ifdef CONFIG_NET_ICMP_PING
   else if (picmp->type == ICMP6_ECHO_REPLY && g_echocallback)
     {
-      uint16_t flags = UIP_ECHOREPLY;
+      uint16_t flags = ICMP_ECHOREPLY;
 
       if (g_echocallback)
         {
           /* Dispatch the ECHO reply to the waiting thread */
 
-          flags = uip_callbackexecute(dev, picmp, flags, g_echocallback);
+          flags = devif_callback_execute(dev, picmp, flags, g_echocallback);
         }
 
       /* If the ECHO reply was not handled, then drop the packet */
 
-      if (flags == UIP_ECHOREPLY)
+      if (flags == ICMP_ECHOREPLY)
         {
           /* The ECHO reply was not handled */
 
@@ -295,19 +299,19 @@ typeerr:
           dev->d_len, (picmp->len[0] << 8) | picmp->len[1]);
 
 #ifdef CONFIG_NET_STATISTICS
-  uip_stat.icmp.sent++;
-  uip_stat.ip.sent++;
+  g_netstats.icmp.sent++;
+  g_netstats.ip.sent++;
 #endif
   return;
 
 typeerr:
 #ifdef CONFIG_NET_STATISTICS
-  uip_stat.icmp.typeerr++;
+  g_netstats.icmp.typeerr++;
 #endif
 
 drop:
 #ifdef CONFIG_NET_STATISTICS
-  uip_stat.icmp.drop++;
+  g_netstats.icmp.drop++;
 #endif
   dev->d_len = 0;
 

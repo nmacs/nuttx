@@ -47,7 +47,6 @@
 #include <arch/irq.h>
 
 #include "up_arch.h"
-#include "os_internal.h"
 #include "up_internal.h"
 
 #ifdef CONFIG_SAMA5_PIO_IRQ
@@ -61,6 +60,7 @@
 #include "chip/sam_aic.h"
 #include "chip/sam_matrix.h"
 #include "chip/sam_aximx.h"
+#include "chip/sam_sfr.h"
 
 #include "sam_irq.h"
 
@@ -100,7 +100,7 @@ static const uint8_t g_srctype[SCRTYPE_NTYPES] =
  * peripheral interrupts are secured or not.
  */
 
-#if defined(CONFIG_SAMA5_HAVE_SAIC)
+#if defined(CONFIG_SAMA5_SAIC)
 static const uint32_t g_h64mxpids[3] =
 {
   H64MX_SPSELR0_PIDS, H64MX_SPSELR1_PIDS, H64MX_SPSELR2_PIDS
@@ -260,7 +260,7 @@ static uint32_t *sam_fiqhandler(int irq, uint32_t *regs)
  *
  ****************************************************************************/
 
-#if defined(CONFIG_SAMA5_HAVE_SAIC)
+#if defined(CONFIG_SAMA5_SAIC)
 static bool sam_aic_issecure(uint32_t irq)
 {
   uintptr_t regaddr;
@@ -292,6 +292,46 @@ static bool sam_aic_issecure(uint32_t irq)
 
   return (getreg32(regaddr) & bit) == 0;
 }
+#endif
+
+/****************************************************************************
+ * Name: sam_aic_redirection
+ *
+ * Description:
+ *   Redirect all interrupts to the AIC.  This function is only compiled if
+ *   (1) the architecture supports an SAIC (CONFIG_SAMA5_HAVE_SAIC), but (2)
+ *   Use of the SAIC has not been selected (!CONFIG_SAMA5_SAIC).
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_SAMA5_HAVE_SAIC) && !defined(CONFIG_SAMA5_SAIC)
+static void sam_aic_redirection(void)
+{
+  unsigned int regval;
+
+  /* Check if interrupts are already redirected to the AIC */
+
+  regval = getreg32(SAM_SFR_AICREDIR);
+  if ((regval & SFR_AICREDIR_ENABLE) == 0)
+    {
+      /* Enable redirection of all interrupts to the AIC */
+
+      regval  = getreg32(SAM_SFR_SN1);
+      regval ^= SFR_AICREDIR_KEY;
+      regval |= SFR_AICREDIR_ENABLE;
+      putreg32(regval, SAM_SFR_AICREDIR);
+
+#if defined(CONFIG_DEBUG_IRQ)
+      /* Check if redirection was successfully enabled */
+
+      regval = getreg32(SAM_SFR_AICREDIR);
+      lldbg("Interrupts %s redirected to the AIC\n",
+           (regval & SFR_AICREDIR_ENABLE) != 0 ? "ARE" : "NOT");
+#endif
+    }
+}
+#else
+#  define sam_aic_redirection()
 #endif
 
 /****************************************************************************
@@ -395,11 +435,15 @@ void up_irqinitialize(void)
   }
 #endif
 
+  /* Redirect all interrupts to the AIC if so configured */
+
+  sam_aic_redirection();
+
   /* Initialize the Advanced Interrupt Controller (AIC) */
 
   sam_aic_initialize(SAM_AIC_VBASE);
 
-#if defined(CONFIG_SAMA5_HAVE_SAIC)
+#if defined(CONFIG_SAMA5_SAIC)
   /* Initialize the Secure Advanced Interrupt Controller (SAIC) */
 
   sam_aic_initialize(SAM_SAIC_VBASE);
@@ -483,7 +527,9 @@ void up_irqinitialize(void)
   putreg32(AXIMX_REMAP_REMAP1, SAM_AXIMX_REMAP); /* Remap NOR FLASH on CS0 */
 #endif
 
-  /* Make sure that there is no trace of any previous mapping */
+  /* Make sure that there is no trace of any previous mapping (here we
+   * that the L2 cache has not yet been enabled.
+   */
 
   vectorsize = sam_vectorsize();
   cp15_invalidate_icache();
@@ -602,7 +648,7 @@ uint32_t *arm_decodeirq(uint32_t *regs)
   return sam_decodeirq(SAM_AIC_VBASE, regs);
 }
 
-#if defined(CONFIG_SAMA5_HAVE_SAIC)
+#if defined(CONFIG_SAMA5_SAIC)
 /* This is the entry point from the ARM FIQ vector handler */
 
 uint32_t *arm_decodefiq(FAR uint32_t *regs)
@@ -674,7 +720,7 @@ static void sam_disable_irq(uintptr_t base, int irq)
 
 void up_disable_irq(int irq)
 {
-#if defined(CONFIG_SAMA5_HAVE_SAIC)
+#if defined(CONFIG_SAMA5_SAIC)
   if (sam_aic_issecure(irq))
     {
       sam_disable_irq(SAM_SAIC_VBASE, irq);
@@ -726,7 +772,7 @@ static void sam_enable_irq(uintptr_t base, int irq)
 
 void up_enable_irq(int irq)
 {
-#if defined(CONFIG_SAMA5_HAVE_SAIC)
+#if defined(CONFIG_SAMA5_SAIC)
   if (sam_aic_issecure(irq))
     {
       sam_enable_irq(SAM_SAIC_VBASE, irq);
@@ -802,7 +848,7 @@ static int sam_prioritize_irq(uint32_t base, int irq, int priority)
 
 int up_prioritize_irq(int irq, int priority)
 {
-#if defined(CONFIG_SAMA5_HAVE_SAIC)
+#if defined(CONFIG_SAMA5_SAIC)
   if (sam_aic_issecure(irq))
     {
       sam_prioritize_irq(SAM_SAIC_VBASE, irq, priority);
@@ -860,7 +906,7 @@ static void _sam_irq_srctype(uintptr_t base, int irq,
 
 void sam_irq_srctype(int irq, enum sam_srctype_e srctype)
 {
-#if defined(CONFIG_SAMA5_HAVE_SAIC)
+#if defined(CONFIG_SAMA5_SAIC)
   if (sam_aic_issecure(irq))
     {
       _sam_irq_srctype(SAM_SAIC_VBASE, irq, srctype);

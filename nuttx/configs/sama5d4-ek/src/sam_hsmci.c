@@ -59,12 +59,12 @@
  * ------------------------------ ------------------- -------------------------
  *
  * The microSD connects vi HSMCI1.  The card detect discrete is available on
- * PE14 (pulled high):
+ * PE6 (pulled high):
  *
  * ------------------------------ ------------------- -------------------------
  * SAMA5D4 PIO                    SIGNAL              USAGE
  * ------------------------------ ------------------- -------------------------
- * PE14/A14/TCLK1/PWMH3           MCI1_CD_PE14        MCI1_CD
+ * PE14/A14/TCLK1/PWMH3           MCI1_CD_PE14        MCI1_CD               ???
  * PE15/A15/SCK3/TIOA0            MCI1_PWR_PE15       MCI1_PWR
  * PE18/A18/TIOA5/MCI1_CK         PE18                MCI1_CK, EXP
  * PE19/A19/TIOB5/MCI1_CDA        PE19                MCI1_CDA, EXP
@@ -204,14 +204,44 @@ static int sam_hsmci_cardetect(struct sam_hsmci_state_s *state)
 #ifdef CONFIG_SAMA5_HSMCI0
 static int sam_hsmci0_cardetect(int irq, void *regs)
 {
-  return sam_hsmci_cardetect(&g_hsmci0);
+  int ret;
+
+  /* Handle the card detect interrupt.  The interrupt level logic will
+   * kick of the driver-level operations to initialize the MMC/SD block
+   * device.
+   */
+
+  ret = sam_hsmci_cardetect(&g_hsmci0);
+
+#ifdef CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT
+  /* Let the automounter know about the insertion event */
+
+  sam_automount_event(HSMCI0_SLOTNO, sam_cardinserted(HSMCI0_SLOTNO));
+#endif
+
+  return ret;
 }
 #endif
 
 #ifdef CONFIG_SAMA5_HSMCI1
 static int sam_hsmci1_cardetect(int irq, void *regs)
 {
-  return sam_hsmci_cardetect(&g_hsmci1);
+  int ret;
+
+  /* Handle the card detect interrupt.  The interrupt level logic will
+   * kick of the driver-level operations to initialize the MMC/SD block
+   * device.
+   */
+
+  ret = sam_hsmci_cardetect(&g_hsmci1);
+
+#ifdef CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT
+  /* Let the automounter know about the insertion event */
+
+  sam_automount_event(HSMCI1_SLOTNO, sam_cardinserted(HSMCI1_SLOTNO));
+#endif
+
+  return ret;
 }
 #endif
 
@@ -270,16 +300,19 @@ int sam_hsmci_initialize(int slotno, int minor)
   state = sam_hsmci_state(slotno);
   if (!state)
     {
-      fdbg("No state for slotno %d\n", slotno);
+      fdbg("ERROR: No state for slotno %d\n", slotno);
       return -EINVAL;
     }
 
   /* Initialize card-detect, write-protect, and power enable PIOs */
 
   sam_configpio(state->cdcfg);
+  sam_dumppio(state->cdcfg, "HSMCI Card Detect");
+
   if (state->pwrcfg != 0)
     {
       sam_configpio(state->pwrcfg);
+      sam_dumppio(state->pwrcfg, "HSMCI Power");
     }
 
   /* Mount the SDIO-based MMC/SD block driver */
@@ -288,7 +321,7 @@ int sam_hsmci_initialize(int slotno, int minor)
   state->hsmci = sdio_initialize(slotno);
   if (!state->hsmci)
     {
-      fdbg("Failed to initialize SDIO slot %d\n",  slotno);
+      fdbg("ERROR: Failed to initialize SDIO slot %d\n",  slotno);
       return -ENODEV;
     }
 
@@ -297,7 +330,7 @@ int sam_hsmci_initialize(int slotno, int minor)
   ret = mmcsd_slotinitialize(minor, state->hsmci);
   if (ret != OK)
     {
-      fdbg("Failed to bind SDIO to the MMC/SD driver: %d\n", ret);
+      fdbg("ERROR: Failed to bind SDIO to the MMC/SD driver: %d\n", ret);
       return ret;
     }
 
@@ -334,7 +367,7 @@ bool sam_cardinserted(int slotno)
   state = sam_hsmci_state(slotno);
   if (!state)
     {
-      fdbg("No state for slotno %d\n", slotno);
+      fdbg("ERROR: No state for slotno %d\n", slotno);
       return false;
     }
 

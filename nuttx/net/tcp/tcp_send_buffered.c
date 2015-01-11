@@ -63,19 +63,22 @@
 
 #include <arch/irq.h>
 #include <nuttx/clock.h>
-#include <nuttx/net/arp.h>
+#include <nuttx/net/net.h>
 #include <nuttx/net/iob.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/arp.h>
+#include <nuttx/net/tcp.h>
 
-#include "net.h"
+#include "socket/socket.h"
+#include "netdev/netdev.h"
 #include "tcp/tcp.h"
-#include "uip/uip.h"
+#include "devif/devif.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define TCPBUF ((struct tcp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+#define TCPBUF ((struct tcp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
 
 /* Debug */
 
@@ -196,7 +199,7 @@ static inline void psock_lost_connection(FAR struct socket *psock,
  *
  * Description:
  *   This function is called from the interrupt level to perform the actual
- *   send operation when polled by the uIP layer.
+ *   send operation when polled by the lower, device interfacing layer.
  *
  * Parameters:
  *   dev      The structure of the network driver that caused the interrupt
@@ -211,7 +214,7 @@ static inline void psock_lost_connection(FAR struct socket *psock,
  *
  ****************************************************************************/
 
-static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
+static uint16_t psock_send_interrupt(FAR struct net_driver_s *dev,
                                      FAR void *pvconn, FAR void *pvpriv,
                                      uint16_t flags)
 {
@@ -224,7 +227,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
    * acknowledged bytes.
    */
 
-  if ((flags & UIP_ACKDATA) != 0)
+  if ((flags & TCP_ACKDATA) != 0)
     {
       FAR struct tcp_wrbuffer_s *wrb;
       FAR sq_entry_t *entry;
@@ -343,7 +346,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
 
   /* Check for a loss of connection */
 
-  else if ((flags & (UIP_CLOSE | UIP_ABORT | UIP_TIMEDOUT)) != 0)
+  else if ((flags & (TCP_CLOSE | TCP_ABORT | TCP_TIMEDOUT)) != 0)
     {
       nllvdbg("Lost connection: %04x\n", flags);
 
@@ -359,7 +362,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
 
    /* Check if we are being asked to retransmit data */
 
-   else if ((flags & UIP_REXMIT) != 0)
+   else if ((flags & TCP_REXMIT) != 0)
     {
       FAR struct tcp_wrbuffer_s *wrb;
       FAR sq_entry_t *entry;
@@ -405,7 +408,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
 
           /* Increment the retransmit count on this write buffer. */
 
-          if (++WRB_NRTX(wrb) >= UIP_MAXRTX)
+          if (++WRB_NRTX(wrb) >= TCP_MAXRTX)
             {
               nlldbg("Expiring wrb=%p nrtx=%u\n", wrb, WRB_NRTX(wrb));
 
@@ -426,7 +429,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
                * retransmitted, and un-ACKed, if expired is not zero, the
                * connection will be closed.
                *
-               * field expired can only be updated at UIP_ESTABLISHED state
+               * field expired can only be updated at TCP_ESTABLISHED state
                */
 
               conn->expired++;
@@ -470,7 +473,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
 
           /* Free any write buffers that have exceed the retry count */
 
-          if (++WRB_NRTX(wrb) >= UIP_MAXRTX)
+          if (++WRB_NRTX(wrb) >= TCP_MAXRTX)
             {
               nlldbg("Expiring wrb=%p nrtx=%u\n", wrb, WRB_NRTX(wrb));
 
@@ -483,7 +486,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
                * retransmitted, and un-ACKed, if expired is not zero, the
                * connection will be closed.
                *
-               * field expired can only be updated at UIP_ESTABLISHED state
+               * field expired can only be updated at TCP_ESTABLISHED state
                */
 
               conn->expired++;
@@ -523,8 +526,8 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
    * next polling cycle.
    */
 
-  if ((conn->tcpstateflags & UIP_ESTABLISHED) &&
-      (flags & (UIP_POLL | UIP_REXMIT)) &&
+  if ((conn->tcpstateflags & TCP_ESTABLISHED) &&
+      (flags & (TCP_POLL | TCP_REXMIT)) &&
       !(sq_empty(&conn->write_q)))
     {
       /* Check if the destination IP address is in the ARP table.  If not,
@@ -561,9 +564,9 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
            */
 
           sndlen = WRB_PKTLEN(wrb) - WRB_SENT(wrb);
-          if (sndlen > uip_mss(conn))
+          if (sndlen > tcp_mss(conn))
             {
-              sndlen = uip_mss(conn);
+              sndlen = tcp_mss(conn);
             }
 
           if (sndlen > conn->winsize)
@@ -598,7 +601,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
            * won't actually happen until the polling cycle completes).
            */
 
-          uip_iobsend(dev, WRB_IOB(wrb), sndlen, WRB_SENT(wrb));
+          devif_iob_send(dev, WRB_IOB(wrb), sndlen, WRB_SENT(wrb));
 
           /* Remember how much data we send out now so that we know
            * when everything has been acknowledged.  Just increment
@@ -645,7 +648,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
            * tell the caller stop polling the other connection.
            */
 
-          flags &= ~UIP_POLL;
+          flags &= ~TCP_POLL;
         }
     }
 
@@ -718,7 +721,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
 ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
                        size_t len)
 {
-  uip_lock_t save;
+  net_lock_t save;
   ssize_t    result = 0;
   int        err;
   int        ret = OK;
@@ -743,7 +746,7 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
 
   psock->s_flags = _SS_SETSTATE(psock->s_flags, _SF_SEND);
 
-  save = uip_lock();
+  save = net_lock();
 
   if (len > 0)
     {
@@ -753,7 +756,7 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
 
       if (!psock->s_sndcb)
         {
-          psock->s_sndcb = tcp_callbackalloc(conn);
+          psock->s_sndcb = tcp_callback_alloc(conn);
         }
 
       /* Test if the callback has been allocated */
@@ -771,8 +774,8 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
 
           /* Set up the callback in the connection */
 
-          psock->s_sndcb->flags = (UIP_ACKDATA | UIP_REXMIT |UIP_POLL | \
-                                  UIP_CLOSE | UIP_ABORT | UIP_TIMEDOUT);
+          psock->s_sndcb->flags = (TCP_ACKDATA | TCP_REXMIT | TCP_POLL |
+                                   TCP_CLOSE | TCP_ABORT | TCP_TIMEDOUT);
           psock->s_sndcb->priv  = (void*)psock;
           psock->s_sndcb->event = psock_send_interrupt;
 
@@ -816,7 +819,7 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
         }
     }
 
-  uip_unlock(save);
+  net_unlock(save);
 
   /* Set the socket state to idle */
 
@@ -832,8 +835,8 @@ ssize_t psock_tcp_send(FAR struct socket *psock, FAR const void *buf,
       goto errout;
     }
 
-  /* If uip_lockedwait failed, then we were probably reawakened by a signal.
-   * In this case, uip_lockedwait will have set errno appropriately.
+  /* If net_lockedwait failed, then we were probably reawakened by a signal.
+   * In this case, net_lockedwait will have set errno appropriately.
    */
 
   if (ret < 0)

@@ -52,6 +52,7 @@
 #include <debug.h>
 
 #include <arch/board/board.h>
+
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
@@ -83,44 +84,197 @@
 #  error Work queue support is required (CONFIG_SCHED_WORKQUEUE)
 #endif
 
-#ifndef SAMA5_SSC_MAXINFLIGHT
-#  define SAMA5_SSC_MAXINFLIGHT 16
-#endif
-
-#if defined(CONFIG_SAMA5_SSC0) && !defined(CONFIG_SAMA5_DMAC0)
-#  error CONFIG_SAMA5_DMAC0 required by SSC0
-#endif
-
-#if defined(CONFIG_SAMA5_SSC1) && !defined(CONFIG_SAMA5_DMAC1)
-#  error CONFIG_SAMA5_DMAC1 required by SSC1
-#endif
-
-#ifndef CONFIG_SAMA5_SSC0_DATALEN
-#  define CONFIG_SAMA5_SSC0_DATALEN 16
-#endif
-
-#if CONFIG_SAMA5_SSC0_DATALEN < 2 || CONFIG_SAMA5_SSC0_DATALEN > 32
-#  error Invalid value for CONFIG_SAMA5_SSC0_DATALEN
-#endif
-
 #ifndef CONFIG_AUDIO
 #  error CONFIG_AUDIO required by this driver
 #endif
 
-/* Check if we need to build RX and/or TX support */
+#ifndef SAMA5_SSC_MAXINFLIGHT
+#  define SAMA5_SSC_MAXINFLIGHT 16
+#endif
+
+/* Assume no RX/TX support until we learn better */
 
 #undef SSC_HAVE_RX
 #undef SSC_HAVE_TX
 
-#if (defined(CONFIG_SAMA5_SSC0) && defined(CONFIG_SAMA5_SSC0_RX)) || \
-    (defined(CONFIG_SAMA5_SSC1) && defined(CONFIG_SAMA5_SSC1_RX))
-#  define SSC_HAVE_RX
+/* Check for SSC0 support */
+
+#if defined(CONFIG_SAMA5_SSC0)
+
+#  if defined(CONFIG_SAMA5_HAVE_XDMA)
+#    if !defined(CONFIG_SAMA5_XDMAC0) && !defined(CONFIG_SAMA5_XDMAC1)
+#      error CONFIG_SAMA5_XDMAC1 (or XDMAC0) required by SSC0
+#    endif
+#  else
+#    if !defined(CONFIG_SAMA5_DMAC0)
+#      error CONFIG_SAMA5_DMAC0 required by SSC0
+#    endif
+#  endif
+
+  /* The SSC can handle most any bit width from 2 to 32.  However, the DMA
+   * logic here is constrained to byte, half-word, and word sizes.
+   */
+
+#  ifndef CONFIG_SAMA5_SSC0_DATALEN
+#    define CONFIG_SAMA5_SSC0_DATALEN 16
+#  endif
+
+#  if CONFIG_SAMA5_SSC0_DATALEN == 8
+#    define SAMA5_SSC0_DATAMASK  0
+#  elif CONFIG_SAMA5_SSC0_DATALEN == 16
+#    define SAMA5_SSC0_DATAMASK  1
+#  elif CONFIG_SAMA5_SSC0_DATALEN == 32
+#    define SAMA5_SSC0_DATAMASK  3
+#  elif  CONFIG_SAMA5_SSC0_DATALEN < 2 || CONFIG_SAMA5_SSC0_DATALEN > 32
+#    error Invalid value for CONFIG_SAMA5_SSC0_DATALEN
+#  else
+#    error Valid but supported value for CONFIG_SAMA5_SSC0_DATALEN
+#  endif
+
+/* Check for SSC0 RX support */
+
+#  if defined(CONFIG_SAMA5_SSC0_RX)
+#    define SSC_HAVE_RX 1
+
+#    ifndef CONFIG_SSC0_RX_FSLEN
+#      define CONFIG_SSC0_RX_FSLEN 1
+#    endif
+
+#    if CONFIG_SSC0_RX_FSLEN < 1 || CONFIG_SSC0_RX_FSLEN > 255
+#      error Invalid value for CONFIG_SSC0_RX_FSLEN
+#    endif
+
+#    ifndef CONFIG_SSC0_RX_STTDLY
+#      define CONFIG_SSC0_RX_STTDLY CONFIG_SSC0_RX_FSLEN
+#    endif
+
+#    if CONFIG_SSC0_RX_STTDLY < 0 || \
+        CONFIG_SSC0_RX_STTDLY < CONFIG_SSC0_RX_FSLEN || \
+        CONFIG_SSC0_RX_STTDLY > 255
+#      error Invalid value for CONFIG_SSC0_RX_STTDLY
+#    endif
+#  endif
+
+/* Check for SSC0 TX support */
+
+#  if defined(CONFIG_SAMA5_SSC0_TX)
+#    define SSC_HAVE_TX 1
+
+#    ifndef CONFIG_SSC0_TX_FSLEN
+#      define CONFIG_SSC0_TX_FSLEN 0
+#    endif
+
+#    if CONFIG_SSC0_TX_FSLEN < 0 || CONFIG_SSC0_TX_FSLEN > 255
+#      error Invalid value for CONFIG_SSC0_TX_FSLEN
+#    endif
+
+#    ifndef CONFIG_SSC0_TX_STTDLY
+#      if CONFIG_SSC0_TX_FSLEN > 0
+#        define CONFIG_SSC0_TX_STTDLY CONFIG_SSC0_TX_FSLEN
+#      else
+#        define CONFIG_SSC0_TX_STTDLY 0
+#      endif
+#    endif
+
+#    if CONFIG_SSC0_TX_STTDLY < 0 || \
+        CONFIG_SSC0_TX_STTDLY < CONFIG_SSC0_TX_FSLEN || \
+        CONFIG_SSC0_TX_STTDLY > 255
+#      error Invalid value for CONFIG_SSC0_TX_STTDLY
+#    endif
+#  endif
+
 #endif
 
-#if (defined(CONFIG_SAMA5_SSC0) && defined(CONFIG_SAMA5_SSC0_TX)) || \
-    (defined(CONFIG_SAMA5_SSC1) && defined(CONFIG_SAMA5_SSC1_TX))
-#  define SSC_HAVE_TX
+/* Check for SSC1 support */
+
+#if defined(CONFIG_SAMA5_SSC1)
+
+#  if defined(CONFIG_SAMA5_HAVE_XDMA)
+#    if !defined(CONFIG_SAMA5_XDMAC0) && !defined(CONFIG_SAMA5_XDMAC1)
+#      error CONFIG_SAMA5_XDMAC1 (or XDMAC0) required by SSC1
+#    endif
+#  else
+#    if !defined(CONFIG_SAMA5_DMAC1)
+#      error CONFIG_SAMA5_DMAC0 required by SSC1
+#    endif
+#  endif
+
+  /* The SSC can handle most any bit width from 2 to 32.  However, the DMA
+   * logic here is constrained to byte, half-word, and word sizes.
+   */
+
+#  ifndef CONFIG_SAMA5_SSC1_DATALEN
+#    define CONFIG_SAMA5_SSC1_DATALEN 16
+#  endif
+
+#  if CONFIG_SAMA5_SSC1_DATALEN == 8
+#    define SAMA5_SSC1_DATAMASK  0
+#  elif CONFIG_SAMA5_SSC1_DATALEN == 16
+#    define SAMA5_SSC1_DATAMASK  1
+#  elif CONFIG_SAMA5_SSC1_DATALEN == 32
+#    define SAMA5_SSC1_DATAMASK  3
+#  elif  CONFIG_SAMA5_SSC1_DATALEN < 2 || CONFIG_SAMA5_SSC1_DATALEN > 32
+#    error Invalid value for CONFIG_SAMA5_SSC1_DATALEN
+#  else
+#    error Valid but supported value for CONFIG_SAMA5_SSC1_DATALEN
+#  endif
+
+/* Check for SSC1 RX support */
+
+#  if defined(CONFIG_SAMA5_SSC1_RX)
+#    define SSC_HAVE_RX 1
+
+#    ifndef CONFIG_SSC1_RX_FSLEN
+#      define CONFIG_SSC1_RX_FSLEN 1
+#    endif
+
+#    if CONFIG_SSC1_RX_FSLEN < 1 || CONFIG_SSC1_RX_FSLEN > 255
+#      error Invalid value for CONFIG_SSC1_RX_FSLEN
+#    endif
+
+#    ifndef CONFIG_SSC1_RX_STTDLY
+#      define CONFIG_SSC1_RX_STTDLY CONFIG_SSC1_RX_FSLEN
+#    endif
+
+#    if CONFIG_SSC1_RX_STTDLY < 0 || \
+        CONFIG_SSC1_RX_STTDLY < CONFIG_SSC1_RX_FSLEN || \
+        CONFIG_SSC1_RX_STTDLY > 255
+#      error Invalid value for CONFIG_SSC1_RX_STTDLY
+#    endif
+
+#  endif
+
+/* Check for SSC1 TX support */
+
+#  if defined(CONFIG_SAMA5_SSC1_TX)
+#    define SSC_HAVE_TX 1
+
+#    ifndef CONFIG_SSC1_TX_FSLEN
+#      define CONFIG_SSC1_TX_FSLEN 0
+#    endif
+
+#    if CONFIG_SSC1_TX_FSLEN < 0 || CONFIG_SSC1_TX_FSLEN > 255
+#      error Invalid value for CONFIG_SSC1_TX_FSLEN
+#    endif
+
+#    ifndef CONFIG_SSC1_TX_STTDLY
+#      if CONFIG_SSC1_TX_FSLEN > 0
+#        define CONFIG_SSC1_TX_STTDLY CONFIG_SSC1_TX_FSLEN
+#      else
+#        define CONFIG_SSC1_TX_STTDLY 0
+#      endif
+#    endif
+
+#    if CONFIG_SSC1_TX_STTDLY < 0 || \
+        CONFIG_SSC1_TX_STTDLY < CONFIG_SSC1_TX_FSLEN || \
+        CONFIG_SSC1_TX_STTDLY > 255
+#      error Invalid value for CONFIG_SSC1_TX_STTDLY
+#    endif
+#  endif
+
 #endif
+
+/* Check if we need to build RX and/or TX support */
 
 #if defined(SSC_HAVE_RX) || defined(SSC_HAVE_TX)
 
@@ -155,17 +309,16 @@
  *                 |<-----DATALEN * DATNB----->|
  *
  * TK/RK is assumed to be a negative pulse
- * DATALEN is configurable: CONFIG_SAMA5_SSC0_DATALEN
+ * DATALEN is configurable: CONFIG_SAMA5_SSCx_DATALEN
+ * FSLEN is configuration:  CONFIG_SAMA5_SSCx_RX/TX_FSLEN
  * FSLEN and STTDLY are fixed at two clocks
  * DATNB is fixed a one work
  *
  * REVISIT:  These will probably need to be configurable
  */
 
-#define SSC_FSLEN  (2) /* TF/RF plus width in clocks */
-#define SSC_STTDLY (2) /* Delay to data start in clocks (same as FSLEN) */
-#define SSC_DATNB  (1) /* Number words per per frame */
-#define SCC_PERIOD (SSC_FSLEN + CONFIG_SAMA5_SSC0_DATALEN * SSC_DATNB)
+#define SSC_DATNB       (1) /* Number words per per frame */
+#define SCC_PERIOD(s,d) ((s) + (d) * SSC_DATNB)
 
 /* Clocking *****************************************************************/
 
@@ -184,40 +337,60 @@
 #define SSC_CLKOUT_CONT   1 /* Continuous */
 #define SSC_CLKOUT_XFER   2 /* Only output clock during transfers */
 
+/* Bus configuration differ with chip */
+
+#if defined(ATSAMA5D3)
+  /* System bus interfaces */
+
+#  define DMACH_FLAG_PERIPH_IF DMACH_FLAG_PERIPHAHB_AHB_IF2
+#  define DMACH_FLAG_MEM_IF    DMACH_FLAG_MEMAHB_AHB_IF0
+
+#elif defined(ATSAMA5D4)
+  /* System Bus Interfaces
+   *
+   * Both SSC0 and SSC1 are APB1; HSMCI1 is on H32MX.  Both are accessible
+   * on MATRIX IF1.
+   *
+   * Memory is available on either port 5 (IF0 for both XDMAC0 and 1) or
+   * port 6 (IF1 for both XDMAC0 and 1).
+   */
+
+#  define DMACH_FLAG_PERIPH_IF DMACH_FLAG_PERIPHAHB_AHB_IF1
+#  define DMACH_FLAG_MEM_IF    DMACH_FLAG_MEMAHB_AHB_IF0
+#endif
+
 /* DMA configuration */
 
-#define DMA_PID(pid)      ((pid) << DMACH_FLAG_PERIPHPID_SHIFT)
-
 #define DMA8_FLAGS \
-  (DMACH_FLAG_PERIPHAHB_AHB_IF2 | DMACH_FLAG_PERIPHH2SEL | \
+  (DMACH_FLAG_PERIPH_IF | DMACH_FLAG_PERIPHH2SEL | \
    DMACH_FLAG_PERIPHISPERIPH | DMACH_FLAG_PERIPHWIDTH_8BITS | \
-   DMACH_FLAG_PERIPHCHUNKSIZE_1 | \
-   ((0x3f) << DMACH_FLAG_MEMPID_SHIFT) | DMACH_FLAG_MEMAHB_AHB_IF0 | \
-   DMACH_FLAG_MEMWIDTH_16BITS | DMACH_FLAG_MEMINCREMENT | \
-   DMACH_FLAG_MEMCHUNKSIZE_4)
+   DMACH_FLAG_PERIPHCHUNKSIZE_1 | DMACH_FLAG_MEMPID_MAX | \
+   DMACH_FLAG_MEM_IF | DMACH_FLAG_MEMWIDTH_16BITS | \
+   DMACH_FLAG_MEMINCREMENT | DMACH_FLAG_MEMCHUNKSIZE_1| \
+   DMACH_FLAG_MEMBURST_4)
 
 #define DMA16_FLAGS \
-  (DMACH_FLAG_PERIPHAHB_AHB_IF2 | DMACH_FLAG_PERIPHH2SEL | \
+  (DMACH_FLAG_PERIPH_IF | DMACH_FLAG_PERIPHH2SEL | \
    DMACH_FLAG_PERIPHISPERIPH | DMACH_FLAG_PERIPHWIDTH_16BITS | \
-   DMACH_FLAG_PERIPHCHUNKSIZE_1 | \
-   ((0x3f) << DMACH_FLAG_MEMPID_SHIFT) | DMACH_FLAG_MEMAHB_AHB_IF0 | \
-   DMACH_FLAG_MEMWIDTH_16BITS | DMACH_FLAG_MEMINCREMENT | \
-   DMACH_FLAG_MEMCHUNKSIZE_4)
+   DMACH_FLAG_PERIPHCHUNKSIZE_1 | DMACH_FLAG_MEMPID_MAX | \
+   DMACH_FLAG_MEM_IF | DMACH_FLAG_MEMWIDTH_16BITS | \
+   DMACH_FLAG_MEMINCREMENT | DMACH_FLAG_MEMCHUNKSIZE_1 | \
+   DMACH_FLAG_MEMBURST_4)
 
 #define DMA32_FLAGS \
-  (DMACH_FLAG_PERIPHAHB_AHB_IF2 | DMACH_FLAG_PERIPHH2SEL | \
+  (DMACH_FLAG_PERIPH_IF | DMACH_FLAG_PERIPHH2SEL | \
    DMACH_FLAG_PERIPHISPERIPH | DMACH_FLAG_PERIPHWIDTH_32BITS | \
-   DMACH_FLAG_PERIPHCHUNKSIZE_1 | \
-   ((0x3f) << DMACH_FLAG_MEMPID_SHIFT) | DMACH_FLAG_MEMAHB_AHB_IF0 | \
-   DMACH_FLAG_MEMWIDTH_32BITS | DMACH_FLAG_MEMINCREMENT | \
-   DMACH_FLAG_MEMCHUNKSIZE_4)
+   DMACH_FLAG_PERIPHCHUNKSIZE_1 | DMACH_FLAG_MEMPID_MAX | \
+   DMACH_FLAG_MEM_IF | DMACH_FLAG_MEMWIDTH_32BITS | \
+   DMACH_FLAG_MEMINCREMENT | DMACH_FLAG_MEMCHUNKSIZE_1 | \
+   DMACH_FLAG_MEMBURST_4)
 
 /* DMA timeout.  The value is not critical; we just don't want the system to
  * hang in the event that a DMA does not finish.  This is set to
  */
 
 #define DMA_TIMEOUT_MS    (800)
-#define DMA_TIMEOUT_TICKS ((DMA_TIMEOUT_MS + (MSEC_PER_TICK-1)) / MSEC_PER_TICK)
+#define DMA_TIMEOUT_TICKS MSEC2TICK(DMA_TIMEOUT_MS)
 
 /* Debug *******************************************************************/
 /* Check if SSC debut is enabled (non-standard.. no support in
@@ -302,16 +475,23 @@ struct sam_ssc_s
   struct i2s_dev_s dev;        /* Externally visible I2S interface */
   uintptr_t base;              /* SSC controller register base address */
   sem_t exclsem;               /* Assures mutually exclusive acess to SSC */
-  uint8_t datalen;             /* Data width (2-32) */
+  uint8_t datalen;             /* Data width (8, 16, or 32) */
+#ifdef CONFIG_DEBUG
+  uint8_t align;               /* Log2 of data width (0, 1, or 3) */
+#endif
   uint8_t pid;                 /* Peripheral ID */
-  uint16_t rxenab:1;           /* True: RX transfers enabled */
-  uint16_t txenab:1;           /* True: TX transfers enabled */
-  uint16_t loopback:1;         /* True: Loopback mode */
-  uint16_t sscno:1;            /* SSC controller number (0 or 1) */
-  uint16_t rxclk:2;            /* Receiver clock source. See SSC_CLKSRC_* definitions */
-  uint16_t txclk:2;            /* Transmitter clock source. See SSC_CLKSRC_* definitions */
-  uint16_t rxout:2;            /* Receiver clock output. See SSC_CLKOUT_* definitions */
-  uint16_t txout:2;            /* Transmitter clock output. See SSC_CLKOUT_* definitions */
+  uint8_t rxfslen;             /* RX frame sync length */
+  uint8_t txfslen;             /* TX frame sync length */
+  uint8_t rxsttdly;            /* RX start delay */
+  uint8_t txsttdly;            /* TX start delay */
+  uint8_t rxenab:1;            /* True: RX transfers enabled */
+  uint8_t txenab:1;            /* True: TX transfers enabled */
+  uint8_t loopback:1;          /* True: Loopback mode */
+  uint8_t sscno:1;             /* SSC controller number (0 or 1) */
+  uint8_t rxclk:2;             /* Receiver clock source. See SSC_CLKSRC_* definitions */
+  uint8_t txclk:2;             /* Transmitter clock source. See SSC_CLKSRC_* definitions */
+  uint8_t rxout:2;             /* Receiver clock output. See SSC_CLKOUT_* definitions */
+  uint8_t txout:2;             /* Transmitter clock output. See SSC_CLKOUT_* definitions */
   uint32_t frequency;          /* SSC clock frequency */
 #ifdef SSC_HAVE_MCK2
   uint32_t samplerate;         /* Data sample rate (determines only MCK/2 divider) */
@@ -445,7 +625,9 @@ static void     ssc_tx_schedule(struct sam_ssc_s *priv, int result);
 static void     ssc_txdma_callback(DMA_HANDLE handle, void *arg, int result);
 #endif
 
-/* I2S methods */
+/* I2S methods (and close friends) */
+
+static int      ssc_checkwidth(struct sam_ssc_s *priv, int bits);
 
 static uint32_t ssc_rxsamplerate(struct i2s_dev_s *dev, uint32_t rate);
 static uint32_t ssc_rxdatawidth(struct i2s_dev_s *dev, int bits);
@@ -1141,11 +1323,12 @@ static int ssc_rxdma_setup(struct sam_ssc_s *priv)
       DEBUGASSERT(bfcontainer && bfcontainer->apb);
 
       apb = bfcontainer->apb;
-      DEBUGASSERT(((uintptr_t)apb->samp & 3) == 0);
+      DEBUGASSERT(((uintptr_t)apb->samp % priv->align) == 0);
 
       /* No data received yet */
 
-      apb->nbytes = 0;
+      apb->nbytes  = 0;
+      apb->curbyte = 0;
 
       /* Physical address of the SSC RHR register and of the buffer location
        * in RAM.
@@ -1177,7 +1360,7 @@ static int ssc_rxdma_setup(struct sam_ssc_s *priv)
        * DMA buffer after starting the DMA transfer.
        */
 
-      cp15_invalidate_dcache((uintptr_t)apb->samp,
+      arch_invalidate_dcache((uintptr_t)apb->samp,
                              (uintptr_t)apb->samp + apb->nmaxbytes);
 
     }
@@ -1514,9 +1697,11 @@ static int ssc_txdma_setup(struct sam_ssc_s *priv)
 {
   struct sam_buffer_s *bfcontainer;
   struct ap_buffer_s *apb;
+  uintptr_t samp;
   uintptr_t paddr;
   uintptr_t maddr;
   uint32_t timeout;
+  apb_samp_t nbytes;
   bool notimeout;
   int ret;
 
@@ -1553,19 +1738,23 @@ static int ssc_txdma_setup(struct sam_ssc_s *priv)
       DEBUGASSERT(bfcontainer && bfcontainer->apb);
 
       apb = bfcontainer->apb;
-      DEBUGASSERT(((uintptr_t)apb->samp & 3) == 0);
+
+      /* Get the transfer information, accounting for any data offset */
+
+      samp   = (uintptr_t)&apb->samp[apb->curbyte];
+      nbytes = apb->nbytes - apb->curbyte;
+      DEBUGASSERT((samp & priv->align) == 0 && (nbytes & priv->align) == 0);
 
       /* Physical address of the SSC THR register and of the buffer location
-       * in
-       * RAM.
+       * in RAM.
        */
 
       paddr = ssc_physregaddr(priv, SAM_SSC_THR_OFFSET);
-      maddr = sam_physramaddr((uintptr_t)apb->samp);
+      maddr = sam_physramaddr(samp);
 
       /* Configure the TX DMA */
 
-      sam_dmatxsetup(priv->tx.dma, paddr, maddr, apb->nbytes);
+      sam_dmatxsetup(priv->tx.dma, paddr, maddr, nbytes);
 
       /* Increment the DMA timeout */
 
@@ -1586,9 +1775,7 @@ static int ssc_txdma_setup(struct sam_ssc_s *priv)
        * before starting the DMA.
        */
 
-      cp15_clean_dcache((uintptr_t)apb->samp,
-                        (uintptr_t)apb->samp + apb->nbytes);
-
+      arch_clean_dcache(samp, samp + nbytes);
     }
 #if 1 /* REVISIT: Chained TX transfers */
   while (0);
@@ -1847,6 +2034,60 @@ static void ssc_txdma_callback(DMA_HANDLE handle, void *arg, int result)
 #endif
 
 /****************************************************************************
+ * Name: ssc_checkwidth
+ *
+ * Description:
+ *   Check for a valid bit width.  The SSC is capable of handling most any
+ *   bit width from 2 to 32, but the DMA logic in this driver is constrained
+ *   to 8-, 16-, and 32-bit data widths
+ *
+ * Input Parameters:
+ *   dev  - Device-specific state data
+ *   rate - The I2S sample rate in samples (not bits) per second
+ *
+ * Returned Value:
+ *   Returns the resulting bitrate
+ *
+ ****************************************************************************/
+
+static int ssc_checkwidth(struct sam_ssc_s *priv, int bits)
+{
+  /* The SSC can handle most any bit width from 2 to 32.  However, the DMA
+   * logic here is constrained to byte, half-word, and word sizes.
+   */
+
+  switch (bits)
+    {
+    case 8:
+#ifdef CONFIG_DEBUG
+      priv->align = 0;
+#endif
+      break;
+
+    case 16:
+#ifdef CONFIG_DEBUG
+      priv->align = 1;
+#endif
+      break;
+
+    case 32:
+#ifdef CONFIG_DEBUG
+      priv->align = 3;
+#endif
+      break;
+
+    default:
+      i2sdbg("ERROR: Unsupported or invalid data width: %d\n", bits);
+      return (bits < 2 || bits > 32) ? -EINVAL : -ENOSYS;
+    }
+
+  /* Save the new data width */
+
+  priv->datalen = bits;
+  return OK;
+}
+
+/****************************************************************************
  * Name: ssc_rxsamplerate
  *
  * Description:
@@ -1909,11 +2150,16 @@ static uint32_t ssc_rxdatawidth(struct i2s_dev_s *dev, int bits)
 
   DEBUGASSERT(priv && bits > 1);
 
-  /* Save the new data width */
+  /* Check if this is a bit width that we are configured to handle */
 
-  priv->datalen = bits;
+  ret = ssc_checkwidth(priv, bits);
+  if (ret < 0)
+    {
+      i2sdbg("ERROR: ssc_checkwidth failed: %d\n", ret);
+      return 0;
+    }
 
-  /* Upate the DMA flags */
+  /* Update the DMA flags */
 
   ret = ssc_dma_flags(priv, &dmaflags);
   if (ret < 0)
@@ -1987,7 +2233,7 @@ static int ssc_receive(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
   int ret;
 #endif
 
-  DEBUGASSERT(priv && apb && ((uintptr_t)apb->samp & 3) == 0);
+  DEBUGASSERT(priv && apb && ((uintptr_t)apb->samp & priv->align) == 0);
   i2svdbg("apb=%p nmaxbytes=%d arg=%p timeout=%d\n",
           apb, apb->nmaxbytes, arg, timeout);
 
@@ -2115,9 +2361,14 @@ static uint32_t ssc_txdatawidth(struct i2s_dev_s *dev, int bits)
 
   DEBUGASSERT(priv && bits > 1);
 
-  /* Save the new data width */
+  /* Check if this is a bit width that we are configured to handle */
 
-  priv->datalen = bits;
+  ret = ssc_checkwidth(priv, bits);
+  if (ret < 0)
+    {
+      i2sdbg("ERROR: ssc_checkwidth failed: %d\n", ret);
+      return 0;
+    }
 
   /* Upate the DMA flags */
 
@@ -2193,11 +2444,17 @@ static int ssc_send(struct i2s_dev_s *dev, struct ap_buffer_s *apb,
   int ret;
 #endif
 
-  DEBUGASSERT(priv && apb && ((uintptr_t)apb->samp & 3) == 0);
-  i2svdbg("apb=%p nbytes=%d arg=%p timeout=%d\n",
-          apb, apb->nbytes, arg, timeout);
+  /* Make sure that we have valid pointers that that the data has uint32_t
+   * alignment.
+   */
 
-  ssc_dump_buffer("Sending", apb->samp, apb->nbytes);
+  DEBUGASSERT(priv && apb);
+  i2svdbg("apb=%p nbytes=%d arg=%p timeout=%d\n",
+          apb, apb->nbytes - apb->curbyte, arg, timeout);
+
+  ssc_dump_buffer("Sending", &apb->samp[apb->curbyte],
+                  apb->nbytes - apb->curbyte);
+  DEBUGASSERT(((uintptr_t)&apb->samp[apb->curbyte] & priv->align) == 0);
 
 #ifdef SSC_HAVE_TX
   /* Allocate a buffer container in advance */
@@ -2276,9 +2533,15 @@ static int ssc_rx_configure(struct sam_ssc_s *priv)
 {
 #ifdef SSC_HAVE_RX
   uint32_t regval;
+  uint32_t fslen;
+
+  /* Get the RX sync time (in RX clocks) */
+
+  DEBUGASSERT(priv->rxfslen > 0);
+  fslen  = priv->rxfslen - 1;
 
   /* RCMR settings */
- /* Configure the receiver input clock */
+  /* Configure the receiver input clock */
 
   regval = 0;
   switch (priv->rxclk)
@@ -2340,7 +2603,7 @@ static int ssc_rx_configure(struct sam_ssc_s *priv)
    */
 
   regval |= (SSC_RCMR_CKI | SSC_RCMR_CKG_CONT | SSC_RCMR_START_EDGE |
-             SSC_RCMR_STTDLY(SSC_STTDLY - 1) | SSC_RCMR_PERIOD(0));
+             SSC_RCMR_STTDLY(priv->rxsttdly) | SSC_RCMR_PERIOD(0));
   ssc_putreg(priv, SAM_SSC_RCMR_OFFSET, regval);
 
   /* RFMR settings. Some of these settings will need to be configurable as well.
@@ -2350,15 +2613,19 @@ static int ssc_rx_configure(struct sam_ssc_s *priv)
    *  SSC_RFMR_LOOP         Determined by configuration
    *  SSC_RFMR_MSBF         Most significant bit first
    *  SSC_RFMR_DATNB(n)     Data number 'n' per frame (hard-coded)
+   *  SSC_RFMR_FSLEN        Set to LS 4 bits of (CONFIG_SSCx_RX_FSLEN-1)
    *  SSC_RFMR_FSLEN(1)     Pulse length = FSLEN + (FSLEN_EXT * 16) + 1 = 2 clocks
    *  SSC_RFMR_FSOS_NONE    RF pin is always in input
    *  SSC_RFMR_FSEDGE_POS   Positive frame sync edge detection
-   *  SSC_RFMR_FSLENEXT(0)  FSLEN field extension = 0
+   *  SSC_RFMR_FSLENEXT   I Set to MS 4 bits of (CONFIG_SSCx_TX_FSLEN-1)
    */
 
   regval = (SSC_RFMR_DATLEN(CONFIG_SAMA5_SSC0_DATALEN - 1) | SSC_RFMR_MSBF |
-            SSC_RFMR_DATNB(SSC_DATNB - 1) | SSC_RFMR_FSLEN(SSC_FSLEN - 1) |
-            SSC_RFMR_FSOS_NONE | SSC_RFMR_FSLENEXT(0));
+            SSC_RFMR_DATNB(SSC_DATNB - 1) | SSC_RFMR_FSOS_NONE);
+
+  /* Set the RX frame synch  */
+
+  regval |= (SSC_RFMR_FSLEN(fslen & 0x0f) | SSC_RFMR_FSLENEXT((fslen >> 4) & 0x0f));
 
   /* Loopback mode? */
 
@@ -2385,6 +2652,18 @@ static int ssc_tx_configure(struct sam_ssc_s *priv)
 {
 #ifdef SSC_HAVE_TX
   uint32_t regval;
+  uint32_t fslen;
+  uint32_t period;
+
+  /* Get the TX synch in (in TX clocks) */
+
+  fslen  = priv->txfslen > 0 ? priv->txfslen - 1 : 0;
+
+  /* From the start delay and the datalength , we can get the full
+   * period of the waveform.
+   */
+
+  period = SCC_PERIOD(priv->txsttdly, priv->datalen);
 
   /* TCMR settings */
   /* Configure the transmitter input clock */
@@ -2435,7 +2714,7 @@ static int ssc_tx_configure(struct sam_ssc_s *priv)
     }
 
   /* REVISIT:  Some of these settings will need to be configurable as well.
-   * Currently hardcoded to:
+   * Currently hard-coded to:
    *
    *   SSC_RCMR_CKI           No transmitter clock inversion
    *   SSC_RCMR_CKG_CONT      No transmit clock gating
@@ -2456,28 +2735,26 @@ static int ssc_tx_configure(struct sam_ssc_s *priv)
   if (priv->txclk == SSC_CLKSRC_MCKDIV)
     {
       regval |= (SSC_TCMR_CKG_CONT | SSC_TCMR_START_CONT |
-                 SSC_TCMR_STTDLY(SSC_STTDLY - 1) |
-                 SSC_TCMR_PERIOD(SCC_PERIOD / 2 - 1));
+                 SSC_TCMR_STTDLY(priv->txsttdly) | SSC_TCMR_PERIOD(period / 2 - 1));
     }
   else
     {
       regval |= (SSC_TCMR_CKG_CONT | SSC_TCMR_START_EDGE |
-                 SSC_TCMR_STTDLY(SSC_STTDLY - 1) |
-                 SSC_TCMR_PERIOD(0));
+                 SSC_TCMR_STTDLY(priv->txsttdly) | SSC_TCMR_PERIOD(0));
     }
 
   ssc_putreg(priv, SAM_SSC_TCMR_OFFSET, regval);
 
   /* TFMR settings. Some of these settings will need to be configurable as well.
-   * Currently hardcoded to:
+   * Currently set to:
    *
-   *  SSC_TFMR_DATLEN(n)    'n' deterimined by configuration
+   *  SSC_TFMR_DATLEN(n)    'n' determined by configuration
    *  SSC_TFMR_DATDEF        Data default = 0
    *  SSC_TFMR_MSBF          Most significant bit first
    *  SSC_TFMR_DATNB(n)      Data number 'n' per frame (hard-coded)
-   *  SSC_TFMR_FSDEN         Frame sync data is enabled
-   *  SSC_TFMR_FSLEN(1)      Pulse length = + (FSLEN_EXT * 16) + 1 = 2 TX clocks
-   *  SSC_TFMR_FSLENEXT(0)   FSLEN field extension = 0
+   *  SSC_TFMR_FSDEN         Enabled if CONFIG_SSCx_TX_FSLEN > 0
+   *  SSC_TFMR_FSLEN         If enabled, set to LS 4 bits of (CONFIG_SSCx_TX_FSLEN-1)
+   *  SSC_TFMR_FSLENEXT      If enabled, set to MS 4 bits of (CONFIG_SSCx_TX_FSLEN-1)
    *
    * If master (i.e., provides clocking):
    *  SSC_TFMR_FSOS_NEGATIVE Negative pulse TF output
@@ -2488,17 +2765,25 @@ static int ssc_tx_configure(struct sam_ssc_s *priv)
 
   if (priv->txclk == SSC_CLKSRC_MCKDIV)
     {
-      regval = (SSC_TFMR_DATLEN(CONFIG_SAMA5_SSC0_DATALEN - 1) |
+      regval = (SSC_TFMR_DATLEN(priv->datalen - 1) |
                 SSC_TFMR_MSBF | SSC_TFMR_DATNB(SSC_DATNB - 1) |
-                SSC_TFMR_FSLEN(SSC_FSLEN - 1) | SSC_TFMR_FSOS_NEGATIVE |
-                SSC_TFMR_FSDEN | SSC_TFMR_FSLENEXT(0));
+                SSC_TFMR_FSOS_NEGATIVE);
     }
   else
     {
-      regval = (SSC_TFMR_DATLEN(CONFIG_SAMA5_SSC0_DATALEN - 1) |
+      regval = (SSC_TFMR_DATLEN(priv->datalen - 1) |
                 SSC_TFMR_MSBF | SSC_TFMR_DATNB(SSC_DATNB - 1) |
-                SSC_TFMR_FSLEN(SSC_FSLEN - 1) | SSC_TFMR_FSOS_NONE |
-                SSC_TFMR_FSDEN | SSC_TFMR_FSLENEXT(0));
+                SSC_TFMR_FSOS_NONE);
+    }
+
+  /* Is the TX frame synch enabled? */
+
+  if (priv->txfslen > 0)
+    {
+      /* Yes.. Set the FSDEN bit and the FSLEN field */
+
+      regval |= (SSC_TFMR_FSDEN | SSC_TFMR_FSLEN(fslen & 0x0f) |
+                 SSC_TFMR_FSLENEXT((fslen >> 4) & 0x0f));
     }
 
   ssc_putreg(priv, SAM_SSC_TFMR_OFFSET, regval);
@@ -2596,6 +2881,7 @@ static void ssc_clocking(struct sam_ssc_s *priv)
   /* Determine the maximum SSC peripheral clock frequency */
 
   mck = BOARD_MCK_FREQUENCY;
+#ifdef SAMA5_HAVE_PMC_PCR_DIV
   DEBUGASSERT((mck >> 3) <= SAM_SSC_MAXPERCLK);
 
   if (mck <= SAM_SSC_MAXPERCLK)
@@ -2618,6 +2904,13 @@ static void ssc_clocking(struct sam_ssc_s *priv)
       priv->frequency = (mck >> 3);
       regval          = PMC_PCR_DIV8;
     }
+
+#else
+  /* No PCR_DIV field */
+
+  priv->frequency     = mck;
+  regval              = 0;
+#endif
 
   /* Set the maximum SSC peripheral clock frequency */
 
@@ -2658,20 +2951,20 @@ static void ssc_clocking(struct sam_ssc_s *priv)
 
 static int ssc_dma_flags(struct sam_ssc_s *priv, uint32_t *dmaflags)
 {
-  uint32_t regval;
+  uint32_t flags;
 
   switch (priv->datalen)
     {
     case 8:
-      regval = DMA8_FLAGS;
+      flags = DMA8_FLAGS;
       break;
 
     case 16:
-      regval = DMA16_FLAGS;
+      flags = DMA16_FLAGS;
       break;
 
     case 32:
-      regval = DMA32_FLAGS;
+      flags = DMA32_FLAGS;
       break;
 
     default:
@@ -2679,7 +2972,7 @@ static int ssc_dma_flags(struct sam_ssc_s *priv, uint32_t *dmaflags)
       return -ENOSYS;
     }
 
-  *dmaflags = (regval | DMA_PID(priv->pid));
+  *dmaflags = (flags | DMACH_FLAG_PERIPHPID(priv->pid));
   return OK;
 }
 
@@ -2867,6 +3160,11 @@ static void ssc0_configure(struct sam_ssc_s *priv)
 
 #endif
 
+  /* Remember parameters of the configured waveform */
+
+  priv->rxfslen  = CONFIG_SSC0_RX_FSLEN;
+  priv->rxsttdly = CONFIG_SSC0_RX_STTDLY;
+
   /* Remember the configured RX clock output */
 
 #if defined(CONFIG_SAMA5_SSC0_RX_RKOUTPUT_CONT)
@@ -2933,6 +3231,11 @@ static void ssc0_configure(struct sam_ssc_s *priv)
 
 #endif /* CONFIG_SAMA5_SSC0_TX */
 
+  /* Remember parameters of the configured waveform */
+
+  priv->txfslen  = CONFIG_SSC0_TX_FSLEN;
+  priv->txsttdly = CONFIG_SSC0_TX_STTDLY;
+
   /* Set/clear loopback mode */
 
 #if defined(CONFIG_SAMA5_SSC0_RX) && defined(CONFIG_SAMA5_SSC0_TX) && \
@@ -2954,6 +3257,9 @@ static void ssc0_configure(struct sam_ssc_s *priv)
 
   priv->base    = SAM_SSC0_VBASE;
   priv->datalen = CONFIG_SAMA5_SSC0_DATALEN;
+#ifdef CONFIG_DEBUG
+  priv->align   = SAMA5_SSC0_DATAMASK;
+#endif
   priv->pid     = SAM_PID_SSC0;
 }
 #endif
@@ -2994,6 +3300,11 @@ static void ssc1_configure(struct sam_ssc_s *priv)
   priv->rxclk = SSC_CLKSRC_NONE;
 
 #endif
+
+  /* Remember parameters of the configured waveform */
+
+  priv->rxfslen  = CONFIG_SSC1_RX_FSLEN;
+  priv->rxsttdly = CONFIG_SSC1_RX_STTDLY;
 
   /* Remember the configured RX clock output */
 
@@ -3061,6 +3372,11 @@ static void ssc1_configure(struct sam_ssc_s *priv)
 
 #endif /* CONFIG_SAMA5_SSC1_TX */
 
+  /* Remember parameters of the configured waveform */
+
+  priv->txfslen  = CONFIG_SSC1_TX_FSLEN;
+  priv->txsttdly = CONFIG_SSC1_TX_STTDLY;
+
   /* Set/clear loopback mode */
 
 #if defined(CONFIG_SAMA5_SSC1_RX) && defined(CONFIG_SAMA5_SSC1_TX) && \
@@ -3082,6 +3398,9 @@ static void ssc1_configure(struct sam_ssc_s *priv)
 
   priv->base    = SAM_SSC1_VBASE;
   priv->datalen = CONFIG_SAMA5_SSC1_DATALEN;
+#ifdef CONFIG_DEBUG
+  priv->align   = SAMA5_SSC1_DATAMASK;
+#endif
   priv->pid     = SAM_PID_SSC1;
 }
 #endif

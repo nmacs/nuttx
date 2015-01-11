@@ -89,17 +89,17 @@
 #  ifdef CONFIG_NET_IPv6
 #    error "SLIP is not implemented for IPv6"
 #  endif
-#  define UIP_LLH_LEN         0
+#  define NET_LL_HDRLEN         0
 #elif defined(CONFIG_WIRELESS)
 #  ifdef CONFIG_OMEGA_RF
-#    define UIP_LLH_LEN       24
+#    define NET_LL_HDRLEN       24
 #  else
-#    define UIP_LLH_LEN       0
+#    define NET_LL_HDRLEN       0
 #  endif
 #else
 #  define CONFIG_NET_ETHERNET 1
 #  define CONFIG_NET_ARP      1
-#  define UIP_LLH_LEN         14
+#  define NET_LL_HDRLEN         14
 #endif
 
 /* Layer 3/4 Configuration Options ******************************************/
@@ -111,27 +111,18 @@
  * This should normally not be changed.
  */
 
-#define UIP_TTL 64
+#define IP_TTL 64
 
-/* Turn on support for IP packet reassembly.
- *
- * uIP supports reassembly of fragmented IP packets. This features
- * requires an additonal amount of RAM to hold the reassembly buffer
- * and the reassembly code size is approximately 700 bytes.  The
- * reassembly buffer is of the same size as the d_buf buffer
- * (configured by CONFIG_NET_BUFSIZE).
- *
- * Note: IP packet reassembly is not heavily tested.
- */
-
-#define UIP_REASSEMBLY 0
-
+#ifdef CONFIG_NET_TCP_REASSEMBLY
+#  ifndef CONFIG_NET_TCP_REASS_MAXAGE
 /* The maximum time an IP fragment should wait in the reassembly
  * buffer before it is dropped.  Units are deci-seconds, the range
  * of the timer is 8-bits.
  */
 
-#define UIP_REASS_MAXAGE (20*10) /* 20 seconds */
+#    define CONFIG_NET_TCP_REASS_MAXAGE (20*10) /* 20 seconds */
+#  endif
+#endif
 
 /* Network drivers often receive packets with garbage at the end
  * and are longer than the size of packet in the TCP header.  The
@@ -147,7 +138,7 @@
 
 /* ICMP configuration options */
 
-#if !defined(CONFIG_NET_ICMP) || defined(CONFIG_DISABLE_CLOCK)
+#ifndef CONFIG_NET_ICMP
 #  undef CONFIG_NET_ICMP_PING
 #endif
 
@@ -164,10 +155,10 @@
 #endif
 
 /* The UDP maximum packet size. This is should not be to set to more
- * than CONFIG_NET_BUFSIZE - UIP_LLH_LEN - UIP_IPUDPH_LEN.
+ * than CONFIG_NET_BUFSIZE - NET_LL_HDRLEN - IPUDP_HDRLEN.
  */
 
-#define UIP_UDP_MSS (CONFIG_NET_BUFSIZE - UIP_LLH_LEN - UIP_IPUDPH_LEN)
+#define UDP_MSS (CONFIG_NET_BUFSIZE - NET_LL_HDRLEN - IPUDP_HDRLEN)
 
 /* TCP configuration options */
 
@@ -175,7 +166,7 @@
  *
  * Since the TCP connections are statically allocated, turning this
  * configuration knob down results in less RAM used. Each TCP
- * connection requires approximatly 30 bytes of memory.
+ * connection requires approximately 30 bytes of memory.
  */
 
 #ifndef CONFIG_NET_TCP_CONNS
@@ -209,7 +200,7 @@
  * This should not be changed.
  */
 
-#define UIP_RTO 3
+#define TCP_RTO 3
 
 /* The maximum number of times a segment should be retransmitted
  * before the connection should be aborted.
@@ -217,7 +208,7 @@
  * This should not be changed.
  */
 
-#define UIP_MAXRTX  8
+#define TCP_MAXRTX  8
 
 /* The maximum number of times a SYN segment should be retransmitted
  * before a connection request should be deemed to have been
@@ -226,13 +217,13 @@
  * This should not need to be changed.
  */
 
-#define UIP_MAXSYNRTX 5
+#define TCP_MAXSYNRTX 5
 
 /* The TCP maximum segment size. This is should not be set to more
- * than CONFIG_NET_BUFSIZE - UIP_LLH_LEN - UIP_TCPIP_HLEN.
+ * than CONFIG_NET_BUFSIZE - NET_LL_HDRLEN - IPTCP_HDRLEN.
  */
 
-#define UIP_TCP_MSS (CONFIG_NET_BUFSIZE - UIP_LLH_LEN - UIP_TCPIP_HLEN)
+#define TCP_MSS (CONFIG_NET_BUFSIZE - NET_LL_HDRLEN - IPTCP_HDRLEN)
 
 /* The size of the advertised receiver's window.
  *
@@ -242,36 +233,38 @@
  */
 
 #ifndef CONFIG_NET_RECEIVE_WINDOW
-# define CONFIG_NET_RECEIVE_WINDOW UIP_TCP_MSS
+# define CONFIG_NET_RECEIVE_WINDOW TCP_MSS
 #endif
 
 /* How long a connection should stay in the TIME_WAIT state.
  *
- * This configiration option has no real implication, and it should be
+ * This configuration option has no real implication, and it should be
  * left untouched. Units: half second.
  */
 
-#define UIP_TIME_WAIT_TIMEOUT (60*2)
+#define TCP_TIME_WAIT_TIMEOUT (60*2)
 
 /* ARP configuration options */
 
+#ifndef CONFIG_NET_ARPTAB_SIZE
 /* The size of the ARP table.
  *
  * This option should be set to a larger value if this uIP node will
  * have many connections from the local network.
  */
 
-#ifndef CONFIG_NET_ARPTAB_SIZE
 # define CONFIG_NET_ARPTAB_SIZE 8
 #endif
 
-/* The maxium age of ARP table entries measured in 10ths of seconds.
+#ifndef CONFIG_NET_ARP_MAXAGE
+/* The maximum age of ARP table entries measured in 10ths of seconds.
  *
- * An UIP_ARP_MAXAGE of 120 corresponds to 20 minutes (BSD
+ * An CONFIG_NET_ARP_MAXAGE of 120 corresponds to 20 minutes (BSD
  * default).
  */
 
-#define UIP_ARP_MAXAGE 120
+#  define CONFIG_NET_ARP_MAXAGE 120
+#endif
 
 /* General configuration options */
 
@@ -308,6 +301,6 @@
  * uIP.
  */
 
-typedef uint16_t uip_stats_t;
+typedef uint16_t net_stats_t;
 
 #endif /* __INCLUDE_NUTTX_NET_NETCONFG_H */

@@ -50,13 +50,15 @@
 #include <debug.h>
 
 #include <arch/irq.h>
-#include <nuttx/clock.h>
-#include <nuttx/net/arp.h>
-#include <nuttx/net/netdev.h>
-#include <nuttx/net/pkt.h>
 
-#include "net.h"
-#include "uip/uip.h"
+#include <nuttx/clock.h>
+#include <nuttx/net/netdev.h>
+#include <nuttx/net/net.h>
+#include <nuttx/net/ip.h>
+
+#include "netdev/netdev.h"
+#include "devif/devif.h"
+#include "socket/socket.h"
 #include "pkt/pkt.h"
 
 /****************************************************************************
@@ -73,12 +75,12 @@
 
 struct send_s
 {
-  FAR struct socket         *snd_sock;    /* Points to the parent socket structure */
-  FAR struct uip_callback_s *snd_cb;      /* Reference to callback instance */
-  sem_t                      snd_sem;     /* Used to wake up the waiting thread */
-  FAR const uint8_t         *snd_buffer;  /* Points to the buffer of data to send */
-  size_t                     snd_buflen;  /* Number of bytes in the buffer to send */
-  ssize_t                    snd_sent;    /* The number of bytes sent */
+  FAR struct socket      *snd_sock;    /* Points to the parent socket structure */
+  FAR struct devif_callback_s *snd_cb; /* Reference to callback instance */
+  sem_t                   snd_sem;     /* Used to wake up the waiting thread */
+  FAR const uint8_t      *snd_buffer;  /* Points to the buffer of data to send */
+  size_t                  snd_buflen;  /* Number of bytes in the buffer to send */
+  ssize_t                 snd_sent;    /* The number of bytes sent */
 };
 
 /****************************************************************************
@@ -89,7 +91,7 @@ struct send_s
  * Function: psock_send_interrupt
  ****************************************************************************/
 
-static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
+static uint16_t psock_send_interrupt(FAR struct net_driver_s *dev,
                                      FAR void *pvconn,
                                      FAR void *pvpriv, uint16_t flags)
 {
@@ -105,7 +107,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
        * we will just have to wait for the next polling cycle.
        */
 
-      if (dev->d_sndlen > 0 || (flags & UIP_NEWDATA) != 0)
+      if (dev->d_sndlen > 0 || (flags & PKT_NEWDATA) != 0)
         {
           /* Another thread has beat us sending data or the buffer is busy,
            * Check for a timeout. If not timed out, wait for the next
@@ -123,7 +125,7 @@ static uint16_t psock_send_interrupt(FAR struct uip_driver_s *dev,
         {
           /* Copy the packet data into the device packet buffer and send it */
 
-          uip_pktsend(dev, pstate->snd_buffer, pstate->snd_buflen);
+          devif_pkt_send(dev, pstate->snd_buffer, pstate->snd_buflen);
           pstate->snd_sent = pstate->snd_buflen;
         }
 
@@ -206,7 +208,7 @@ ssize_t psock_pkt_send(FAR struct socket *psock, FAR const void *buf,
                        size_t len)
 {
   struct send_s state;
-  uip_lock_t save;
+  net_lock_t save;
   int err;
   int ret = OK;
 
@@ -229,7 +231,7 @@ ssize_t psock_pkt_send(FAR struct socket *psock, FAR const void *buf,
    * are ready.
    */
 
-  save                = uip_lock();
+  save                = net_lock();
   memset(&state, 0, sizeof(struct send_s));
   (void)sem_init(&state.snd_sem, 0, 0); /* Doesn't really fail */
   state.snd_sock      = psock;          /* Socket descriptor to use */
@@ -242,14 +244,14 @@ ssize_t psock_pkt_send(FAR struct socket *psock, FAR const void *buf,
 
       /* Allocate resource to receive a callback */
 
-      state.snd_cb = pkt_callbackalloc(conn);
+      state.snd_cb = pkt_callback_alloc(conn);
       if (state.snd_cb)
         {
-          FAR struct uip_driver_s *dev;
+          FAR struct net_driver_s *dev;
 
           /* Set up the callback in the connection */
 
-          state.snd_cb->flags = UIP_POLL;
+          state.snd_cb->flags = PKT_POLL;
           state.snd_cb->priv  = (void*)&state;
           state.snd_cb->event = psock_send_interrupt;
 
@@ -264,23 +266,23 @@ ssize_t psock_pkt_send(FAR struct socket *psock, FAR const void *buf,
 
           /* Notify the device driver that new TX data is available.
            * NOTES: This is in essence what netdev_txnotify() does, which
-           * is not possible to call since it expects a uip_ipaddr_t as
+           * is not possible to call since it expects a net_ipaddr_t as
            * its single argument to lookup the network interface.
            */
 
           dev->d_txavail(dev);
 
           /* Wait for the send to complete or an error to occure: NOTES: (1)
-           * uip_lockedwait will also terminate if a signal is received, (2)
+           * net_lockedwait will also terminate if a signal is received, (2)
            * interrupts may be disabled! They will be re-enabled while the
            * task sleeps and automatically re-enabled when the task restarts.
            */
 
-          ret = uip_lockedwait(&state.snd_sem);
+          ret = net_lockedwait(&state.snd_sem);
 
           /* Make sure that no further interrupts are processed */
 
-          pkt_callbackfree(conn, state.snd_cb);
+          pkt_callback_free(conn, state.snd_cb);
 
           /* Clear the no-ARP bit in the device flags */
 
@@ -289,7 +291,7 @@ ssize_t psock_pkt_send(FAR struct socket *psock, FAR const void *buf,
     }
 
   sem_destroy(&state.snd_sem);
-  uip_unlock(save);
+  net_unlock(save);
 
   /* Set the socket state to idle */
 
@@ -305,8 +307,8 @@ ssize_t psock_pkt_send(FAR struct socket *psock, FAR const void *buf,
       goto errout;
     }
 
-  /* If uip_lockedwait failed, then we were probably reawakened by a signal. In
-   * this case, uip_lockedwait will have set errno appropriately.
+  /* If net_lockedwait failed, then we were probably reawakened by a signal. In
+   * this case, net_lockedwait will have set errno appropriately.
    */
 
   if (ret < 0)

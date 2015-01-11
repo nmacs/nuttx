@@ -51,11 +51,11 @@
 #include <arch/irq.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
+#include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
 #include <nuttx/net/arp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "pkt/pkt.h"
 
 /****************************************************************************
@@ -80,18 +80,18 @@ static dq_queue_t g_active_pkt_connections;
  ****************************************************************************/
 
 /****************************************************************************
- * Name: _uip_semtake() and _uip_semgive()
+ * Name: _pkt_semtake() and _pkt_semgive()
  *
  * Description:
  *   Take/give semaphore
  *
  ****************************************************************************/
 
-static inline void _uip_semtake(sem_t *sem)
+static inline void _pkt_semtake(sem_t *sem)
 {
   /* Take the semaphore (perhaps waiting) */
 
-  while (uip_lockedwait(sem) != 0)
+  while (net_lockedwait(sem) != 0)
     {
       /* The only case that an error should occur here is if
        * the wait was awakened by a signal.
@@ -101,7 +101,7 @@ static inline void _uip_semtake(sem_t *sem)
     }
 }
 
-#define _uip_semgive(sem) sem_post(sem)
+#define _pkt_semgive(sem) sem_post(sem)
 
 /****************************************************************************
  * Public Functions
@@ -138,7 +138,8 @@ void pkt_initialize(void)
  * Name: pkt_palloc()
  *
  * Description:
- *   Alloc a new, uninitialized packet socket connection structure.
+ *   Allocate a new, uninitialized packet socket connection structure. This
+ *   is normally something done by the implementation of the socket() API
  *
  ****************************************************************************/
 
@@ -150,7 +151,7 @@ FAR struct pkt_conn_s *pkt_alloc(void)
    * is protected by a semaphore (that behaves like a mutex).
    */
 
-  _uip_semtake(&g_free_sem);
+  _pkt_semtake(&g_free_sem);
   conn = (FAR struct pkt_conn_s *)dq_remfirst(&g_free_pkt_connections);
   if (conn)
     {
@@ -163,7 +164,7 @@ FAR struct pkt_conn_s *pkt_alloc(void)
       dq_addlast(&conn->node, &g_active_pkt_connections);
     }
 
-  _uip_semgive(&g_free_sem);
+  _pkt_semgive(&g_free_sem);
   return conn;
 }
 
@@ -184,7 +185,7 @@ void pkt_free(FAR struct pkt_conn_s *conn)
 
   DEBUGASSERT(conn->crefs == 0);
 
-  _uip_semtake(&g_free_sem);
+  _pkt_semtake(&g_free_sem);
 
   /* Remove the connection from the active list */
 
@@ -193,7 +194,7 @@ void pkt_free(FAR struct pkt_conn_s *conn)
   /* Free the connection */
 
   dq_addlast(&conn->node, &g_free_pkt_connections);
-  _uip_semgive(&g_free_sem);
+  _pkt_semgive(&g_free_sem);
 }
 
 /****************************************************************************
@@ -210,7 +211,7 @@ void pkt_free(FAR struct pkt_conn_s *conn)
 
 FAR struct pkt_conn_s *pkt_active(struct eth_hdr_s *buf)
 {
-  #define uip_ethaddr_cmp(addr1, addr2) \
+  #define eth_addr_cmp(addr1, addr2) \
   ((addr1[0] == addr2[0]) && (addr1[1] == addr2[1]) && \
    (addr1[2] == addr2[2]) && (addr1[3] == addr2[3]) && \
    (addr1[4] == addr2[4]) && (addr1[5] == addr2[5]))
@@ -222,7 +223,7 @@ FAR struct pkt_conn_s *pkt_active(struct eth_hdr_s *buf)
     {
       /* FIXME lmac in conn should have been set by pkt_bind() */
 
-      if (uip_ethaddr_cmp(buf->dest, conn->lmac))
+      if (eth_addr_cmp(buf->dest, conn->lmac))
         {
           /* Matching connection found.. return a reference to it */
 
@@ -238,7 +239,7 @@ FAR struct pkt_conn_s *pkt_active(struct eth_hdr_s *buf)
 }
 
 /****************************************************************************
- * Name: uip_nextpktconn()
+ * Name: pkt_nextconn()
  *
  * Description:
  *   Traverse the list of allocated packet connections
@@ -249,7 +250,7 @@ FAR struct pkt_conn_s *pkt_active(struct eth_hdr_s *buf)
  *
  ****************************************************************************/
 
-FAR struct pkt_conn_s *uip_nextpktconn(FAR struct pkt_conn_s *conn)
+FAR struct pkt_conn_s *pkt_nextconn(FAR struct pkt_conn_s *conn)
 {
   if (!conn)
     {

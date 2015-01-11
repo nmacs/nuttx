@@ -49,10 +49,10 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/tcp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "tcp/tcp.h"
 
 /****************************************************************************
@@ -96,7 +96,7 @@
  *
  ****************************************************************************/
 
-void tcp_appsend(FAR struct uip_driver_s *dev, FAR struct tcp_conn_s *conn,
+void tcp_appsend(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn,
                  uint16_t result)
 {
   /* Handle the result based on the application response */
@@ -106,26 +106,26 @@ void tcp_appsend(FAR struct uip_driver_s *dev, FAR struct tcp_conn_s *conn,
 
   /* Check for connection aborted */
 
-  if ((result & UIP_ABORT) != 0)
+  if ((result & TCP_ABORT) != 0)
     {
       dev->d_sndlen = 0;
-      conn->tcpstateflags = UIP_CLOSED;
-      nllvdbg("TCP state: UIP_CLOSED\n");
+      conn->tcpstateflags = TCP_CLOSED;
+      nllvdbg("TCP state: TCP_CLOSED\n");
 
-      tcp_send(dev, conn, TCP_RST | TCP_ACK, UIP_IPTCPH_LEN);
+      tcp_send(dev, conn, TCP_RST | TCP_ACK, IPTCP_HDRLEN);
     }
 
   /* Check for connection closed */
 
-  else if ((result & UIP_CLOSE) != 0)
+  else if ((result & TCP_CLOSE) != 0)
     {
-      conn->tcpstateflags = UIP_FIN_WAIT_1;
+      conn->tcpstateflags = TCP_FIN_WAIT_1;
       conn->unacked  = 1;
       conn->nrtx     = 0;
-      nllvdbg("TCP state: UIP_FIN_WAIT_1\n");
+      nllvdbg("TCP state: TCP_FIN_WAIT_1\n");
 
       dev->d_sndlen  = 0;
-      tcp_send(dev, conn, TCP_FIN | TCP_ACK, UIP_IPTCPH_LEN);
+      tcp_send(dev, conn, TCP_FIN | TCP_ACK, IPTCP_HDRLEN);
     }
 
   /* None of the above */
@@ -182,7 +182,7 @@ void tcp_appsend(FAR struct uip_driver_s *dev, FAR struct tcp_conn_s *conn,
  *
  ****************************************************************************/
 
-void tcp_rexmit(FAR struct uip_driver_s *dev, FAR struct tcp_conn_s *conn,
+void tcp_rexmit(FAR struct net_driver_s *dev, FAR struct tcp_conn_s *conn,
                 uint16_t result)
 {
   nllvdbg("result: %04x d_sndlen: %d conn->unacked: %d\n",
@@ -204,14 +204,14 @@ void tcp_rexmit(FAR struct uip_driver_s *dev, FAR struct tcp_conn_s *conn,
        * the IP and TCP headers.
        */
 
-      tcp_send(dev, conn, TCP_ACK | TCP_PSH, dev->d_sndlen + UIP_TCPIP_HLEN);
+      tcp_send(dev, conn, TCP_ACK | TCP_PSH, dev->d_sndlen + IPTCP_HDRLEN);
     }
 
   /* If there is no data to send, just send out a pure ACK if one is requested`. */
 
-  else if ((result & UIP_SNDACK) != 0)
+  else if ((result & TCP_SNDACK) != 0)
     {
-      tcp_send(dev, conn, TCP_ACK, UIP_TCPIP_HLEN);
+      tcp_send(dev, conn, TCP_ACK, IPTCP_HDRLEN);
     }
 
   /* There is nothing to do -- drop the packet */

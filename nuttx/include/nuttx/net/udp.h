@@ -52,7 +52,9 @@
 #include <nuttx/config.h>
 
 #include <stdint.h>
+
 #include <nuttx/net/netconfig.h>
+#include <nuttx/net/ip.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -60,41 +62,12 @@
 
 /* Header sizes */
 
-#define UIP_UDPH_LEN    8     /* Size of UDP header */
-#define UIP_IPUDPH_LEN (UIP_UDPH_LEN + UIP_IPH_LEN)    /* Size of IP + UDP header */
+#define UDP_HDRLEN   8                           /* Size of UDP header */
+#define IPUDP_HDRLEN (UDP_HDRLEN + IP_HDRLEN)    /* Size of IP + UDP header */
 
 /****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
-
-/* Representation of a uIP UDP connection */
-
-struct uip_driver_s;      /* Forward reference */
-struct uip_callback_s;    /* Forward reference */
-struct udp_conn_s
-{
-  dq_entry_t node;        /* Supports a doubly linked list */
-  uip_ipaddr_t ripaddr;   /* The IP address of the remote peer */
-  uint16_t lport;         /* The local port number in network byte order */
-  uint16_t rport;         /* The remote port number in network byte order */
-  uint8_t  ttl;           /* Default time-to-live */
-  uint8_t  crefs;         /* Reference counts on this instance */
-
-  /* Read-ahead buffering.
-   *
-   *   readahead - A singly linked list of type struct iob_qentry_s
-   *               where the UDP/IP read-ahead data is retained.
-   */
-
-#ifdef CONFIG_NET_UDP_READAHEAD
-  struct iob_queue_s readahead;   /* Read-ahead buffering */
-#endif
-
-  /* Defines the list of UDP callbacks */
-
-  struct uip_callback_s *list;
-};
-
 /* The UDP and IP headers */
 
 struct udp_iphdr_s
@@ -109,8 +82,8 @@ struct udp_iphdr_s
   uint8_t  len[2];          /* 16-bit Payload length */
   uint8_t  proto;           /*  8-bit Next header (same as IPv4 protocol field) */
   uint8_t  ttl;             /*  8-bit Hop limit (like IPv4 TTL field) */
-  uip_ip6addr_t srcipaddr;  /* 128-bit Source address */
-  uip_ip6addr_t destipaddr; /* 128-bit Destination address */
+  net_ip6addr_t srcipaddr;  /* 128-bit Source address */
+  net_ip6addr_t destipaddr; /* 128-bit Destination address */
 
 #else /* CONFIG_NET_IPv6 */
 
@@ -144,10 +117,10 @@ struct udp_iphdr_s
 #ifdef CONFIG_NET_STATISTICS
 struct udp_stats_s
 {
-  uip_stats_t drop;         /* Number of dropped UDP segments */
-  uip_stats_t recv;         /* Number of recived UDP segments */
-  uip_stats_t sent;         /* Number of sent UDP segments */
-  uip_stats_t chkerr;       /* Number of UDP segments with a bad checksum */
+  net_stats_t drop;         /* Number of dropped UDP segments */
+  net_stats_t recv;         /* Number of recived UDP segments */
+  net_stats_t sent;         /* Number of sent UDP segments */
+  net_stats_t chkerr;       /* Number of UDP segments with a bad checksum */
 };
 #endif
 
@@ -158,63 +131,5 @@ struct udp_stats_s
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
-
-/* uIP application functions
- *
- * Functions used by an application running of top of uIP. This includes
- * functions for opening and closing connections, sending and receiving
- * data, etc.
- *
- * Find a free connection structure and allocate it for use. This is
- * normally something done by the implementation of the socket() API
- */
-
-FAR struct udp_conn_s *udp_alloc(void);
-
-/* Allocate a new TCP data callback */
-
-#define udp_callbackalloc(conn)   uip_callbackalloc(&conn->list)
-#define udp_callbackfree(conn,cb) uip_callbackfree(cb, &conn->list)
-
-/* Free a connection structure that is no longer in use. This should
- * be done by the implementation of close()
- */
-
-void udp_free(FAR struct udp_conn_s *conn);
-
-/* Bind a UDP connection to a local address */
-
-#ifdef CONFIG_NET_IPv6
-int udp_bind(FAR struct udp_conn_s *conn,
-             FAR const struct sockaddr_in6 *addr);
-#else
-int udp_bind(FAR struct udp_conn_s *conn,
-             FAR const struct sockaddr_in *addr);
-#endif
-
-/* This function sets up a new UDP connection. The function will
- * automatically allocate an unused local port for the new
- * connection. However, another port can be chosen by using the
- * udp_bind() call, after the udp_connect() function has been
- * called.
- *
- * This function is called as part of the implementation of sendto
- * and recvfrom.
- *
- * addr The address of the remote host.
- */
-
-#ifdef CONFIG_NET_IPv6
-int udp_connect(FAR struct udp_conn_s *conn,
-                FAR const struct sockaddr_in6 *addr);
-#else
-int udp_connect(FAR struct udp_conn_s *conn,
-                FAR const struct sockaddr_in *addr);
-#endif
-
-/* Enable/disable UDP callbacks on a connection */
-
-void udp_enable(FAR struct udp_conn_s *conn);
-void udp_disable(FAR struct udp_conn_s *conn);
 
 #endif /* __INCLUDE_NUTTX_NET_UDP_H */

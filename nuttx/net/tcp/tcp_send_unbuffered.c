@@ -52,12 +52,15 @@
 
 #include <arch/irq.h>
 #include <nuttx/clock.h>
-#include <nuttx/net/arp.h>
+#include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/arp.h>
+#include <nuttx/net/tcp.h>
 
-#include "net.h"
-#include "uip/uip.h"
+#include "netdev/netdev.h"
+#include "devif/devif.h"
 #include "tcp/tcp.h"
+#include "socket/socket.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -67,7 +70,7 @@
 #  define CONFIG_NET_TCP_SPLIT_SIZE 40
 #endif
 
-#define TCPBUF ((struct tcp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+#define TCPBUF ((struct tcp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
 
 /****************************************************************************
  * Private Types
@@ -79,19 +82,19 @@
 
 struct send_s
 {
-  FAR struct socket         *snd_sock;    /* Points to the parent socket structure */
-  FAR struct uip_callback_s *snd_cb;      /* Reference to callback instance */
-  sem_t                      snd_sem;     /* Used to wake up the waiting thread */
-  FAR const uint8_t         *snd_buffer;  /* Points to the buffer of data to send */
-  size_t                     snd_buflen;  /* Number of bytes in the buffer to send */
-  ssize_t                    snd_sent;    /* The number of bytes sent */
-  uint32_t                   snd_isn;     /* Initial sequence number */
-  uint32_t                   snd_acked;   /* The number of bytes acked */
-#if defined(CONFIG_NET_SOCKOPTS) && !defined(CONFIG_DISABLE_CLOCK)
-  uint32_t                   snd_time;    /* Last send time for determining timeout */
+  FAR struct socket      *snd_sock;    /* Points to the parent socket structure */
+  FAR struct devif_callback_s *snd_cb; /* Reference to callback instance */
+  sem_t                   snd_sem;     /* Used to wake up the waiting thread */
+  FAR const uint8_t      *snd_buffer;  /* Points to the buffer of data to send */
+  size_t                  snd_buflen;  /* Number of bytes in the buffer to send */
+  ssize_t                 snd_sent;    /* The number of bytes sent */
+  uint32_t                snd_isn;     /* Initial sequence number */
+  uint32_t                snd_acked;   /* The number of bytes acked */
+#ifdef CONFIG_NET_SOCKOPTS
+  uint32_t                snd_time;    /* Last send time for determining timeout */
 #endif
 #if defined(CONFIG_NET_TCP_SPLIT)
-  bool                       snd_odd;     /* True: Odd packet in pair transaction */
+  bool                    snd_odd;     /* True: Odd packet in pair transaction */
 #endif
 };
 
@@ -116,8 +119,7 @@ struct send_s
  *
  ****************************************************************************/
 
-#if defined(CONFIG_NET_SOCKOPTS) && !defined(CONFIG_DISABLE_CLOCK)
-
+#ifdef CONFIG_NET_SOCKOPTS
 static inline int send_timeout(FAR struct send_s *pstate)
 {
   FAR struct socket *psock = 0;
@@ -138,14 +140,14 @@ static inline int send_timeout(FAR struct send_s *pstate)
 
   return FALSE;
 }
-#endif /* CONFIG_NET_SOCKOPTS && !CONFIG_DISABLE_CLOCK */
+#endif /* CONFIG_NET_SOCKOPTS */
 
 /****************************************************************************
  * Function: tcpsend_interrupt
  *
  * Description:
  *   This function is called from the interrupt level to perform the actual
- *   send operation when polled by the uIP layer.
+ *   send operation when polled by the lower, device interfacing layer.
  *
  * Parameters:
  *   dev      The structure of the network driver that caused the interrupt
@@ -160,7 +162,7 @@ static inline int send_timeout(FAR struct send_s *pstate)
  *
  ****************************************************************************/
 
-static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
+static uint16_t tcpsend_interrupt(FAR struct net_driver_s *dev,
                                   FAR void *pvconn,
                                   FAR void *pvpriv, uint16_t flags)
 {
@@ -174,11 +176,11 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
    * acknowledged bytes.
    */
 
-  if ((flags & UIP_ACKDATA) != 0)
+  if ((flags & TCP_ACKDATA) != 0)
     {
       /* Update the timeout */
 
-#if defined(CONFIG_NET_SOCKOPTS) && !defined(CONFIG_DISABLE_CLOCK)
+#ifdef CONFIG_NET_SOCKOPTS
       pstate->snd_time = clock_systimer();
 #endif
 
@@ -208,7 +210,7 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
 
   /* Check if we are being asked to retransmit data */
 
-  else if ((flags & UIP_REXMIT) != 0)
+  else if ((flags & TCP_REXMIT) != 0)
     {
       /* Yes.. in this case, reset the number of bytes that have been sent
        * to the number of bytes that have been ACKed.
@@ -229,7 +231,7 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
 
  /* Check for a loss of connection */
 
-  else if ((flags & (UIP_CLOSE|UIP_ABORT|UIP_TIMEDOUT)) != 0)
+  else if ((flags & (TCP_CLOSE | TCP_ABORT | TCP_TIMEDOUT)) != 0)
     {
       /* Report not connected */
 
@@ -261,7 +263,7 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
    * next polling cycle.
    */
 
-  if ((flags & UIP_NEWDATA) == 0 && pstate->snd_sent < pstate->snd_buflen)
+  if ((flags & TCP_NEWDATA) == 0 && pstate->snd_sent < pstate->snd_buflen)
     {
       uint32_t seqno;
 
@@ -295,12 +297,12 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
       if (sndlen >= CONFIG_NET_TCP_SPLIT_SIZE)
         {
           /* sndlen is the number of bytes remaining to be sent.
-           * uip_mss(conn) will return the number of bytes that can sent
+           * tcp_mss(conn) will return the number of bytes that can sent
            * in one packet.  The difference, then, is the number of bytes
            * that would be sent in the next packet after this one.
            */
 
-          int32_t next_sndlen = sndlen - uip_mss(conn);
+          int32_t next_sndlen = sndlen - tcp_mss(conn);
 
           /*  Is this the even packet in the packet pair transaction? */
 
@@ -327,13 +329,13 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
             {
               /* Will there be another (even) packet afer this one?
                * (next_sndlen > 0)  Will the split condition occur on that
-               * next, even packet? ((next_sndlen - uip_mss(conn)) < 0) If
+               * next, even packet? ((next_sndlen - tcp_mss(conn)) < 0) If
                * so, then perform the split now to avoid the case where the
                * byte count is less than CONFIG_NET_TCP_SPLIT_SIZE on the
                * next pair.
                */
 
-              if (next_sndlen > 0 && (next_sndlen - uip_mss(conn)) < 0)
+              if (next_sndlen > 0 && (next_sndlen - tcp_mss(conn)) < 0)
                 {
                   /* Here, we know that sndlen must be MSS < sndlen <= 2*MSS
                    * and so (sndlen / 2) is <= MSS.
@@ -350,9 +352,9 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
 
 #endif /* CONFIG_NET_TCP_SPLIT */
 
-      if (sndlen > uip_mss(conn))
+      if (sndlen > tcp_mss(conn))
         {
-          sndlen = uip_mss(conn);
+          sndlen = tcp_mss(conn);
         }
 
       /* Check if we have "space" in the window */
@@ -374,7 +376,7 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
            * happen until the polling cycle completes).
            */
 
-          uip_send(dev, &pstate->snd_buffer[pstate->snd_sent], sndlen);
+          devif_send(dev, &pstate->snd_buffer[pstate->snd_sent], sndlen);
 
           /* Check if the destination IP address is in the ARP table.  If not,
            * then the send won't actually make it out... it will be replaced with
@@ -403,11 +405,11 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
         }
     }
 
+#ifdef CONFIG_NET_SOCKOPTS
   /* All data has been sent and we are just waiting for ACK or re-transmit
    * indications to complete the send.  Check for a timeout.
    */
 
-#if defined(CONFIG_NET_SOCKOPTS) && !defined(CONFIG_DISABLE_CLOCK)
   if (send_timeout(pstate))
     {
       /* Yes.. report the timeout */
@@ -416,7 +418,7 @@ static uint16_t tcpsend_interrupt(FAR struct uip_driver_s *dev,
       pstate->snd_sent = -ETIMEDOUT;
       goto end_wait;
     }
-#endif /* CONFIG_NET_SOCKOPTS && !CONFIG_DISABLE_CLOCK */
+#endif /* CONFIG_NET_SOCKOPTS */
 
   /* Continue waiting */
 
@@ -504,7 +506,7 @@ ssize_t psock_tcp_send(FAR struct socket *psock,
                        FAR const void *buf, size_t len)
 {
   struct send_s state;
-  uip_lock_t save;
+  net_lock_t save;
   int err;
   int ret = OK;
 
@@ -535,7 +537,7 @@ ssize_t psock_tcp_send(FAR struct socket *psock,
    * are ready.
    */
 
-  save                = uip_lock();
+  save                = net_lock();
   memset(&state, 0, sizeof(struct send_s));
   (void)sem_init(&state.snd_sem, 0, 0);    /* Doesn't really fail */
   state.snd_sock      = psock;             /* Socket descriptor to use */
@@ -548,7 +550,7 @@ ssize_t psock_tcp_send(FAR struct socket *psock,
 
       /* Allocate resources to receive a callback */
 
-      state.snd_cb = tcp_callbackalloc(conn);
+      state.snd_cb = tcp_callback_alloc(conn);
       if (state.snd_cb)
         {
           /* Get the initial sequence number that will be used */
@@ -563,12 +565,13 @@ ssize_t psock_tcp_send(FAR struct socket *psock,
 
           /* Set the initial time for calculating timeouts */
 
-#if defined(CONFIG_NET_SOCKOPTS) && !defined(CONFIG_DISABLE_CLOCK)
+#ifdef CONFIG_NET_SOCKOPTS
           state.snd_time        = clock_systimer();
 #endif
           /* Set up the callback in the connection */
 
-          state.snd_cb->flags   = UIP_ACKDATA|UIP_REXMIT|UIP_POLL|UIP_CLOSE|UIP_ABORT|UIP_TIMEDOUT;
+          state.snd_cb->flags   = (TCP_ACKDATA | TCP_REXMIT | TCP_POLL |
+                                   TCP_CLOSE | TCP_ABORT | TCP_TIMEDOUT);
           state.snd_cb->priv    = (void*)&state;
           state.snd_cb->event   = tcpsend_interrupt;
 
@@ -577,21 +580,21 @@ ssize_t psock_tcp_send(FAR struct socket *psock,
           netdev_txnotify(conn->ripaddr);
 
           /* Wait for the send to complete or an error to occur:  NOTES: (1)
-           * uip_lockedwait will also terminate if a signal is received, (2) interrupts
+           * net_lockedwait will also terminate if a signal is received, (2) interrupts
            * may be disabled!  They will be re-enabled while the task sleeps and
            * automatically re-enabled when the task restarts.
            */
 
-          ret = uip_lockedwait(&state.snd_sem);
+          ret = net_lockedwait(&state.snd_sem);
 
           /* Make sure that no further interrupts are processed */
 
-          tcp_callbackfree(conn, state.snd_cb);
+          tcp_callback_free(conn, state.snd_cb);
         }
     }
 
   sem_destroy(&state.snd_sem);
-  uip_unlock(save);
+  net_unlock(save);
 
   /* Set the socket state to idle */
 
@@ -607,8 +610,8 @@ ssize_t psock_tcp_send(FAR struct socket *psock,
       goto errout;
     }
 
-  /* If uip_lockedwait failed, then we were probably reawakened by a signal. In
-   * this case, uip_lockedwait will have set errno appropriately.
+  /* If net_lockedwait failed, then we were probably reawakened by a signal. In
+   * this case, net_lockedwait will have set errno appropriately.
    */
 
   if (ret < 0)

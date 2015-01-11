@@ -52,6 +52,11 @@
  * definitions will configure operational clocking.
  */
 
+/* On-board crystal frequencies */
+
+#define BOARD_MAINOSC_FREQUENCY    (12000000)  /* MAINOSC: 12MHz crystal on-board */
+#define BOARD_SLOWCLK_FREQUENCY    (32768)     /* Slow Clock: 32.768KHz */
+
 #if defined(CONFIG_SAMA5_BOOT_SDRAM)
 /* When booting from SDRAM, NuttX is loaded in SDRAM by an intermediate bootloader.
  * That bootloader had to have already configured the PLL and SDRAM for proper
@@ -167,6 +172,47 @@
 
 #define BUTTON_USER_BIT   (1 << BUTTON_USER)
 
+/* LCD Interface, Geometry and Timing ***********************************************/
+/* This configuration applies only to the TM7000 LCD/Touchscreen module.  Other LCDs
+ * will require changes.
+ *
+ * NOTE: The TM7000 user manual claims that the hardware interface is 18-bit RGB666.
+ * If you select that, you will get a very pink display (because the upper, "red"
+ * bits floating high).  By trial and error, the 24-bit select was found to produce
+ * the correct color output.
+ *
+ * NOTE: Timings come from the smaller SAMA5D3x-EK LCD and have not been optimized
+ * for this display.
+ */
+
+#define BOARD_LCDC_OUTPUT_BPP 24       /* Output format to H/W is 24 bpp RGB888 */
+#define BOARD_LCDC_WIDTH      800      /* Display width (pixels) */
+#define BOARD_LCDC_HEIGHT     480      /* Display height (rows) */
+#define BOARD_LCDC_MCK_MUL2   1        /* Source clock is 2*Mck (vs Mck) */
+#define BOARD_LCDC_PIXCLK_INV 1        /* Invert pixel clock, use falling edge */
+#define BOARD_LCDC_GUARDTIME  9        /* Guard time (frames) */
+#define BOARD_LCDC_VSPW       2        /* Vertical pulse width (lines) */
+#define BOARD_LCDC_HSPW       128      /* Horizontal pulse width (LCDDOTCLK) */
+#define BOARD_LCDC_VFPW       37       /* Vertical front porch (lines) */
+#define BOARD_LCDC_VBPW       8        /* Vertical back porch (lines) */
+#define BOARD_LCDC_HFPW       168      /* Horizontal front porch (LCDDOTCLK) */
+#define BOARD_LCDC_HBPW       88       /* Horizontal back porch (LCDDOTCLK) */
+
+/* Pixel clock rate in Hz (HS period * VS period * BOARD_LCDC_FRAMERATE). */
+
+#define BOARD_LCDC_FRAMERATE  40       /* Frame rate in Hz */
+#define BOARD_LCDC_HSPERIOD \
+  (BOARD_LCDC_HSPW + BOARD_LCDC_HBPW + BOARD_LCDC_WIDTH + BOARD_LCDC_HFPW)
+#define BOARD_LCDC_VSPERIOD \
+  (BOARD_LCDC_VSPW + BOARD_LCDC_VBPW + BOARD_LCDC_HEIGHT + BOARD_LCDC_VFPW)
+#define BOARD_LCDC_PIXELCLOCK \
+  (BOARD_LCDC_HSPERIOD * BOARD_LCDC_VSPERIOD * BOARD_LCDC_FRAMERATE)
+
+/* Backlight prescaler value and PWM output polarity */
+
+#define BOARD_LCDC_PWMPS      LCDC_LCDCFG6_PWMPS_DIV1
+#define BOARD_LCDC_PWMPOL     LCDC_LCDCFG6_PWMPOL
+
 /* NAND *****************************************************************************/
 
 /* Address for transferring command bytes to the nandflash, CLE A22*/
@@ -181,7 +227,42 @@
 
 #define BOARD_EBICS3_NAND_DATAADDR  0x60000000
 
-/* PIO configuration ****************************************************************/
+/* Pin disambiguation ***************************************************************/
+/* Alternative pin selections are provided with a numeric suffix like _1, _2, etc. 
+ * Drivers, however, will use the pin selection without the numeric suffix. 
+ * Additional definitions are required in this board.h file.  For example, if we
+ * wanted the PCK0on PB26, then the following definition should appear in the
+ * board.h header file for that board:
+ *
+ *   #define PIO_PMC_PCK0 PIO_PMC_PCK0_1
+ *
+ * The PCK logic will then automatically configure PB26 as the PCK0 pin.
+ */
+
+/* SSC0 TD is provided on PB28 */
+
+#define PIO_SSC0_TD           PIO_SSC0_TD_2
+
+/* PCK2 is provides the MCLK to the WM8904 audio CODEC via PB10 */
+
+#define PIO_PMC_PCK2          PIO_PMC_PCK2_1
+
+/* PCK0 and PCK1 are not currently used, but the PCK logic wants these definitions
+ * anyway.  The assignments here are arbitrary and will not be used (at least not
+ * until we implement ISI of HDMI).
+ *
+ * PIO_PMC_PCK0_1: PB26 is used by I2S with the WM8904 (AUDIO_RK0_PB26)
+ * PIO_PMC_PCK0_2: PD8  is the HDMI MCLK (HDMI_MCK_PD8)
+ * PIO_PMC_PCK0_3: PA24 is used for the LCD backlight (LCD_PWM_PA24)
+ *
+ * PIO_PMC_PCK1_1: PD31 goes to the expansion interface and is not used on-board
+ *                 (EXP_PD31).
+ * PIO_PMC_PCK1_2: PC24 is used for ISI data (ISI_D5)
+ * PIO_PMC_PCK1_3: PC4  is ISI_MCK_PC4, MCI0_CK_PC4, EXP_PC4
+ */
+
+#define PIO_PMC_PCK0          PIO_PMC_PCK0_2
+#define PIO_PMC_PCK1          PIO_PMC_PCK1_1
 
 /************************************************************************************
  * Assembly Language Macros

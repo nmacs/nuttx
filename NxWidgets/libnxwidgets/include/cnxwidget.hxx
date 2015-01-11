@@ -141,19 +141,18 @@ namespace NXWidgets
 
     typedef struct
     {
-      uint8_t clicked         : 1;       /**< True if the widget is currently clicked. */
-      uint8_t hasFocus        : 1;       /**< True if the widget has focus. */
-      uint8_t dragging        : 1;       /**< True if the widget is being dragged. */
-      uint8_t deleted         : 1;       /**< True if the widget has been deleted. */
-      uint8_t borderless      : 1;       /**< True if the widget is borderless. */
-      uint8_t draggable       : 1;       /**< True if the widget can be dragged. */
-      uint8_t drawingEnabled  : 1;       /**< True if the widget can be drawn. */
-      uint8_t enabled         : 1;       /**< True if the widget is enabled. */
-      uint8_t permeable       : 1;       /**< True if the widget's children can exceed its dimensions. */
-      uint8_t erased          : 1;       /**< True if the widget is currently erased from the frame buffer. */
-      uint8_t visibleRegionCacheInvalid : 1;  /**< True if the region cache is invalid. */
-      uint8_t hidden          : 1;       /**< True if the widget is hidden. */
-      uint8_t doubleClickable : 1;       /**< True if the widget can be double-clicked. */
+      uint8_t clicked         : 1;    /**< True if the widget is currently clicked. */
+      uint8_t hasFocus        : 1;    /**< True if the widget has focus. */
+      uint8_t dragging        : 1;    /**< True if the widget is being dragged. */
+      uint8_t deleted         : 1;    /**< True if the widget has been deleted. */
+      uint8_t borderless      : 1;    /**< True if the widget is borderless. */
+      uint8_t draggable       : 1;    /**< True if the widget can be dragged. */
+      uint8_t drawingEnabled  : 1;    /**< True if the widget can be drawn. */
+      uint8_t enabled         : 1;    /**< True if the widget is enabled. */
+      uint8_t permeable       : 1;    /**< True if the widget's children can exceed its dimensions. */
+      uint8_t erased          : 1;    /**< True if the widget is currently erased from the frame buffer. */
+      uint8_t hidden          : 1;    /**< True if the widget is hidden. */
+      uint8_t doubleClickable : 1;    /**< True if the widget can be double-clicked. */
     } Flags;
 
     /**
@@ -170,7 +169,7 @@ namespace NXWidgets
 
   protected:
     CWidgetControl *m_widgetControl;  /**< The controlling widget for the display */
-    CRect m_rect;                     /**< Rectange bounding the widget. */
+    CRect m_rect;                     /**< Rectangle bounding the widget. */
 
     // Dragging variables
 
@@ -801,6 +800,7 @@ namespace NXWidgets
      *
      * @return Const pointer to CWidgetStyle stored inside this widget.
      */
+
     inline const CWidgetStyle *getWidgetStyle() const { return &m_style; }
 
     /**
@@ -865,6 +865,17 @@ namespace NXWidgets
     inline void removeWidgetEventHandler(CWidgetEventHandler* eventHandler)
     {
       m_widgetEventHandlers->removeWidgetEventHandler(eventHandler);
+    }
+
+   /**
+     * Return the number of registered event handlers
+     *
+     * @return The number of registered event handlers
+     */
+
+    inline int nWidgetEventHandlers(void) const
+    {
+      return m_widgetEventHandlers->size();
     }
 
     /**
@@ -1000,6 +1011,8 @@ namespace NXWidgets
      * Sets the font.
      *
      * @param font A pointer to the font to use.
+     *
+     * NOTE: This font is not deleted when the widget is destroyed!
      */
 
     virtual void setFont(CNxFont *font);

@@ -55,13 +55,19 @@
  ************************************************************************************/
 /* Configuration ************************************************************/
 
-#define HAVE_HSMCI      1
-#define HAVE_AT25       1
-#define HAVE_NAND       1
-#define HAVE_USBHOST    1
-#define HAVE_USBDEV     1
-#define HAVE_USBMONITOR 1
-#define HAVE_NETWORK    1
+#define HAVE_HSMCI       1
+#define HAVE_AT25        1
+#define HAVE_NAND        1
+#define HAVE_AUTOMOUNTER 1
+#define HAVE_USBHOST     1
+#define HAVE_USBDEV      1
+#define HAVE_USBOVCUR    1
+#define HAVE_USBMONITOR  1
+#define HAVE_NETWORK     1
+#define HAVE_MAXTOUCH    1
+#define HAVE_WM8904      1
+#define HAVE_AUDIO_NULL  1
+#define HAVE_PMIC        1
 
 /* HSMCI */
 /* Can't support MMC/SD if the card interface(s) are not enable */
@@ -77,10 +83,10 @@
 #  undef HAVE_HSMCI
 #endif
 
-/* We need PIO interrupts on PIOD to support card detect interrupts */
+/* We need PIO interrupts on PIOE to support card detect interrupts */
 
-#if defined(HAVE_HSMCI) && !defined(CONFIG_SAMA5_PIOD_IRQ)
-#  warning PIOD interrupts not enabled.  No MMC/SD support.
+#if defined(HAVE_HSMCI) && !defined(CONFIG_SAMA5_PIOE_IRQ)
+#  warning PIOE interrupts not enabled.  No MMC/SD support.
 #  undef HAVE_HSMCI
 #endif
 
@@ -95,7 +101,7 @@
  * asked to mount the NAND part
  */
 
-#if defined(CONFIG_DISABLE_MOUNTPOINT) || !defined(CONFIG_SAMA5D4EK_NAND_AUTOMOUNT)
+#if defined(CONFIG_DISABLE_MOUNTPOINT) || !defined(CONFIG_SAMA5D4EK_NAND_BLOCKMOUNT)
 #  undef HAVE_NAND
 #endif
 
@@ -140,7 +146,7 @@
  * asked to mount the AT25 part
  */
 
-#if defined(CONFIG_DISABLE_MOUNTPOINT) || !defined(CONFIG_SAMA5D4EK_AT25_AUTOMOUNT)
+#if defined(CONFIG_DISABLE_MOUNTPOINT) || !defined(CONFIG_SAMA5D4EK_AT25_BLOCKMOUNT)
 #  undef HAVE_AT25
 #endif
 
@@ -152,12 +158,25 @@
 #  undef CONFIG_SAMA5D4EK_AT25_NXFFS
 #endif
 
-#if !defined(CONFIG_SAMA5D4EK_AT25_FTL) && !defined(CONFIG_SAMA5D4EK_AT25_NXFFS)
+#if !defined(CONFIG_SAMA5D4EK_AT25_FTL) && !defined(CONFIG_SAMA5D4EK_AT25_CHARDEV) && \
+    !defined(CONFIG_SAMA5D4EK_AT25_NXFFS)
 #  undef HAVE_AT25
+#endif
+
+#if defined(CONFIG_SAMA5D4EK_AT25_FTL) && defined(CONFIG_SAMA5D4EK_AT25_CHARDEV)
+#  warning Both CONFIG_SAMA5D4EK_AT25_CHARDEV and CONFIG_SAMA5D4EK_AT25_FTL are set
+#  warning Ignoring CONFIG_SAMA5D4EK_AT25_FTL
+#  undef CONFIG_SAMA5D4EK_AT25_FTL
 #endif
 
 #if defined(CONFIG_SAMA5D4EK_AT25_FTL) && defined(CONFIG_SAMA5D4EK_AT25_NXFFS)
 #  warning Both CONFIG_SAMA5D4EK_AT25_FTL and CONFIG_SAMA5D4EK_AT25_NXFFS are set
+#  warning Ignoring CONFIG_SAMA5D4EK_AT25_NXFFS
+#  undef CONFIG_SAMA5D4EK_AT25_NXFFS
+#endif
+
+#if defined(CONFIG_SAMA5D4EK_AT25_CHARDEV) && defined(CONFIG_SAMA5D4EK_AT25_NXFFS)
+#  warning Both CONFIG_SAMA5D4EK_AT25_CHARDEV and CONFIG_SAMA5D4EK_AT25_NXFFS are set
 #  warning Ignoring CONFIG_SAMA5D4EK_AT25_NXFFS
 #  undef CONFIG_SAMA5D4EK_AT25_NXFFS
 #endif
@@ -202,6 +221,75 @@
 #else
 #endif
 
+/* Automounter.  Currently only works with HSMCI. */
+
+#if !defined(CONFIG_FS_AUTOMOUNTER) || !defined(HAVE_HSMCI)
+#  undef HAVE_AUTOMOUNTER
+#endif
+
+#ifndef CONFIG_SAMA5_HSMCI0
+#  undef CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT
+#endif
+
+#ifndef CONFIG_SAMA5_HSMCI1
+#  undef CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT
+#endif
+
+#if !defined(CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT) && \
+    !defined(CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT)
+#  undef HAVE_AUTOMOUNTER
+#endif
+
+#ifdef HAVE_AUTOMOUNTER
+#  ifdef CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT
+  /* HSMCI0 Automounter defaults */
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_FSTYPE
+#      define CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_FSTYPE "vfat"
+#    endif
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_BLKDEV
+#      define CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_BLKDEV "/dev/mmcds0"
+#    endif
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_MOUNTPOINT
+#      define CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_MOUNTPOINT "/mnt/sdcard0"
+#    endif
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_DDELAY
+#      define CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_DDELAY 1000
+#    endif
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_UDELAY
+#      define CONFIG_SAMA5D4EK_HSMCI0_AUTOMOUNT_UDELAY 2000
+#    endif
+#  endif
+
+#  ifdef CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT
+  /* HSMCI1 Automounter defaults */
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_FSTYPE
+#      define CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_FSTYPE "vfat"
+#    endif
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_BLKDEV
+#      define CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_BLKDEV "/dev/mmcds0"
+#    endif
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_MOUNTPOINT
+#      define CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_MOUNTPOINT "/mnt/sdcard0"
+#    endif
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_DDELAY
+#      define CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_DDELAY 1000
+#    endif
+
+#    ifndef CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_UDELAY
+#      define CONFIG_SAMA5D4EK_HSMCI1_AUTOMOUNT_UDELAY 2000
+#    endif
+#  endif
+#endif
+
 /* USB Host / USB Device */
 /* Either CONFIG_SAMA5_UHPHS or CONFIG_SAMA5_UDPHS must be defined, or there is
  * no USB of any kind.
@@ -235,6 +323,29 @@
 #  undef HAVE_USBHOST
 #endif
 
+#if defined(HAVE_USBHOST) && !defined(CONFIG_SAMA5_UHPHS_RHPORT1) && \
+    !defined(CONFIG_SAMA5_UHPHS_RHPORT2) && !defined(CONFIG_SAMA5_UHPHS_RHPORT3)
+#  undef HAVE_USBHOST
+#  warning No ports defined for USB host
+#endif
+
+#ifndef HAVE_USBHOST
+#  undef CONFIG_SAMA5_UHPHS_RHPORT1
+#  undef CONFIG_SAMA5_UHPHS_RHPORT2
+#  undef CONFIG_SAMA5_UHPHS_RHPORT3
+#endif
+
+/* No overcurrent support if no USB host or no interrupts of PIOD */
+
+#if !defined(HAVE_USBHOST)
+#  undef HAVE_USBOVCUR
+#endif
+
+#if defined(HAVE_USBHOST) && !defined(CONFIG_SAMA5_PIOE_IRQ)
+#  undef HAVE_USBOVCUR
+#  warning CONFIG_SAMA5_PIOE_IRQ need for USB host overcurrent support
+#endif
+
 /* Check if we should enable the USB monitor before starting NSH */
 
 #ifndef CONFIG_SYSTEM_USBMONITOR
@@ -257,6 +368,91 @@
 
 #if !defined(CONFIG_NET) || !defined(CONFIG_SAMA5_EMACB)
 #  undef HAVE_NETWORK
+#endif
+
+/* maXTouch controller */
+
+#ifndef CONFIG_INPUT_MXT
+#  undef HAVE_MAXTOUCH
+#endif
+
+#ifdef HAVE_MAXTOUCH
+#  ifndef CONFIG_SAMA5_TWI0
+#    warning CONFIG_SAMA5_TWI0 is required for touchscreen support
+#    undef HAVE_MAXTOUCH
+#  endif
+
+#  ifndef CONFIG_SAMA5_PIOE_IRQ
+#    warning PIOE interrupts not enabled.  No touchsreen support.
+#    undef HAVE_MAXTOUCH
+#  endif
+#endif
+
+/* Audio */
+/* PCM/WM8904 driver */
+
+#ifndef CONFIG_AUDIO_WM8904
+#  undef HAVE_WM8904
+#endif
+
+#ifdef HAVE_WM8904
+#  ifndef CONFIG_SAMA5_TWI0
+#    warning CONFIG_SAMA5_TWI0 is required for audio support
+#    undef HAVE_WM8904
+#  endif
+
+#  ifndef CONFIG_SAMA5_SSC0
+#    warning CONFIG_SAMA5_SSC0 is required for audio support
+#    undef HAVE_WM8904
+#  endif
+
+#  if !defined(CONFIG_SAMA5_PIOE_IRQ)
+#    warning CONFIG_SAMA5_PIOE_IRQ is required for audio support
+#    undef HAVE_HSMCI
+#  endif
+
+#  ifndef CONFIG_AUDIO_FORMAT_PCM
+#    warning CONFIG_AUDIO_FORMAT_PCM is required for audio support
+#    undef HAVE_WM8904
+#  endif
+
+#  ifndef CONFIG_SAMA5D4EK_WM8904_I2CFREQUENCY
+#    warning Defaulting to maximum WM8904 I2C frequency
+#    define CONFIG_SAMA5D4EK_WM8904_I2CFREQUENCY 400000
+#  endif
+
+#  if CONFIG_SAMA5D4EK_WM8904_I2CFREQUENCY > 400000
+#    warning WM8904 I2C frequency cannot exceed 400KHz
+#    undef CONFIG_SAMA5D4EK_WM8904_I2CFREQUENCY
+#    define CONFIG_SAMA5D4EK_WM8904_I2CFREQUENCY 400000
+#  endif
+#endif
+
+/* PCM/null driver */
+
+#ifndef CONFIG_AUDIO_NULL
+#  undef HAVE_AUDIO_NULL
+#endif
+
+#ifdef HAVE_WM8904
+#  undef HAVE_AUDIO_NULL
+#endif
+
+#ifdef HAVE_AUDIO_NULL
+#  ifndef CONFIG_AUDIO_FORMAT_PCM
+#    warning CONFIG_AUDIO_FORMAT_PCM is required for audio support
+#    undef HAVE_AUDIO_NULL
+#  endif
+#endif
+
+/* PMIC */
+
+#if !defined(CONFIG_SAMA5_TWI0) || !defined(CONFIG_SAMA5D4_MB_REVC)
+#  undef HAVE_PMIC
+#endif
+
+#ifndef CONFIG_EXPERIMENTAL
+#  undef HAVE_PMIC /* REVISIT: Disable anyway because it does not yet work */
 #endif
 
 /* LEDs *****************************************************************************/
@@ -301,6 +497,48 @@
                       PIO_INT_BOTHEDGES | PIO_PORT_PIOE | PIO_PIN13)
 #define IRQ_BTN_USER  SAM_IRQ_PE13
 
+/* TM7000 LCD/Touchscreen ***********************************************************/
+/* The TM7000 LCD is available for the SAMA5D4-EK.  See documentation
+ * available on the Precision Design Associates website:
+ * http://www.pdaatl.com/doc/tm7000.pdf
+ *
+ * The TM7000 features an touchscreen controol
+ *
+ *   - 7 inch LCD at 800x480 18-bit RGB resolution and white backlight
+ *   - Projected Capacitive Multi-Touch Controller based on the Atmel
+ *     MXT768E maXTouch™ IC
+ *   - 4 Capacitive “Navigation” Keys available via an Atmel AT42QT1070
+ *     QTouch™ Button Sensor IC
+ *   - 200 bytes of non-volatile serial EEPROM
+ *
+ * Both the MXT768E and the AT42QT1070 are I2C devices with interrupting
+ * PIO pins:
+ *
+ * ------------------------ -----------------
+ * SAMA5D4-EK               TM7000
+ * ------------------------ -----------------
+ * J9 pin 5 LCD_PE24        J4 pin 5 ~CHG_mxt
+ * J9 pin 6 LCD_PE25        J4 pin 6 ~CHG_QT
+ * J9 pin 7 LCD_TWCK0_PA31  J4 pin 7 SCL_0
+ * J9 pin 8 LCD_TWD0_PA30   J4 pin 8 SDA_0
+ * ------------------------ -----------------
+ *
+ * The schematic indicates the the MXT468E address is 0x4c/0x4d.
+ */
+
+#define PIO_CHG_MXT  (PIO_INPUT | PIO_CFG_PULLUP | PIO_CFG_DEGLITCH | \
+                      PIO_INT_FALLING | PIO_PORT_PIOE | PIO_PIN24)
+#define IRQ_CHG_MXT   SAM_IRQ_PE24
+
+#define PIO_CHG_QT   (PIO_INPUT | PIO_CFG_PULLUP | PIO_CFG_DEGLITCH | \
+                      PIO_INT_FALLING | PIO_PORT_PIOE | PIO_PIN25)
+#define IRQ_CHG_QT    SAM_IRQ_PE25
+
+/* The touchscreen communicates on TWI0, I2C address 0x4c */
+
+#define MXT_TWI_BUS      0
+#define MXT_I2C_ADDRESS  0x4c
+
 /* HSMCI Card Slots *****************************************************************/
 /* The SAMA4D4-EK provides a two SD memory card slots:  (1) a full size SD
  * card slot (J10), and (2) a microSD memory card slot (J11).
@@ -333,13 +571,13 @@
 #define IRQ_MCI0_CD   SAM_IRQ_PE5
 
 /* The microSD connects vi HSMCI1.  The card detect discrete is available on
- * PE14 (pulled high)  NOTE that PE15 must be controlled to provide power
+ * PE6 (pulled high)  NOTE that PE15 must be controlled to provide power
  * to the HSMCI1 slot (the HSMCI0 slot is always powered).
  *
  * ------------------------------ ------------------- -------------------------
  * SAMA5D4 PIO                    SIGNAL              USAGE
  * ------------------------------ ------------------- -------------------------
- * PE14/A14/TCLK1/PWMH3           MCI1_CD_PE14        MCI1_CD
+ * PE14/A14/TCLK1/PWMH3           MCI1_CD_PE14        MCI1_CD               ???
  * PE15/A15/SCK3/TIOA0            MCI1_PWR_PE15       MCI1_PWR
  * PE18/A18/TIOA5/MCI1_CK         PE18                MCI1_CK, EXP
  * PE19/A19/TIOB5/MCI1_CDA        PE19                MCI1_CDA, EXP
@@ -352,84 +590,98 @@
  */
 
 #define PIO_MCI1_CD  (PIO_INPUT | PIO_CFG_DEFAULT | PIO_CFG_DEGLITCH | \
-                      PIO_INT_BOTHEDGES | PIO_PORT_PIOE | PIO_PIN14)
-#define IRQ_MCI1_CD   SAM_IRQ_PE14
+                      PIO_INT_BOTHEDGES | PIO_PORT_PIOE | PIO_PIN6)
+#define IRQ_MCI1_CD   SAM_IRQ_PE6
 
 #define IRQ_MCI1_PWR (PIO_OUTPUT | PIO_CFG_DEFAULT | PIO_OUTPUT_SET | \
                       PIO_PORT_PIOE | PIO_PIN15)
 
 /* USB Ports ************************************************************************/
-/* The SAMA5D4 series-MB features three USB communication ports:
+/* The SAMA4D4-EK features three USB communication ports:
  *
- *   1. Port A Host High Speed (EHCI) and Full Speed (OHCI) multiplexed with
- *      USB Device High Speed Micro AB connector, J6
+ *   * Port A Host High Speed (EHCI) and Full Speed (OHCI) multiplexed with
+ *     USB Device High Speed Micro AB connector, J1
  *
- *   2. Port B Host High Speed (EHCI) and Full Speed (OHCI) standard type A
- *      connector, J7 upper port
+ *   * Port B Host High Speed (EHCI) and Full Speed (OHCI) standard type A
+ *     connector, J5 upper port
  *
- *   3. Port C Host Full Speed (OHCI) only standard type A connector, J7
- *      lower port
+ *   * Port C Host Full Speed (OHCI)  and Full Speed (OHCI) standard type A
+ *     connector, J5 lower port
  *
- * The two USB host ports (only) are equipped with 500-mA high-side power
+ * The three  USB host ports are equipped with 500-mA high-side power
  * switch for self-powered and bus-powered applications.
  *
- * The USB device port A (J6) features a VBUS insert detection function.
- *
+ * The USB device port A (J5) features a VBUS insert detection function.
  *
  * Port A
+ * ------
  *
- *   PIO  Signal Name Function
- *   ---- ----------- -------------------------------------------------------
- *   PE9  VBUS_SENSE VBus detection
- *
- *     Note: No VBus power switch enable on port A.  I think that this limits
- *     this port to a device port or as a host port for self-powered devices
- *     only.
+ *   PIO  Signal Name    Function
+ *   ---- -------------- -------------------------------------------------------
+ *   PE10 USBA_EN5V_PE10 VBus power enable (via MN2 power switch) to VBus pin of
+ *                       the OTG connector (host)
+ *   PE31 USBA_VBUS_PE31 VBus sensing from the VBus pin of the OTG connector (device)
  */
 
-#define PIO_USBA_VBUS_SENSE \
+#ifdef CONFIG_SAMA5_UHPHS_RHPORT1
+  #define PIO_USBA_VBUS_ENABLE \
+                     (PIO_OUTPUT | PIO_CFG_DEFAULT | PIO_OUTPUT_CLEAR | \
+                      PIO_PORT_PIOE | PIO_PIN10)
+#endif
+
+#ifdef HAVE_USBDEV
+#  define PIO_USBA_VBUS_SENSE \
                      (PIO_INPUT | PIO_CFG_PULLUP | PIO_CFG_DEGLITCH | \
-                      PIO_INT_BOTHEDGES | PIO_PORT_PIOE | PIO_PIN9)
-#define IRQ_USBA_VBUS_SENSE \
-                     SAM_IRQ_PE9
+                      PIO_INT_BOTHEDGES | PIO_PORT_PIOE | PIO_PIN31)
+#  define IRQ_USBA_VBUS_SENSE \
+                     SAM_IRQ_PE31
+#endif
 
 /* Port B
+ * ------
  *
- *   PIO  Signal Name Function
- *   ---- ----------- -------------------------------------------------------
- *   PE4  EN5V_USBB   VBus power enable (via MN3 AIC1526 Dual USB High-Side
- *                    Power Switch).  To the A1 pin of J7 Dual USB A
- *                    connector
+ *   PIO  Signal Name    Function
+ *   ---- -------------- -------------------------------------------------------
+ *   PE11 USBB_EN5V_PE11 VBus power enable (via MN4 power switch).  To the A1
+ *                       pin of J5 Dual USB A connector
  */
 
-#define PIO_USBB_VBUS_ENABLE \
+#ifdef CONFIG_SAMA5_UHPHS_RHPORT2
+#  define PIO_USBB_VBUS_ENABLE \
                      (PIO_OUTPUT | PIO_CFG_DEFAULT | PIO_OUTPUT_CLEAR | \
-                      PIO_PORT_PIOE | PIO_PIN4)
+                      PIO_PORT_PIOE | PIO_PIN11)
+#endif
 
 /* Port C
+ * ------
  *
- *   PIO  Signal Name Function
- *   ---- ----------- -------------------------------------------------------
- *   PE3  EN5V_USBC   VBus power enable (via MN3 power switch).  To the B1
- *                    pin of J7 Dual USB A connector
+ *   PIO  Signal Name    Function
+ *   ---- -------------- -------------------------------------------------------
+ *   PE12 USBC_EN5V_PE12 VBus power enable (via MN4 power switch).  To the B1
+ *                       pin of J5 Dual USB A connector
  */
 
-#define PIO_USBC_VBUS_ENABLE \
+#ifdef CONFIG_SAMA5_UHPHS_RHPORT3
+#  define PIO_USBC_VBUS_ENABLE \
                      (PIO_OUTPUT | PIO_CFG_DEFAULT | PIO_OUTPUT_CLEAR | \
-                      PIO_PORT_PIOE | PIO_PIN3)
+                      PIO_PORT_PIOE | PIO_PIN12)
+#endif
 
-/*  Both Ports B and C
+/* Both Ports B and C
+ * ------------------
  *
- *   PIO  Signal Name Function
- *   ---- ----------- -------------------------------------------------------
- *   PE5  OVCUR_USB   Combined over-current indication from port A and B
+ *   PIO  Signal Name   Function
+ *   ---- ------------- -------------------------------------------------------
+ *   PD9  USB_OVCUR_PD9 Combined over-current indication from port A and B
  */
 
-#define PIO_USBBC_VBUS_OVERCURRENT \
+#ifdef HAVE_USBOVCUR
+#  define PIO_USBBC_VBUS_OVERCURRENT \
                      (PIO_INPUT | PIO_CFG_PULLUP | PIO_CFG_DEGLITCH | \
-                      PIO_INT_BOTHEDGES | PIO_PORT_PIOE | PIO_PIN5)
-#define IRQ_USBBC_VBUS_OVERCURRENT \
-                     SAM_IRQ_PE5
+                      PIO_INT_BOTHEDGES | PIO_PORT_PIOD | PIO_PIN9)
+#  define IRQ_USBBC_VBUS_OVERCURRENT \
+                     SAM_IRQ_PD9
+#endif
 
 /* Ethernet */
 
@@ -508,27 +760,71 @@
 #endif
 #endif
 
+/* WM8904 Audio Codec ***************************************************************/
+/* SAMA5D4 Interface
+ * ---- ------------------ ---------------- ---------- ------------------------------
+ * PIO  USAGE              BOARD SIGNAL     WM8904 PIN NOTE
+ * ---- ------------------ ---------------- ---------- ------------------------------
+ * PA30 TWD0               AUDIO_TWD0_PA30  SDA        Pulled up, See J23 note below
+ * PA31 TWCK0              AUDIO_TWCK0_PA31 SCLK       Pulled up
+ * PB10 AUDIO_PCK2/EXP     AUDIO_PCK2_PB10  MCLK
+ * PB27 AUDIO/HDMI_TK0/EXP AUDIO_TK0_PB27   BCLK/GPIO4 TK0/RK0 are mutually exclusive
+ * PB26 AUDIO_RK0          AUDIO_RK0_PB26   "  "/"   " " "/" " " " "      " "       "
+ * PB30 AUDIO_RF/ZIG_TWCK2 AUDIO_RF0_PB30   LRCLK      TF0/RF0 are mutually exclusive
+ * PB31 AUDIO/HDMI_TF0/EXP AUDIO_TF0_PB31   "   "      " "/" " " " "      " "       "
+ * PB29 AUDIO_RD0/ZIG_TWD2 AUDIO_RD0_PB29   ADCDAT
+ * PB28 AUDIO/HDMI_TD0/EXP AUDIO_TD0_PB28   ACDAT
+ * PE4  AUDIO_IRQ          AUDIO_IRQ_PE4    IRQ/GPIO1  Audio interrupt
+ * ---- ------------------ ---------------- ---------- ------------------------------
+ * Note that jumper J23 must be closed to connect AUDIO_TWD0_PA30
+ */
+
+/* Pin Disambiguation */
+
+#define PIO_SSC0_TD    PIO_SSC0_TD_2
+
+/* Audio Interrupt. All interrupts are default, active high level.  Pull down
+ * internally in the WM8904.  So we want no pull-up/downs and we want to
+ * interrupt on the high level.
+ */
+
+#define PIO_INT_WM8904 (PIO_INPUT | PIO_CFG_DEFAULT | PIO_CFG_DEGLITCH | \
+                        PIO_INT_HIGHLEVEL | PIO_PORT_PIOE | PIO_PIN4)
+#define IRQ_INT_WM8904 SAM_IRQ_PE4
+
+/* The MW8904 communicates on TWI0, I2C address 0x1a for control operations */
+
+#define WM8904_TWI_BUS      0
+#define WM8904_I2C_ADDRESS  0x1a
+
+/* The MW8904 transfers data on SSC0 */
+
+#define WM8904_SSC_BUS      0
+
 /* SPI Chip Selects *****************************************************************/
-/* Both the Ronetix and Embest versions of the SAMAD3x CPU modules include an
- * Atmel AT25DF321A, 32-megabit, 2.7-volt SPI serial flash.  The SPI
- * connection is as follows:
+/* The SAMA5D4-EK includes an Atmel AT25DF321A, 32-megabit, 2.7-volt SPI serial
+ * FLASH on board.  The connection is as follows:
  *
- *   AT25DF321A      SAMA5
- *   --------------- -----------------------------------------------
- *   SI              PD11 SPI0_MOSI
- *   SO              PD10 SPI0_MIS0
- *   SCK             PD12 SPI0_SPCK
- *   /CS             PD13 via NL17SZ126 if JP1 is closed (See below)
+ *   AT25DF321A SAMA5D4-EK      SAMA5
+ *   ---------- --------------- --------------------------------
+ *   SI         AT25_SPI0_SI    PC1 PC1/SPI0_MOSI/PWML2/ISI_D9
+ *   SO         AT25_SPI0_SO    PC0 PC0/SPI0_MISO/PWMH2/ISI_D8
+ *   SCK        AT25_SPI0_SPCK  PC2 PC2/SPI0_SPCK/PWMH3/ISI_D10
+ *   /CS        AT25_SPI0_NCPS0 PC3 PC3/SPI0_NPCS0/PWML3/ISI_D11
  *
- * JP1 and JP2 seem to related to /CS on the Ronetix board, but the usage is
- * less clear.  For the Embest module, JP1 must be closed to connect /CS to
- * PD13; on the Ronetix schematic, JP11 seems only to bypass a resistor (may
- * not be populated?).  I think closing JP1 is correct in either case.
+ * AT25_SPI0_NCPS0 goes to the AT25DF321A as via a NL17SZ126 if JP6 is closed
  */
 
 #define PIO_AT25_NPCS0 (PIO_OUTPUT | PIO_CFG_PULLUP | PIO_OUTPUT_SET | \
-                        PIO_PORT_PIOD | PIO_PIN13)
+                        PIO_PORT_PIOC | PIO_PIN3)
 #define AT25_PORT      SPI0_CS0
+
+/* ACT8865 power management chip ****************************************************/
+/* The PMIC communicates on TWI0, I2C address 0x5b */
+
+#define PMIC_TWI_BUS       0
+#define PMIC_I2C_ADDRESS   0x5b
+#define PMIC_I2C_FREQUENCY 400000 /* 400KHz max */
 
 /************************************************************************************
  * Public Types
@@ -641,6 +937,52 @@ bool sam_cardinserted(int slotno);
 #endif
 
 /************************************************************************************
+ * Name:  sam_automount_initialize
+ *
+ * Description:
+ *   Configure auto-mounters for each enable and so configured HSMCI
+ *
+ * Input Parameters:
+ *   None
+ *
+ *  Returned Value:
+ *    None
+ *
+ ************************************************************************************/
+
+#ifdef HAVE_AUTOMOUNTER
+void sam_automount_initialize(void);
+#endif
+
+/************************************************************************************
+ * Name:  sam_automount_event
+ *
+ * Description:
+ *   The HSMCI card detection logic has detected an insertion or removal event.  It
+ *   has already scheduled the MMC/SD block driver operations.  Now we need to
+ *   schedule the auto-mount event which will occur with a substantial delay to make
+ *   sure that everything has settle down.
+ *
+ * Input Parameters:
+ *   slotno - Identifies the HSMCI0 slot: HSMCI0 or HSMCI1_SLOTNO.  There is a
+ *      terminology problem here:  Each HSMCI supports two slots, slot A and slot B.
+ *      Only slot A is used.  So this is not a really a slot, but an HSCMI peripheral
+ *      number.
+ *   inserted - True if the card is inserted in the slot.  False otherwise.
+ *
+ *  Returned Value:
+ *    None
+ *
+ *  Assumptions:
+ *    Interrupts are disabled.
+ *
+ ************************************************************************************/
+
+#ifdef HAVE_AUTOMOUNTER
+void sam_automount_event(int slotno, bool inserted);
+#endif
+
+/************************************************************************************
  * Name: sam_writeprotected
  *
  * Description:
@@ -714,6 +1056,66 @@ void board_led_initialize(void);
 
 #ifdef CONFIG_NSH_LIBRARY
 int nsh_archinitialize(void);
+#endif
+
+/****************************************************************************
+ * Name: sam_wm8904_initialize
+ *
+ * Description:
+ *   This function is called by platform-specific, setup logic to configure
+ *   and register the WM8904 device.  This function will register the driver
+ *   as /dev/wm8904[x] where x is determined by the minor device number.
+ *
+ * Input Parameters:
+ *   minor - The input device minor number
+ *
+ * Returned Value:
+ *   Zero is returned on success.  Otherwise, a negated errno value is
+ *   returned to indicate the nature of the failure.
+ *
+ ****************************************************************************/
+
+#ifdef HAVE_WM8904
+int sam_wm8904_initialize(int minor);
+#endif /* HAVE_WM8904 */
+
+/****************************************************************************
+ * Name: sam_audio_null_initialize
+ *
+ * Description:
+ *   Set up to use the NULL audio device for PCM unit-level testing.
+ *
+ * Input Parameters:
+ *   minor - The input device minor number
+ *
+ * Returned Value:
+ *   Zero is returned on success.  Otherwise, a negated errno value is
+ *   returned to indicate the nature of the failure.
+ *
+ ****************************************************************************/
+
+#ifdef HAVE_AUDIO_NULL
+int sam_audio_null_initialize(int minor);
+#endif /* HAVE_AUDIO_NULL */
+
+/****************************************************************************
+ * Name: sam_pmic_initialize
+ *
+ * Description:
+ *   Currently, this function only disables the PMIC.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+
+#ifdef HAVE_PMIC
+void sam_pmic_initialize(void);
+#else
+#  define sam_pmic_initialize()
 #endif
 
 #endif /* __ASSEMBLY__ */

@@ -189,36 +189,42 @@ static int nxplayer_cmd_play(FAR struct nxplayer_s *pPlayer, char* parg)
 
   ret = nxplayer_playfile(pPlayer, parg, AUDIO_FMT_UNDEF, AUDIO_FMT_UNDEF);
 
-  /* Test if the device file exists */
+  /* nxplayer_playfile returned values:
+   *
+   *   OK         File is being played
+   *   -EBUSY     The media device is busy
+   *   -ENOSYS    The media file is an unsupported type
+   *   -ENODEV    No audio device suitable to play the media type
+   *   -ENOENT    The media file was not found
+   */
 
-  if (ret == -ENODEV)
+  switch (-ret)
     {
-      printf("No suitable Audio Device found\n");
+      case OK:
+        break;
+
+      case ENODEV:
+        printf("No suitable Audio Device found\n");
+        break;
+
+      case EBUSY:
+        printf("Audio device busy\n");
+        break;
+
+      case ENOENT:
+        printf("File %s not found\n", parg);
+        break;
+
+      case ENOSYS:
+        printf("Unknown audio format\n");
+        break;
+
+      default:
+        printf("Error playing file: %d\n", -ret);
+        break;
     }
 
-  else if (ret == -EBUSY)
-    {
-      printf("Audio device busy\n");
-    }
-
-  else if (ret == -ENOENT)
-    {
-      printf("File %s not found\n", parg);
-    }
-
-  else if (ret == -ENOSYS)
-    {
-      printf("Unknown audio format\n");
-    }
-
-  if (ret < 0)
-    {
-      return ret;
-    }
-
-  /* File playing successfully */
-
-  return OK;
+  return ret;
 }
 
 /****************************************************************************

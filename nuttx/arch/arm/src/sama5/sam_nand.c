@@ -109,28 +109,28 @@
 
 #define NFCSRAM_DMA_FLAGS \
    DMACH_FLAG_FIFOCFG_LARGEST | \
-   (((0x3f) << DMACH_FLAG_PERIPHPID_SHIFT) | DMACH_FLAG_PERIPHAHB_AHB_IF0 | \
+   (DMACH_FLAG_PERIPHPID_MAX | DMACH_FLAG_PERIPHAHB_AHB_IF0 | \
    DMACH_FLAG_PERIPHWIDTH_32BITS | DMACH_FLAG_PERIPHINCREMENT | \
    DMACH_FLAG_PERIPHCHUNKSIZE_1 | \
-   ((0x3f) << DMACH_FLAG_MEMPID_SHIFT) | DMACH_FLAG_MEMAHB_AHB_IF0 | \
+   DMACH_FLAG_MEMPID_MAX | DMACH_FLAG_MEMAHB_AHB_IF0 | \
    DMACH_FLAG_MEMWIDTH_32BITS | DMACH_FLAG_MEMINCREMENT | \
-   DMACH_FLAG_MEMCHUNKSIZE_1)
+   DMACH_FLAG_MEMCHUNKSIZE_1 | DMACH_FLAG_MEMBURST_4)
 
 #define NAND_DMA_FLAGS8 \
    DMACH_FLAG_FIFOCFG_LARGEST | \
-   (((0x3f) << DMACH_FLAG_PERIPHPID_SHIFT) | DMACH_FLAG_PERIPHAHB_AHB_IF0 | \
+   (DMACH_FLAG_PERIPHPID_MAX | DMACH_FLAG_PERIPHAHB_AHB_IF0 | \
    DMACH_FLAG_PERIPHWIDTH_8BITS | DMACH_FLAG_PERIPHCHUNKSIZE_1 | \
-   ((0x3f) << DMACH_FLAG_MEMPID_SHIFT) | DMACH_FLAG_MEMAHB_AHB_IF0 | \
+   DMACH_FLAG_MEMPID_MAX | DMACH_FLAG_MEMAHB_AHB_IF0 | \
    DMACH_FLAG_MEMWIDTH_8BITS | DMACH_FLAG_MEMINCREMENT | \
-   DMACH_FLAG_MEMCHUNKSIZE_1)
+   DMACH_FLAG_MEMCHUNKSIZE_1 | DMACH_FLAG_MEMBURST_4)
 
 #define NAND_DMA_FLAGS16 \
    DMACH_FLAG_FIFOCFG_LARGEST | \
-   (((0x3f) << DMACH_FLAG_PERIPHPID_SHIFT) | DMACH_FLAG_PERIPHAHB_AHB_IF0 | \
+   (DMACH_FLAG_PERIPHPID_MAX | DMACH_FLAG_PERIPHAHB_AHB_IF0 | \
    DMACH_FLAG_PERIPHWIDTH_16BITS | DMACH_FLAG_PERIPHCHUNKSIZE_1 | \
-   ((0x3f) << DMACH_FLAG_MEMPID_SHIFT) | DMACH_FLAG_MEMAHB_AHB_IF0 | \
+   DMACH_FLAG_MEMPID_MAX | DMACH_FLAG_MEMAHB_AHB_IF0 | \
    DMACH_FLAG_MEMWIDTH_16BITS | DMACH_FLAG_MEMINCREMENT | \
-   DMACH_FLAG_MEMCHUNKSIZE_1)
+   DMACH_FLAG_MEMCHUNKSIZE_1 | DMACH_FLAG_MEMBURST_4)
 
 /****************************************************************************
  * Private Types
@@ -1305,7 +1305,7 @@ static int nand_dma_read(struct sam_nandcs_s *priv,
    * that memory will be re-cached after the DMA completes).
    */
 
-  cp15_invalidate_dcache(vdest, vdest + nbytes);
+  arch_invalidate_dcache(vdest, vdest + nbytes);
 
   /* DMA will need physical addresses. */
 
@@ -1390,7 +1390,7 @@ static int nand_dma_write(struct sam_nandcs_s *priv,
    * the data to be transferred lies in physical memory
    */
 
-  cp15_clean_dcache(vsrc, vsrc + nbytes);
+  arch_clean_dcache(vsrc, vsrc + nbytes);
 
   /* DMA will need physical addresses. */
 

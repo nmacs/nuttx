@@ -26,6 +26,16 @@ config MTD_PARTITION
 		managing the sub-region of flash beginning at 'offset' (in blocks)
 		and of size 'nblocks' on the device specified by 'mtd'.
 
+config FTL_WRITEBUFFER
+	bool "Enable write buffering in the FTL layer"
+	default n
+	depends on DRVR_WRITEBUFFER
+
+config FTL_READAHEAD
+	bool "Enable read-ahead buffering in the FTL layer"
+	default n
+	depends on DRVR_READAHEAD
+
 config MTD_SECT512
 	bool "512B sector conversion"
 	default n
@@ -66,12 +76,52 @@ config MTD_BYTE_WRITE
 		support such writes.  The SMART file system can take advantage of
 		this option if it is enabled.
 
+config MTD_WRBUFFER
+	bool "Enable MTD write buffering"
+	default n
+	depends on DRVR_WRITEBUFFER
+	select DRVR_INVALIDATE
+	select DRVR_READBYTES
+	---help---
+		Build the mtd_rwbuffer layer and enable support for write buffering.
+
+if MTD_WRBUFFER
+
+config MTD_NWRBLOCKS
+	int "MTD write buffer size"
+	default 4
+	---help---
+		The size of the MTD write buffer (in blocks)
+
+endif # MTD_WRBUFFER
+
+config MTD_READAHEAD
+	bool "Enable MTD read-ahead buffering"
+	default n
+	depends on DRVR_READAHEAD
+	select DRVR_INVALIDATE
+	select DRVR_READBYTES
+	---help---
+		Build the mtd_rwbuffer layer and enable support for read-ahead buffering.
+
+if MTD_READAHEAD
+
+config MTD_NRDBLOCKS
+	int "MTD read-head buffer size"
+	default 4
+	---help---
+		The size of the MTD read-ahead buffer (in blocks)
+
+endif # MTD_READAHEAD
+
 config MTD_CONFIG
 	bool "Enable Dev Config (MTD based) device"
 	default n
 	---help---
 		Provides a /dev/config device for saving / restoring application
 		configuration data to a standard MTD device or partition.
+
+if MTD_CONFIG
 
 config MTD_CONFIG_RAM_CONSOLIDATE
 	bool "Always use RAM consolidation method (work in progress)"
@@ -97,12 +147,13 @@ config MTD_CONFIG_RAM_CONSOLIDATE
 
 config MTD_CONFIG_ERASEDVALUE
 	hex "Erased value of bytes on the MTD device"
-	depends on MTD_CONFIG
 	default 0xff
 	---help---
 		Specifies the value of the erased state of the MTD FLASH.  For
 		most FLASH parts, this is 0xff, but could also be zero depending
 		on the device.
+
+endif # MTD_CONFIG
 
 comment "MTD Device Drivers"
 
@@ -299,7 +350,7 @@ config M25P_MEMORY_TYPE
 		The memory type for M25 "P" series is 0x20, but the driver also supports "F" series
 		devices, such as the EON EN25F80 part which adds a 4K sector erase capability.  The
 		memory type for "F" series parts from EON is 0x31.  The 4K sector erase size will
-		automatically be enabled when filessytems that can use it are enabled, such as SMART.
+		automatically be enabled when filesytems that can use it are enabled, such as SMART.
 
 config M25P_SUBSECTOR_ERASE
 	bool "Sub-Sector Erase"
@@ -323,14 +374,27 @@ config MTD_SMART
 		(typically 2K - 4K based on memory size) and relocating sectors as needed when
 		an erase block needs to be erased.
 
+if MTD_SMART
+
 config MTD_SMART_SECTOR_SIZE
 	int "SMART Device sector size"
-    depends on MTD_SMART
 	default 1024
 	---help---
-		Sets the size of a single alloction on the SMART device.  Larger sector sizes
+		Sets the size of a single allocation on the SMART device.  Larger sector sizes
 		reduce overhead per sector, but cause more wasted space with a lot of smaller
 		files.
+
+config MTD_SMART_WRITEBUFFER
+	bool "Enable SMART write buffering"
+	default n
+	depends on DRVR_WRITEBUFFER
+
+config MTD_SMART_READAHEAD
+	bool "Enable SMART read-ahead buffering"
+	default n
+	depends on DRVR_READAHEAD
+
+endif # MTD_SMART
 
 config MTD_RAMTRON
 	bool "SPI-based RAMTRON NVRAM Devices FM25V10"

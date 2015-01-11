@@ -43,10 +43,11 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/icmp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
+#include "icmp/icmp.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -85,19 +86,19 @@
  *
  ****************************************************************************/
 
-void icmp_poll(FAR struct uip_driver_s *dev)
+void icmp_poll(FAR struct net_driver_s *dev)
 {
   /* Setup for the application callback */
 
-  dev->d_appdata = &dev->d_buf[UIP_LLH_LEN + UIP_IPICMPH_LEN];
-  dev->d_snddata = &dev->d_buf[UIP_LLH_LEN + UIP_IPICMPH_LEN];
+  dev->d_appdata = &dev->d_buf[NET_LL_HDRLEN + IPICMP_HDRLEN];
+  dev->d_snddata = &dev->d_buf[NET_LL_HDRLEN + IPICMP_HDRLEN];
 
   dev->d_len     = 0;
   dev->d_sndlen  = 0;
 
   /* Perform the application callback */
 
-  (void)uip_callbackexecute(dev, NULL, UIP_POLL, g_echocallback);
+  (void)devif_callback_execute(dev, NULL, ICMP_POLL, g_echocallback);
 }
 
 #endif /* CONFIG_NET && CONFIG_NET_ICMP && CONFIG_NET_ICMP_PING */

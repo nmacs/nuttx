@@ -47,18 +47,23 @@
 #include <string.h>
 #include <debug.h>
 
-#include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
-#include <nuttx/net/netdev.h>
+#include <arpa/inet.h>
 
-#include "uip/uip.h"
+#include <nuttx/net/netconfig.h>
+#include <nuttx/net/netdev.h>
+#include <nuttx/net/netstats.h>
+#include <nuttx/net/ip.h>
+#include <nuttx/net/udp.h>
+
+#include "devif/devif.h"
+#include "utils/utils.h"
 #include "udp/udp.h"
 
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
 
-#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[NET_LL_HDRLEN])
 
 /****************************************************************************
  * Public Variables
@@ -94,7 +99,7 @@
  *
  ****************************************************************************/
 
-void udp_send(struct uip_driver_s *dev, struct udp_conn_s *conn)
+void udp_send(struct net_driver_s *dev, struct udp_conn_s *conn)
 {
   FAR struct udp_iphdr_s *pudpbuf = UDPBUF;
 
@@ -104,7 +109,7 @@ void udp_send(struct uip_driver_s *dev, struct udp_conn_s *conn)
        * the IP and UDP headers (and, eventually, the Ethernet header)
        */
 
-      dev->d_len = dev->d_sndlen + UIP_IPUDPH_LEN;
+      dev->d_len = dev->d_sndlen + IPUDP_HDRLEN;
 
       /* Initialize the IP header.  Note that for IPv6, the IP length field
        * does not include the IPv6 IP header length.
@@ -117,11 +122,11 @@ void udp_send(struct uip_driver_s *dev, struct udp_conn_s *conn)
       pudpbuf->flow        = 0x00;
       pudpbuf->len[0]      = ((dev->d_len - UIP_IPH_LEN) >> 8);
       pudpbuf->len[1]      = ((dev->d_len - UIP_IPH_LEN) & 0xff);
-      pudpbuf->proto       = UIP_PROTO_UDP;
+      pudpbuf->proto       = IP_PROTO_UDP;
       pudpbuf->ttl         = conn->ttl;
 
-      uip_ipaddr_copy(pudpbuf->srcipaddr, dev->d_ipaddr);
-      uip_ipaddr_copy(pudpbuf->destipaddr, conn->ripaddr);
+      net_ipaddr_copy(pudpbuf->srcipaddr, dev->d_ipaddr);
+      net_ipaddr_copy(pudpbuf->destipaddr, conn->ripaddr);
 
 #else /* CONFIG_NET_IPv6 */
 
@@ -135,15 +140,15 @@ void udp_send(struct uip_driver_s *dev, struct udp_conn_s *conn)
       pudpbuf->ipoffset[0] = 0;
       pudpbuf->ipoffset[1] = 0;
       pudpbuf->ttl         = conn->ttl;
-      pudpbuf->proto       = UIP_PROTO_UDP;
+      pudpbuf->proto       = IP_PROTO_UDP;
 
-      uiphdr_ipaddr_copy(pudpbuf->srcipaddr, &dev->d_ipaddr);
-      uiphdr_ipaddr_copy(pudpbuf->destipaddr, &conn->ripaddr);
+      net_ipaddr_hdrcopy(pudpbuf->srcipaddr, &dev->d_ipaddr);
+      net_ipaddr_hdrcopy(pudpbuf->destipaddr, &conn->ripaddr);
 
       /* Calculate IP checksum. */
 
       pudpbuf->ipchksum    = 0;
-      pudpbuf->ipchksum    = ~(uip_ipchksum(dev));
+      pudpbuf->ipchksum    = ~(ip_chksum(dev));
 
 #endif /* CONFIG_NET_IPv6 */
 
@@ -151,7 +156,7 @@ void udp_send(struct uip_driver_s *dev, struct udp_conn_s *conn)
 
       pudpbuf->srcport     = conn->lport;
       pudpbuf->destport    = conn->rport;
-      pudpbuf->udplen      = HTONS(dev->d_sndlen + UIP_UDPH_LEN);
+      pudpbuf->udplen      = HTONS(dev->d_sndlen + UDP_HDRLEN);
 
 #ifdef CONFIG_NET_UDP_CHECKSUMS
       /* Calculate UDP checksum. */
@@ -170,8 +175,8 @@ void udp_send(struct uip_driver_s *dev, struct udp_conn_s *conn)
               dev->d_len, (pudpbuf->len[0] << 8) | pudpbuf->len[1]);
 
 #ifdef CONFIG_NET_STATISTICS
-      uip_stat.udp.sent++;
-      uip_stat.ip.sent++;
+      g_netstats.udp.sent++;
+      g_netstats.ip.sent++;
 #endif
     }
 }

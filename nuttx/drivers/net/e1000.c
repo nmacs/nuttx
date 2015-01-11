@@ -50,11 +50,11 @@
 #include <wdog.h>
 #include <errno.h>
 
+#include <arpa/inet.h>
+
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
-
-#include <nuttx/net/uip.h>
 #include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 
@@ -64,6 +64,7 @@
 #include <rgmp/utils.h>
 #include <rgmp/arch/pci.h>
 #include <rgmp/memio.h>
+
 #include "e1000.h"
 
 /****************************************************************************
@@ -81,7 +82,7 @@
 
 /* This is a helper pointer for accessing the contents of the Ethernet header */
 
-#define BUF ((struct eth_hdr_s *)e1000->uip_dev.d_buf)
+#define BUF ((struct eth_hdr_s *)e1000->netdev.d_buf)
 
 /****************************************************************************
  * Private Types
@@ -119,13 +120,13 @@ struct e1000_dev
 
   /* NuttX net data */
 
-  bool bifup;               /* true:ifup false:ifdown */
-  WDOG_ID txpoll;           /* TX poll timer */
-  WDOG_ID txtimeout;        /* TX timeout timer */
+  bool bifup;                 /* true:ifup false:ifdown */
+  WDOG_ID txpoll;             /* TX poll timer */
+  WDOG_ID txtimeout;          /* TX timeout timer */
 
   /* This holds the information visible to uIP/NuttX */
 
-  struct uip_driver_s uip_dev;  /* Interface understood by uIP */
+  struct net_driver_s netdev; /* Interface understood by networking layer */
 };
 
 struct e1000_dev_head
@@ -146,7 +147,7 @@ static struct e1000_dev_head e1000_list = {0};
 /* Common TX logic */
 
 static int  e1000_transmit(struct e1000_dev *e1000);
-static int  e1000_uiptxpoll(struct uip_driver_s *dev);
+static int  e1000_txpoll(struct net_driver_s *dev);
 
 /* Interrupt handling */
 
@@ -159,12 +160,12 @@ static void e1000_txtimeout(int argc, uint32_t arg, ...);
 
 /* NuttX callback functions */
 
-static int e1000_ifup(struct uip_driver_s *dev);
-static int e1000_ifdown(struct uip_driver_s *dev);
-static int e1000_txavail(struct uip_driver_s *dev);
+static int e1000_ifup(struct net_driver_s *dev);
+static int e1000_ifdown(struct net_driver_s *dev);
+static int e1000_txavail(struct net_driver_s *dev);
 #ifdef CONFIG_NET_IGMP
-static int e1000_addmac(struct uip_driver_s *dev, const uint8_t *mac);
-static int e1000_rmmac(struct uip_driver_s *dev, const uint8_t *mac);
+static int e1000_addmac(struct net_driver_s *dev, const uint8_t *mac);
+static int e1000_rmmac(struct net_driver_s *dev, const uint8_t *mac);
 #endif
 
 /****************************************************************************
@@ -415,7 +416,7 @@ static int e1000_transmit(struct e1000_dev *e1000)
   int tail = e1000->tx_ring.tail;
   unsigned char *cp = (unsigned char *)
       (e1000->tx_ring.buf + tail * CONFIG_E1000_BUFF_SIZE);
-  int count = e1000->uip_dev.d_len;
+  int count = e1000->netdev.d_len;
 
   /* Verify that the hardware is ready to send another packet.  If we get
    * here, then we are committed to sending a packet; Higher level logic
@@ -431,7 +432,7 @@ static int e1000_transmit(struct e1000_dev *e1000)
 
   /* Send the packet: address=skel->sk_dev.d_buf, length=skel->sk_dev.d_len */
 
-  memcpy(cp, e1000->uip_dev.d_buf, e1000->uip_dev.d_len);
+  memcpy(cp, e1000->netdev.d_buf, e1000->netdev.d_len);
 
   /* prepare the transmit-descriptor */
 
@@ -453,11 +454,11 @@ static int e1000_transmit(struct e1000_dev *e1000)
 }
 
 /****************************************************************************
- * Function: e1000_uiptxpoll
+ * Function: e1000_txpoll
  *
  * Description:
  *   The transmitter is available, check if uIP has any outgoing packets ready
- *   to send.  This is a callback from uip_poll().  uip_poll() may be called:
+ *   to send.  This is a callback from devif_poll().  devif_poll() may be called:
  *
  *   1. When the preceding TX packet send is complete,
  *   2. When the preceding TX packet send timesout and the interface is reset
@@ -476,7 +477,7 @@ static int e1000_transmit(struct e1000_dev *e1000)
  *
  ****************************************************************************/
 
-static int e1000_uiptxpoll(struct uip_driver_s *dev)
+static int e1000_txpoll(struct net_driver_s *dev)
 {
   struct e1000_dev *e1000 = (struct e1000_dev *)dev->d_private;
   int tail = e1000->tx_ring.tail;
@@ -485,9 +486,9 @@ static int e1000_uiptxpoll(struct uip_driver_s *dev)
    * the field d_len is set to a value > 0.
    */
 
-  if (e1000->uip_dev.d_len > 0)
+  if (e1000->netdev.d_len > 0)
     {
-      arp_out(&e1000->uip_dev);
+      arp_out(&e1000->netdev);
       e1000_transmit(e1000);
 
       /* Check if there is room in the device to hold another packet. If not,
@@ -555,46 +556,46 @@ static void e1000_receive(struct e1000_dev *e1000)
           goto next;
         }
 
-      /* Copy the data data from the hardware to e1000->uip_dev.d_buf.  Set
-       * amount of data in e1000->uip_dev.d_len
+      /* Copy the data data from the hardware to e1000->netdev.d_buf.  Set
+       * amount of data in e1000->netdev.d_len
        */
 
       /* now we try to copy these data-bytes to the UIP buffer */
 
-      memcpy(e1000->uip_dev.d_buf, cp, cnt);
-      e1000->uip_dev.d_len = cnt;
+      memcpy(e1000->netdev.d_buf, cp, cnt);
+      e1000->netdev.d_len = cnt;
 
       /* We only accept IP packets of the configured type and ARP packets */
 
 #ifdef CONFIG_NET_IPv6
-      if (BUF->type == HTONS(UIP_ETHTYPE_IP6))
+      if (BUF->type == HTONS(ETHTYPE_IP6))
 #else
         {
-          if (BUF->type == HTONS(UIP_ETHTYPE_IP))
+          if (BUF->type == HTONS(ETHTYPE_IP))
 #endif
             {
-              arp_ipin(&e1000->uip_dev);
-              uip_input(&e1000->uip_dev);
+              arp_ipin(&e1000->netdev);
+              devif_input(&e1000->netdev);
 
               /* If the above function invocation resulted in data that should be
                * sent out on the network, the field  d_len will set to a value > 0.
                */
 
-              if (e1000->uip_dev.d_len > 0)
+              if (e1000->netdev.d_len > 0)
                 {
-                  arp_out(&e1000->uip_dev);
+                  arp_out(&e1000->netdev);
                   e1000_transmit(e1000);
                 }
             }
-          else if (BUF->type == htons(UIP_ETHTYPE_ARP))
+          else if (BUF->type == htons(ETHTYPE_ARP))
             {
-              arp_arpin(&e1000->uip_dev);
+              arp_arpin(&e1000->netdev);
 
               /* If the above function invocation resulted in data that should be
                * sent out on the network, the field  d_len will set to a value > 0.
                */
 
-              if (e1000->uip_dev.d_len > 0)
+              if (e1000->netdev.d_len > 0)
                 {
                   e1000_transmit(e1000);
                 }
@@ -641,7 +642,7 @@ static void e1000_txtimeout(int argc, uint32_t arg, ...)
 
   /* Then poll uIP for new XMIT data */
 
-  (void)uip_poll(&e1000->uip_dev, e1000_uiptxpoll);
+  (void)devif_poll(&e1000->netdev, e1000_txpoll);
 }
 
 /****************************************************************************
@@ -681,7 +682,7 @@ static void e1000_polltimer(int argc, uint32_t arg, ...)
    * we will missing TCP time state updates?
    */
 
-  (void)uip_timer(&e1000->uip_dev, e1000_uiptxpoll, E1000_POLLHSEC);
+  (void)devif_timer(&e1000->netdev, e1000_txpoll, E1000_POLLHSEC);
 
   /* Setup the watchdog poll timer again */
 
@@ -705,7 +706,7 @@ static void e1000_polltimer(int argc, uint32_t arg, ...)
  *
  ****************************************************************************/
 
-static int e1000_ifup(struct uip_driver_s *dev)
+static int e1000_ifup(struct net_driver_s *dev)
 {
   struct e1000_dev *e1000 = (struct e1000_dev *)dev->d_private;
 
@@ -749,7 +750,7 @@ static int e1000_ifup(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int e1000_ifdown(struct uip_driver_s *dev)
+static int e1000_ifdown(struct net_driver_s *dev)
 {
   struct e1000_dev *e1000 = (struct e1000_dev *)dev->d_private;
   irqstate_t flags;
@@ -799,7 +800,7 @@ static int e1000_ifdown(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int e1000_txavail(struct uip_driver_s *dev)
+static int e1000_txavail(struct net_driver_s *dev)
 {
   struct e1000_dev *e1000 = (struct e1000_dev *)dev->d_private;
   int tail = e1000->tx_ring.tail;
@@ -819,7 +820,7 @@ static int e1000_txavail(struct uip_driver_s *dev)
 
       if (e1000->tx_ring.desc[tail].desc_status)
         {
-          (void)uip_poll(&e1000->uip_dev, e1000_uiptxpoll);
+          (void)devif_poll(&e1000->netdev, e1000_txpoll);
         }
     }
 
@@ -846,7 +847,7 @@ static int e1000_txavail(struct uip_driver_s *dev)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int e1000_addmac(struct uip_driver_s *dev, const uint8_t *mac)
+static int e1000_addmac(struct net_driver_s *dev, const uint8_t *mac)
 {
   /* Add the MAC address to the hardware multicast routing table */
 
@@ -873,7 +874,7 @@ static int e1000_addmac(struct uip_driver_s *dev, const uint8_t *mac)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int e1000_rmmac(struct uip_driver_s *dev, const uint8_t *mac)
+static int e1000_rmmac(struct net_driver_s *dev, const uint8_t *mac)
 {
   /* Add the MAC address to the hardware multicast routing table */
 
@@ -938,7 +939,7 @@ static irqreturn_t e1000_interrupt_handler(int irq, void *dev_id)
 
   if (intr_cause & (1<<0))
     {
-      uip_poll(&e1000->uip_dev, e1000_uiptxpoll);
+      devif_poll(&e1000->netdev, e1000_txpoll);
     }
 
 
@@ -1070,19 +1071,19 @@ static int e1000_probe(uint16_t addr, pci_id_t id)
 
   /* Initialize the driver structure */
 
-  dev->uip_dev.d_ifup    = e1000_ifup;     /* I/F up (new IP address) callback */
-  dev->uip_dev.d_ifdown  = e1000_ifdown;   /* I/F down callback */
-  dev->uip_dev.d_txavail = e1000_txavail;  /* New TX data callback */
+  dev->netdev.d_ifup    = e1000_ifup;     /* I/F up (new IP address) callback */
+  dev->netdev.d_ifdown  = e1000_ifdown;   /* I/F down callback */
+  dev->netdev.d_txavail = e1000_txavail;  /* New TX data callback */
 #ifdef CONFIG_NET_IGMP
-  dev->uip_dev.d_addmac  = e1000_addmac;   /* Add multicast MAC address */
-  dev->uip_dev.d_rmmac   = e1000_rmmac;    /* Remove multicast MAC address */
+  dev->netdev.d_addmac  = e1000_addmac;   /* Add multicast MAC address */
+  dev->netdev.d_rmmac   = e1000_rmmac;    /* Remove multicast MAC address */
 #endif
-  dev->uip_dev.d_private = dev;            /* Used to recover private state from dev */
+  dev->netdev.d_private = dev;            /* Used to recover private state from dev */
 
   /* Create a watchdog for timing polling for and timing of transmisstions */
 
-  dev->txpoll       = wd_create();         /* Create periodic poll timer */
-  dev->txtimeout    = wd_create();         /* Create TX timeout timer */
+  dev->txpoll       = wd_create();        /* Create periodic poll timer */
+  dev->txtimeout    = wd_create();        /* Create TX timeout timer */
 
   /* Put the interface in the down state.
    * e1000 reset
@@ -1092,11 +1093,11 @@ static int e1000_probe(uint16_t addr, pci_id_t id)
 
   /* Read the MAC address from the hardware */
 
-  memcpy(dev->uip_dev.d_mac.ether_addr_octet, (void *)(dev->io_mem_base+E1000_RA), 6);
+  memcpy(dev->netdev.d_mac.ether_addr_octet, (void *)(dev->io_mem_base+E1000_RA), 6);
 
   /* Register the device with the OS so that socket IOCTLs can be performed */
 
-  err = netdev_register(&dev->uip_dev);
+  err = netdev_register(&dev->netdev);
   if (err)
     {
       goto err2;
@@ -1145,7 +1146,7 @@ void e1000_mod_exit(void)
 
   for (dev=e1000_list.next; dev!=NULL; dev=dev->next)
     {
-      netdev_unregister(&dev->uip_dev);
+      netdev_unregister(&dev->netdev);
       e1000_reset(dev);
       wd_delete(dev->txpoll);
       wd_delete(dev->txtimeout);

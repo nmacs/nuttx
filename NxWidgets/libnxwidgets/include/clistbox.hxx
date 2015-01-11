@@ -76,8 +76,8 @@
 
 #include <nuttx/config.h>
 
-#include <stdint.h>
-#include <stdbool.h>
+#include <cstdint>
+#include <cstdbool>
 
 #include <nuttx/nx/nxglib.h>
 
@@ -259,7 +259,7 @@ namespace NXWidgets
     virtual void selectOption(const int index);
 
     /**
-     * Select an option by its index.
+     * De-select an option by its index.
      * Redraws the widget and raises a value changed event.
      *
      * @param index The index of the option to select.

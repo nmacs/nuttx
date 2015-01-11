@@ -44,10 +44,10 @@
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/udp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "udp/udp.h"
 
 #define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
@@ -205,7 +205,7 @@ uip_dataevent(FAR struct uip_driver_s *dev, FAR struct udp_conn_s *conn,
  *
  ****************************************************************************/
 
-uint16_t udp_callback(FAR struct uip_driver_s *dev,
+uint16_t udp_callback(FAR struct net_driver_s *dev,
                       FAR struct udp_conn_s *conn, uint16_t flags)
 {
   nllvdbg("flags: %04x\n", flags);
@@ -216,7 +216,7 @@ uint16_t udp_callback(FAR struct uip_driver_s *dev,
     {
       /* Perform the callback */
 
-      flags = uip_callbackexecute(dev, conn, flags, conn->list);
+      flags = devif_callback_execute(dev, conn, flags, conn->list);
 
       if ((flags & UIP_NEWDATA) != 0)
         {

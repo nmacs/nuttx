@@ -59,6 +59,7 @@ config ARCH_SH
 
 config ARCH_SIM
 	bool "Simulation"
+	select ARCH_HAVE_TICKLESS
 	---help---
 		Linux/Cywgin user-mode simulation.
 
@@ -122,6 +123,10 @@ config ARCH_DMA
 	default n
 
 config ARCH_HAVE_IRQPRIO
+	bool
+	default n
+
+config ARCH_L2CACHE
 	bool
 	default n
 

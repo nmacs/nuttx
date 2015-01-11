@@ -63,7 +63,7 @@
 #include "chip/switch.h"
 
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
 /* Determine which (if any) console driver to use.  If a console is enabled
@@ -182,7 +182,7 @@ extern void up_puts(const char *str);
 
 /* Defined in up_timerisr.c */
 
-void up_timerinit(void);
+void up_timer_initialize(void);
 
 /* Defined in board/up_leds.c */
 
@@ -208,7 +208,7 @@ void up_timerhook(void);
 int  up_netinitialize(void);
 void up_netuninitialize(void);
 # ifdef CONFIG_ARCH_MCFILTER
-int up_multicastfilter(FAR struct uip_driver_s *dev, FAR uint8_t *mac, bool enable);
+int up_multicastfilter(FAR struct net_driver_s *dev, FAR uint8_t *mac, bool enable);
 # else
 #   define up_multicastfilter(dev, mac, enable)
 # endif

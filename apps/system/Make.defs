@@ -74,6 +74,10 @@ ifeq ($(CONFIG_SYSTEM_PRUN),y)
 CONFIGURED_APPS += system/prun
 endif
 
+ifeq ($(CONFIG_SYSTEM_MDIO),y)
+CONFIGURED_APPS += system/mdio
+endif
+
 ifeq ($(CONFIG_SYSTEM_RAMTEST),y)
 CONFIGURED_APPS += system/ramtest
 endif
@@ -92,6 +96,10 @@ endif
 
 ifeq ($(CONFIG_SYSTEM_SDCARD),y)
 CONFIGURED_APPS += system/sdcard
+endif
+
+ifeq ($(CONFIG_SYSTEM_SUDOKU),y)
+CONFIGURED_APPS += system/sudoku
 endif
 
 ifeq ($(CONFIG_SYSTEM_SYSINFO),y)

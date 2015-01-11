@@ -52,10 +52,10 @@
 #include <wdog.h>
 #include <errno.h>
 
+#include <arpa/inet.h>
+
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
-
-#include <nuttx/net/uip.h>
 #include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 
@@ -103,7 +103,7 @@ struct vnet_driver_s
 
     /* This holds the information visible to uIP/NuttX */
     struct rgmp_vnet *vnet;
-    struct uip_driver_s sk_dev;  /* Interface understood by uIP */
+    struct net_driver_s sk_dev;  /* Interface understood by uIP */
 };
 
 /****************************************************************************
@@ -119,7 +119,7 @@ static struct vnet_driver_s g_vnet[CONFIG_VNET_NINTERFACES];
 /* Common TX logic */
 
 static int  vnet_transmit(FAR struct vnet_driver_s *vnet);
-static int  vnet_uiptxpoll(struct uip_driver_s *dev);
+static int  vnet_txpoll(struct net_driver_s *dev);
 
 /* Interrupt handling */
 
@@ -132,12 +132,12 @@ static void vnet_txtimeout(int argc, uint32_t arg, ...);
 
 /* NuttX callback functions */
 
-static int vnet_ifup(struct uip_driver_s *dev);
-static int vnet_ifdown(struct uip_driver_s *dev);
-static int vnet_txavail(struct uip_driver_s *dev);
+static int vnet_ifup(struct net_driver_s *dev);
+static int vnet_ifdown(struct net_driver_s *dev);
+static int vnet_txavail(struct net_driver_s *dev);
 #ifdef CONFIG_NET_IGMP
-static int vnet_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
-static int vnet_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
+static int vnet_addmac(struct net_driver_s *dev, FAR const uint8_t *mac);
+static int vnet_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac);
 #endif
 
 /****************************************************************************
@@ -198,11 +198,11 @@ static int vnet_transmit(FAR struct vnet_driver_s *vnet)
 }
 
 /****************************************************************************
- * Function: vnet_uiptxpoll
+ * Function: vnet_txpoll
  *
  * Description:
  *   The transmitter is available, check if uIP has any outgoing packets ready
- *   to send.  This is a callback from uip_poll().  uip_poll() may be called:
+ *   to send.  This is a callback from devif_poll().  devif_poll() may be called:
  *
  *   1. When the preceding TX packet send is complete,
  *   2. When the preceding TX packet send timesout and the interface is reset
@@ -221,7 +221,7 @@ static int vnet_transmit(FAR struct vnet_driver_s *vnet)
  *
  ****************************************************************************/
 
-static int vnet_uiptxpoll(struct uip_driver_s *dev)
+static int vnet_txpoll(struct net_driver_s *dev)
 {
 	FAR struct vnet_driver_s *vnet = (FAR struct vnet_driver_s *)dev->d_private;
 
@@ -288,13 +288,13 @@ void rtos_vnet_recv(struct rgmp_vnet *rgmp_vnet, char *data, int len)
 		/* We only accept IP packets of the configured type and ARP packets */
 
 #ifdef CONFIG_NET_IPv6
-		if (BUF->type == HTONS(UIP_ETHTYPE_IP6))
+		if (BUF->type == HTONS(ETHTYPE_IP6))
 #else
-			if (BUF->type == HTONS(UIP_ETHTYPE_IP))
+			if (BUF->type == HTONS(ETHTYPE_IP))
 #endif
 			{
 				arp_ipin(&vnet->sk_dev);
-				uip_input(&vnet->sk_dev);
+				devif_input(&vnet->sk_dev);
 
 				// If the above function invocation resulted in data that should be
 				// sent out on the network, the field  d_len will set to a value > 0.
@@ -303,7 +303,7 @@ void rtos_vnet_recv(struct rgmp_vnet *rgmp_vnet, char *data, int len)
 					vnet_transmit(vnet);
 				}
 			}
-			else if (BUF->type == htons(UIP_ETHTYPE_ARP)) {
+			else if (BUF->type == htons(ETHTYPE_ARP)) {
 				arp_arpin(&vnet->sk_dev);
 
 				// If the above function invocation resulted in data that should be
@@ -345,7 +345,7 @@ static void vnet_txdone(FAR struct vnet_driver_s *vnet)
 
 	/* Then poll uIP for new XMIT data */
 
-	(void)uip_poll(&vnet->sk_dev, vnet_uiptxpoll);
+	(void)devif_poll(&vnet->sk_dev, vnet_txpoll);
 }
 
 /****************************************************************************
@@ -377,7 +377,7 @@ static void vnet_txtimeout(int argc, uint32_t arg, ...)
 
 	/* Then poll uIP for new XMIT data */
 
-	(void)uip_poll(&vnet->sk_dev, vnet_uiptxpoll);
+	(void)devif_poll(&vnet->sk_dev, vnet_txpoll);
 }
 
 /****************************************************************************
@@ -417,7 +417,7 @@ static void vnet_polltimer(int argc, uint32_t arg, ...)
 	 * we will missing TCP time state updates?
 	 */
 
-	(void)uip_timer(&vnet->sk_dev, vnet_uiptxpoll, VNET_POLLHSEC);
+	(void)devif_timer(&vnet->sk_dev, vnet_txpoll, VNET_POLLHSEC);
 
 	/* Setup the watchdog poll timer again */
 
@@ -441,7 +441,7 @@ static void vnet_polltimer(int argc, uint32_t arg, ...)
  *
  ****************************************************************************/
 
-static int vnet_ifup(struct uip_driver_s *dev)
+static int vnet_ifup(struct net_driver_s *dev)
 {
 	FAR struct vnet_driver_s *vnet = (FAR struct vnet_driver_s *)dev->d_private;
 
@@ -475,7 +475,7 @@ static int vnet_ifup(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int vnet_ifdown(struct uip_driver_s *dev)
+static int vnet_ifdown(struct net_driver_s *dev)
 {
 	FAR struct vnet_driver_s *vnet = (FAR struct vnet_driver_s *)dev->d_private;
 	irqstate_t flags;
@@ -520,7 +520,7 @@ static int vnet_ifdown(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int vnet_txavail(struct uip_driver_s *dev)
+static int vnet_txavail(struct net_driver_s *dev)
 {
 	FAR struct vnet_driver_s *vnet = (FAR struct vnet_driver_s *)dev->d_private;
 	irqstate_t flags;
@@ -545,7 +545,7 @@ static int vnet_txavail(struct uip_driver_s *dev)
 
 		/* If so, then poll uIP for new XMIT data */
 
-		(void)uip_poll(&vnet->sk_dev, vnet_uiptxpoll);
+		(void)devif_poll(&vnet->sk_dev, vnet_txpoll);
     }
 
 out:
@@ -572,7 +572,7 @@ out:
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int vnet_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int vnet_addmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
 	FAR struct vnet_driver_s *vnet = (FAR struct vnet_driver_s *)dev->d_private;
 
@@ -601,7 +601,7 @@ static int vnet_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int vnet_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int vnet_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
 	FAR struct vnet_driver_s *vnet = (FAR struct vnet_driver_s *)dev->d_private;
 

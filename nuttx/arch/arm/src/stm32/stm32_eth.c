@@ -49,11 +49,12 @@
 #include <queue.h>
 #include <errno.h>
 
+#include <arpa/inet.h>
+
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/net/mii.h>
 
-#include <nuttx/net/uip.h>
 #include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
 #if defined(CONFIG_NET_PKT)
@@ -572,7 +573,7 @@ struct stm32_ethmac_s
 
   /* This holds the information visible to uIP/NuttX */
 
-  struct uip_driver_s  dev;         /* Interface understood by uIP */
+  struct net_driver_s  dev;         /* Interface understood by uIP */
 
   /* Used to track transmit and receive descriptors */
 
@@ -627,7 +628,7 @@ static inline bool stm32_isfreebuffer(FAR struct stm32_ethmac_s *priv);
 /* Common TX logic */
 
 static int  stm32_transmit(FAR struct stm32_ethmac_s *priv);
-static int  stm32_uiptxpoll(struct uip_driver_s *dev);
+static int  stm32_txpoll(struct net_driver_s *dev);
 static void stm32_dopoll(FAR struct stm32_ethmac_s *priv);
 
 /* Interrupt handling */
@@ -650,12 +651,12 @@ static void stm32_txtimeout(int argc, uint32_t arg, ...);
 
 /* NuttX callback functions */
 
-static int  stm32_ifup(struct uip_driver_s *dev);
-static int  stm32_ifdown(struct uip_driver_s *dev);
-static int  stm32_txavail(struct uip_driver_s *dev);
+static int  stm32_ifup(struct net_driver_s *dev);
+static int  stm32_ifdown(struct net_driver_s *dev);
+static int  stm32_txavail(struct net_driver_s *dev);
 #ifdef CONFIG_NET_IGMP
-static int  stm32_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
-static int  stm32_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac);
+static int  stm32_addmac(struct net_driver_s *dev, FAR const uint8_t *mac);
+static int  stm32_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac);
 #endif
 
 /* Descriptor Initialization */
@@ -665,6 +666,9 @@ static void stm32_rxdescinit(FAR struct stm32_ethmac_s *priv);
 
 /* PHY Initialization */
 
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+static int  stm32_ioctl(int cmd, struct mii_ioctl_data *req);
+#endif
 static int  stm32_phyread(uint16_t phydevaddr, uint16_t phyregaddr, uint16_t *value);
 static int  stm32_phywrite(uint16_t phydevaddr, uint16_t phyregaddr, uint16_t value);
 #ifdef CONFIG_ETH0_PHY_DM9161
@@ -1133,11 +1137,11 @@ static int stm32_transmit(FAR struct stm32_ethmac_s *priv)
 }
 
 /****************************************************************************
- * Function: stm32_uiptxpoll
+ * Function: stm32_txpoll
  *
  * Description:
  *   The transmitter is available, check if uIP has any outgoing packets ready
- *   to send.  This is a callback from uip_poll().  uip_poll() may be called:
+ *   to send.  This is a callback from devif_poll().  devif_poll() may be called:
  *
  *   1. When the preceding TX packet send is complete,
  *   2. When the preceding TX packet send timesout and the interface is reset
@@ -1156,7 +1160,7 @@ static int stm32_transmit(FAR struct stm32_ethmac_s *priv)
  *
  ****************************************************************************/
 
-static int stm32_uiptxpoll(struct uip_driver_s *dev)
+static int stm32_txpoll(struct net_driver_s *dev)
 {
   FAR struct stm32_ethmac_s *priv = (FAR struct stm32_ethmac_s *)dev->d_private;
 
@@ -1237,7 +1241,7 @@ static int stm32_uiptxpoll(struct uip_driver_s *dev)
 
 static void stm32_dopoll(FAR struct stm32_ethmac_s *priv)
 {
-  FAR struct uip_driver_s *dev = &priv->dev;
+  FAR struct net_driver_s *dev = &priv->dev;
 
   /* Check if the next TX descriptor is owned by the Ethernet DMA or
    * CPU.  We cannot perform the TX poll if we are unable to accept
@@ -1263,7 +1267,7 @@ static void stm32_dopoll(FAR struct stm32_ethmac_s *priv)
 
       if (dev->d_buf)
         {
-          (void)uip_poll(dev, stm32_uiptxpoll);
+          (void)devif_poll(dev, stm32_txpoll);
 
           /* We will, most likely end up with a buffer to be freed.  But it
            * might not be the same one that we allocated above.
@@ -1500,7 +1504,7 @@ static int stm32_recvframe(FAR struct stm32_ethmac_s *priv)
 
           if ((rxdesc->rdes0 & ETH_RDES0_ES) == 0)
             {
-              struct uip_driver_s *dev = &priv->dev;
+              struct net_driver_s *dev = &priv->dev;
 
               /* Get the Frame Length of the received packet: substruct 4
                * bytes of the CRC
@@ -1584,7 +1588,7 @@ static int stm32_recvframe(FAR struct stm32_ethmac_s *priv)
 
 static void stm32_receive(FAR struct stm32_ethmac_s *priv)
 {
-  struct uip_driver_s *dev = &priv->dev;
+  struct net_driver_s *dev = &priv->dev;
 
   /* Loop while while stm32_recvframe() successfully retrieves valid
    * Ethernet frames.
@@ -1610,9 +1614,9 @@ static void stm32_receive(FAR struct stm32_ethmac_s *priv)
       /* We only accept IP packets of the configured type and ARP packets */
 
 #ifdef CONFIG_NET_IPv6
-      else if (BUF->type == HTONS(UIP_ETHTYPE_IP6))
+      else if (BUF->type == HTONS(ETHTYPE_IP6))
 #else
-      else if (BUF->type == HTONS(UIP_ETHTYPE_IP))
+      else if (BUF->type == HTONS(ETHTYPE_IP))
 #endif
         {
           nllvdbg("IP frame\n");
@@ -1620,7 +1624,7 @@ static void stm32_receive(FAR struct stm32_ethmac_s *priv)
           /* Handle ARP on input then give the IP packet to uIP */
 
           arp_ipin(&priv->dev);
-          uip_input(&priv->dev);
+          devif_input(&priv->dev);
 
           /* If the above function invocation resulted in data that should be
            * sent out on the network, the field  d_len will set to a value > 0.
@@ -1632,7 +1636,7 @@ static void stm32_receive(FAR struct stm32_ethmac_s *priv)
              stm32_transmit(priv);
            }
         }
-      else if (BUF->type == htons(UIP_ETHTYPE_ARP))
+      else if (BUF->type == htons(ETHTYPE_ARP))
         {
           nllvdbg("ARP frame\n");
 
@@ -1961,7 +1965,7 @@ static void stm32_txtimeout(int argc, uint32_t arg, ...)
 static void stm32_polltimer(int argc, uint32_t arg, ...)
 {
   FAR struct stm32_ethmac_s *priv = (FAR struct stm32_ethmac_s *)arg;
-  FAR struct uip_driver_s   *dev  = &priv->dev;
+  FAR struct net_driver_s   *dev  = &priv->dev;
 
   /* Check if the next TX descriptor is owned by the Ethernet DMA or CPU.  We
    * cannot perform the timer poll if we are unable to accept another packet
@@ -1991,7 +1995,7 @@ static void stm32_polltimer(int argc, uint32_t arg, ...)
           /* Update TCP timing states and poll uIP for new XMIT data.
            */
 
-          (void)uip_timer(dev, stm32_uiptxpoll, STM32_POLLHSEC);
+          (void)devif_timer(dev, stm32_txpoll, STM32_POLLHSEC);
 
           /* We will, most likely end up with a buffer to be freed.  But it
            * might not be the same one that we allocated above.
@@ -2028,7 +2032,7 @@ static void stm32_polltimer(int argc, uint32_t arg, ...)
  *
  ****************************************************************************/
 
-static int stm32_ifup(struct uip_driver_s *dev)
+static int stm32_ifup(struct net_driver_s *dev)
 {
   FAR struct stm32_ethmac_s *priv = (FAR struct stm32_ethmac_s *)dev->d_private;
   int ret;
@@ -2074,7 +2078,7 @@ static int stm32_ifup(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int stm32_ifdown(struct uip_driver_s *dev)
+static int stm32_ifdown(struct net_driver_s *dev)
 {
   FAR struct stm32_ethmac_s *priv = (FAR struct stm32_ethmac_s *)dev->d_private;
   irqstate_t flags;
@@ -2124,7 +2128,7 @@ static int stm32_ifdown(struct uip_driver_s *dev)
  *
  ****************************************************************************/
 
-static int stm32_txavail(struct uip_driver_s *dev)
+static int stm32_txavail(struct net_driver_s *dev)
 {
   FAR struct stm32_ethmac_s *priv = (FAR struct stm32_ethmac_s *)dev->d_private;
   irqstate_t flags;
@@ -2213,7 +2217,7 @@ static uint32_t stm32_calcethcrc(const uint8_t *data, size_t length)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int stm32_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int stm32_addmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   uint32_t crc;
   uint32_t hashindex;
@@ -2270,7 +2274,7 @@ static int stm32_addmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
  ****************************************************************************/
 
 #ifdef CONFIG_NET_IGMP
-static int stm32_rmmac(struct uip_driver_s *dev, FAR const uint8_t *mac)
+static int stm32_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac)
 {
   uint32_t crc;
   uint32_t hashindex;
@@ -2474,6 +2478,63 @@ static void stm32_rxdescinit(FAR struct stm32_ethmac_s *priv)
 
   stm32_putreg((uint32_t)priv->rxtable, STM32_ETH_DMARDLAR);
 }
+
+/****************************************************************************
+ * Function: stm32_ioctl
+ *
+ * Description:
+ *  Executes the SIOCxMIIxxx command and responds using the request struct
+ *  that must be provided as its 2nd parameter.
+ *
+ *  When called with SIOCGMIIPHY it will get the PHY address for the device
+ *  and write it to the req->phy_id field of the request struct.
+ *
+ *  When called with SIOCGMIIREG it will read a register of the PHY that is
+ *  specified using the req->reg_no struct field and then write its output
+ *  to the req->val_out field.
+ *
+ *  When called with SIOCSMIIREG it will write to a register of the PHY that
+ *  is specified using the req->reg_no struct field and use req->val_in as
+ *  its input.
+ *
+ * Parameters:
+ *   cmd - SIOCxMIIxxx command code
+ *   req - request structure also used to return values
+ *
+ * Returned Value: Negated errno on failure.
+ *
+ * Assumptions:
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+static int stm32_ioctl(int cmd, struct mii_ioctl_data *req)
+{
+  int ret = -ENOTTY;
+
+  switch (cmd)
+  {
+  case SIOCGMIIPHY: /* Get MII PHY address */
+    req->phy_id = CONFIG_STM32_PHYADDR;
+    ret = OK;
+    break;
+
+  case SIOCGMIIREG: /* Get register from MII PHY */
+    ret = stm32_phyread(req->phy_id, req->reg_num, &req->val_out);
+    break;
+
+  case SIOCSMIIREG: /* Set register in MII PHY */
+    ret = stm32_phywrite(req->phy_id, req->reg_num, req->val_in);
+    break;
+
+  default:
+    ret = -EINVAL;
+    break;
+  }
+
+  return ret;
+}
+#endif /* CONFIG_NETDEV_PHY_IOCTL */
 
 /****************************************************************************
  * Function: stm32_phyread
@@ -3243,7 +3304,7 @@ static int stm32_macconfig(FAR struct stm32_ethmac_s *priv)
 
 static void stm32_macaddress(FAR struct stm32_ethmac_s *priv)
 {
-  FAR struct uip_driver_s *dev = &priv->dev;
+  FAR struct net_driver_s *dev = &priv->dev;
   uint32_t regval;
 
   nllvdbg("%s MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
@@ -3460,6 +3521,9 @@ int stm32_ethinitialize(int intf)
 #ifdef CONFIG_NET_IGMP
   priv->dev.d_addmac  = stm32_addmac;   /* Add multicast MAC address */
   priv->dev.d_rmmac   = stm32_rmmac;    /* Remove multicast MAC address */
+#endif
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+  priv->dev.d_ioctl   = stm32_ioctl;    /* Support PHY ioctl() calls */
 #endif
   priv->dev.d_private = (void*)g_stm32ethmac; /* Used to recover private state from dev */
 

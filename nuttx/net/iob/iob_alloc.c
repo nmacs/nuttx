@@ -89,7 +89,6 @@ static FAR struct iob_s *iob_tryalloc(bool throttled)
   irqstate_t flags;
 #if CONFIG_IOB_THROTTLE > 0
   FAR sem_t *sem;
-  int semcount;
 #endif
 
 #if CONFIG_IOB_THROTTLE > 0
@@ -107,8 +106,7 @@ static FAR struct iob_s *iob_tryalloc(bool throttled)
 #if CONFIG_IOB_THROTTLE > 0
   /* If there are free I/O buffers for this allocation */
 
-  DEBUGVERIFY(sem_getvalue(sem, &semcount));
-  if (semcount > 0)
+  if (sem->semcount > 0)
 #endif
     {
       /* Take the I/O buffer from the head of the free list */
@@ -122,9 +120,22 @@ static FAR struct iob_s *iob_tryalloc(bool throttled)
            */
 
           g_iob_freelist = iob->io_flink;
-          DEBUGVERIFY(sem_trywait(&g_iob_sem));
+
+          /* Take a semaphore count.  Note that we cannot do this in
+           * in the orthodox way by calling sem_wait() or sem_trywait()
+           * because this function may be called from an interrupt
+           * handler. Fortunately we know at at least one free buffer
+           * so a simple decrement is all that is needed.
+           */
+
+          g_iob_sem.semcount--;
+          DEBUGASSERT(g_iob_sem.semcount >= 0);
+
 #if CONFIG_IOB_THROTTLE > 0
-          //DEBUGVERIFY(sem_trywait(&g_throttle_sem));
+          /* The throttle semaphore is a little more complicated because
+           * it can be negative!  Decrementing is still safe, however.
+           */
+
           g_throttle_sem.semcount--;
           DEBUGASSERT(g_throttle_sem.semcount >= -CONFIG_IOB_THROTTLE);
 #endif

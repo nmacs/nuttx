@@ -1,7 +1,7 @@
 /****************************************************************************
  * drivers/bch/bchdev_driver.c
  *
- *   Copyright (C) 2008-2009 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2008-2009, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -186,6 +186,7 @@ static ssize_t bch_read(FAR struct file *filep, FAR char *buffer, size_t len)
     {
       filep->f_pos += len;
     }
+
   bchlib_semgive(bch);
   return ret;
 }

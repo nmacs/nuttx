@@ -1556,7 +1556,6 @@ timesub(const time_t *const timep, const int_fast32_t offset,
 	return tmp;
 }
 
-#if 0
 char *
 ctime(const time_t *const timep)
 {
@@ -1576,7 +1575,6 @@ ctime_r(const time_t *const timep, char *buf)
 
 	return asctime_r(localtime_r(timep, &mytm), buf);
 }
-#endif
 
 /*
 ** Adapted from code provided by Robert Elz, who writes:

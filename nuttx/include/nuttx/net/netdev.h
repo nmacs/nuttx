@@ -52,13 +52,15 @@
 #include <stdint.h>
 #include <net/if.h>
 
-#include <nuttx/net/uip.h>
+#include <net/ethernet.h>
+#include <arpa/inet.h>
+
 #ifdef CONFIG_NET_IGMP
 #  include <nuttx/net/igmp.h>
 #endif
 
 #include <nuttx/net/netconfig.h>
-#include <net/ethernet.h>
+#include <nuttx/net/ip.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -73,14 +75,14 @@
  * of this structure.
  */
 
-struct uip_driver_s
+struct net_driver_s
 {
   /* This link is used to maintain a single-linked list of ethernet drivers.
    * Must be the first field in the structure due to blink type casting.
    */
 
 #if CONFIG_NSOCKET_DESCRIPTORS > 0
-  FAR struct uip_driver_s *flink;
+  FAR struct net_driver_s *flink;
 
   /* This is the name of network device assigned when netdev_register was called.
    * This name is only used to support socket ioctl lookups by device name
@@ -102,15 +104,15 @@ struct uip_driver_s
 
   /* Network identity */
 
-  uip_ipaddr_t d_ipaddr;  /* Host IP address assigned to the network interface */
-  uip_ipaddr_t d_draddr;  /* Default router IP address */
-  uip_ipaddr_t d_netmask; /* Network subnet mask */
+  net_ipaddr_t d_ipaddr;  /* Host IP address assigned to the network interface */
+  net_ipaddr_t d_draddr;  /* Default router IP address */
+  net_ipaddr_t d_netmask; /* Network subnet mask */
 
   /* The d_buf array is used to hold incoming and outgoing packets. The device
    * driver should place incoming data into this buffer. When sending data,
    * the device driver should read the link level headers and the TCP/IP
    * headers from this buffer. The size of the link level headers is
-   * configured by the UIP_LLH_LEN define.
+   * configured by the NET_LL_HDRLEN define.
    *
    * uIP will handle only a single buffer for both incoming and outgoing
    * packets.  However, the drive design may be concurrently send and
@@ -163,8 +165,8 @@ struct uip_driver_s
 
   uint16_t d_len;
 
-  /* When d_buf contains outgoing xmit data, d_sndlen is nonzero and represents
-   * the amount of appllcation data after d_snddata
+  /* When d_buf contains outgoing xmit data, d_sndlen is non-zero and represents
+   * the amount of application data after d_snddata
    */
 
   uint16_t d_sndlen;
@@ -177,21 +179,26 @@ struct uip_driver_s
 
   /* Driver callbacks */
 
-  int (*d_ifup)(struct uip_driver_s *dev);
-  int (*d_ifdown)(struct uip_driver_s *dev);
-  int (*d_txavail)(struct uip_driver_s *dev);
+  int (*d_ifup)(struct net_driver_s *dev);
+  int (*d_ifdown)(struct net_driver_s *dev);
+  int (*d_txavail)(struct net_driver_s *dev);
 #ifdef CONFIG_NET_RXAVAIL
-  int (*d_rxavail)(struct uip_driver_s *dev);
+  int (*d_rxavail)(struct net_driver_s *dev);
 #endif
 #ifdef CONFIG_NET_IGMP
-  int (*d_addmac)(struct uip_driver_s *dev, FAR const uint8_t *mac);
-  int (*d_rmmac)(struct uip_driver_s *dev, FAR const uint8_t *mac);
+  int (*d_addmac)(struct net_driver_s *dev, FAR const uint8_t *mac);
+  int (*d_rmmac)(struct net_driver_s *dev, FAR const uint8_t *mac);
+#endif
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+  int (*d_ioctl)(int cmd, struct mii_ioctl_data *req);
 #endif
 
   /* Drivers may attached device-specific, private information */
 
   void *d_private;
 };
+
+typedef int (*devif_poll_callback_t)(struct net_driver_s *dev);
 
 /****************************************************************************
  * Public Variables
@@ -201,7 +208,8 @@ struct uip_driver_s
  * Public Function Prototypes
  ****************************************************************************/
 
-/* uIP device driver functions
+/****************************************************************************
+ * uIP device driver functions
  *
  * These functions are used by a network device driver for interacting
  * with uIP.
@@ -224,7 +232,7 @@ struct uip_driver_s
  *     dev->d_len = devicedriver_poll();
  *     if (dev->d_len > 0)
  *       {
- *         uip_input(dev);
+ *         devif_input(dev);
  *         if (dev->d_len > 0)
  *           {
  *             devicedriver_send();
@@ -240,17 +248,17 @@ struct uip_driver_s
  *     dev->d_len = ethernet_devicedrver_poll();
  *     if (dev->d_len > 0)
  *       {
- *         if (BUF->type == HTONS(UIP_ETHTYPE_IP))
+ *         if (BUF->type == HTONS(ETHTYPE_IP))
  *           {
  *             arp_ipin();
- *             uip_input(dev);
+ *             devif_input(dev);
  *             if (dev->d_len > 0)
  *               {
  *                 arp_out();
  *                 devicedriver_send();
  *               }
  *           }
- *         else if (BUF->type == HTONS(UIP_ETHTYPE_ARP))
+ *         else if (BUF->type == HTONS(ETHTYPE_ARP))
  *           {
  *             arp_arpin();
  *             if (dev->d_len > 0)
@@ -258,22 +266,24 @@ struct uip_driver_s
  *                 devicedriver_send();
  *               }
  *           }
- */
+ *
+ ****************************************************************************/
 
-int uip_input(struct uip_driver_s *dev);
+int devif_input(struct net_driver_s *dev);
 
-/* Polling of connections
+/****************************************************************************
+ * Polling of connections
  *
  * These functions will traverse each active uIP connection structure and
- * perform appropriate operatios:  uip_timer() will perform TCP timer
- * operations (and UDP polling operations); uip_poll() will perform TCP
+ * perform appropriate operations:  devif_timer() will perform TCP timer
+ * operations (and UDP polling operations); devif_poll() will perform TCP
  * and UDP polling operations. The CAN driver MUST implement logic to
- * periodically call uip_timer(); uip_poll() may be called asychronously
+ * periodically call devif_timer(); devif_poll() may be called asynchronously
  * from the network driver can accept another outgoing packet.
  *
  * In both cases, these functions will call the provided callback function
  * for every active connection. Polling will continue until all connections
- * have been polled or until the user-suplied function returns a non-zero
+ * have been polled or until the user-supplied function returns a non-zero
  * value (which it should do only if it cannot accept further write data).
  *
  * When the callback function is called, there may be an outbound packet
@@ -282,7 +292,7 @@ int uip_input(struct uip_driver_s *dev);
  * out the packet.
  *
  * Example:
- *   int driver_callback(struct uip_driver_dev *dev)
+ *   int driver_callback(struct net_driver_s *dev)
  *   {
  *     if (dev->d_len > 0)
  *       {
@@ -293,14 +303,14 @@ int uip_input(struct uip_driver_s *dev);
  *   }
  *
  *   ...
- *   uip_poll(dev, driver_callback);
+ *   devif_poll(dev, driver_callback);
  *
  * Note: If you are writing a uIP device driver that needs ARP (Address
  * Resolution Protocol), e.g., when running uIP over Ethernet, you will
  * need to call the arp_out() function in the callback function
  * before sending the packet:
  *
- *   int driver_callback(struct uip_driver_dev *dev)
+ *   int driver_callback(struct net_driver_s *dev)
  *   {
  *     if (dev->d_len > 0)
  *       {
@@ -308,87 +318,94 @@ int uip_input(struct uip_driver_s *dev);
  *         devicedriver_send();
  *         return 1; <-- Terminates polling if necessary
  *       }
+ *
  *     return 0;
  *   }
- */
+ *
+ ****************************************************************************/
 
-typedef int (*uip_poll_callback_t)(struct uip_driver_s *dev);
-int uip_poll(struct uip_driver_s *dev, uip_poll_callback_t callback);
-int uip_timer(struct uip_driver_s *dev, uip_poll_callback_t callback, int hsec);
+int devif_poll(struct net_driver_s *dev, devif_poll_callback_t callback);
+int devif_timer(struct net_driver_s *dev, devif_poll_callback_t callback, int hsec);
 
-/* Carrier detection
+/****************************************************************************
+ * Carrier detection
+ *
  * Call netdev_carrier_on when the carrier has become available and the device
  * is ready to receive/transmit packets.
  *
- * Call detdev_carrier_off when the carrier disappeared and the device has moved
- * into non operational state.
- */
+ * Call detdev_carrier_off when the carrier disappeared and the device has
+ * moved into non operational state.
+ *
+ ****************************************************************************/
 
-int netdev_carrier_on(FAR struct uip_driver_s *dev);
-int netdev_carrier_off(FAR struct uip_driver_s *dev);
+int netdev_carrier_on(FAR struct net_driver_s *dev);
+int netdev_carrier_off(FAR struct net_driver_s *dev);
 
-/* By defining UIP_ARCH_CHKSUM, the architecture can replace up_incr32
- * with hardware assisted solutions.
- */
+/****************************************************************************
+ * Name: net_chksum
+ *
+ * Description:
+ *   Calculate the Internet checksum over a buffer.
+ *
+ *   The Internet checksum is the one's complement of the one's complement
+ *   sum of all 16-bit words in the buffer.
+ *
+ *   See RFC1071.
+ *
+ *   If CONFIG_NET_ARCH_CHKSUM is defined, then this function must be
+ *   provided by architecture-specific logic.
+ *
+ * Input Parameters:
+ *
+ *   buf - A pointer to the buffer over which the checksum is to be computed.
+ *
+ *   len - The length of the buffer over which the checksum is to be computed.
+ *
+ * Returned Value:
+ *   The Internet checksum of the buffer.
+ *
+ ****************************************************************************/
 
-/* Carry out a 32-bit addition.
- *
- * op32 - A pointer to a 4-byte array representing a 32-bit
- *   integer in network byte order (big endian).  This value may not
- *   be word aligned. The value pointed to by op32 is modified in place
- *
- * op16 - A 16-bit integer in host byte order.
- */
+uint16_t net_chksum(FAR uint16_t *data, uint16_t len);
 
-void uip_incr32(uint8_t *op32, uint16_t op16);
+/****************************************************************************
+ * Name: net_incr32
+ *
+ * Description:
+ *
+ *   Carry out a 32-bit addition.
+ *
+ *   By defining CONFIG_NET_ARCH_INCR32, the architecture can replace
+ *   net_incr32 with hardware assisted solutions.
+ *
+ * Input Parameters:
+ *   op32 - A pointer to a 4-byte array representing a 32-bit integer in
+ *          network byte order (big endian).  This value may not be word
+ *          aligned. The value pointed to by op32 is modified in place
+ *
+ *   op16 - A 16-bit integer in host byte order.
+ *
+ ****************************************************************************/
 
-/* Calculate the Internet checksum over a buffer.
- *
- * The Internet checksum is the one's complement of the one's
- * complement sum of all 16-bit words in the buffer.
- *
- * See RFC1071.
- *
- * Note: This function is not called in the current version of uIP,
- * but future versions might make use of it.
- *
- * buf A pointer to the buffer over which the checksum is to be
- * computed.
- *
- * len The length of the buffer over which the checksum is to
- * be computed.
- *
- * Return:  The Internet checksum of the buffer.
- */
+void net_incr32(FAR uint8_t *op32, uint16_t op16);
 
-uint16_t uip_chksum(uint16_t *buf, uint16_t len);
+/****************************************************************************
+ * Name: ip_chksum
+ *
+ * Description:
+ *   Calculate the IP header checksum of the packet header in d_buf.
+ *
+ *   The IP header checksum is the Internet checksum of the 20 bytes of
+ *   the IP header.
+ *
+ *   If CONFIG_NET_ARCH_CHKSUM is defined, then this function must be
+ *   provided by architecture-specific logic.
+ *
+ * Returned Value:
+ *   The IP header checksum of the IP header in the d_buf buffer.
+ *
+ ****************************************************************************/
 
-/* Calculate the IP header checksum of the packet header in d_buf.
- *
- * The IP header checksum is the Internet checksum of the 20 bytes of
- * the IP header.
- *
- * Return:  The IP header checksum of the IP header in the d_buf
- * buffer.
- */
-
-uint16_t uip_ipchksum(struct uip_driver_s *dev);
-
-/* Calculate the TCP checksum of the packet in d_buf and d_appdata.
- *
- * The TCP checksum is the Internet checksum of data contents of the
- * TCP segment, and a pseudo-header as defined in RFC793.
- *
- * Note: The d_appdata pointer that points to the packet data may
- * point anywhere in memory, so it is not possible to simply calculate
- * the Internet checksum of the contents of the d_buf buffer.
- *
- * Return:  The TCP checksum of the TCP segment in d_buf and pointed
- * to by d_appdata.
- */
-
-uint16_t tcp_chksum(struct uip_driver_s *dev);
-uint16_t udp_chksum(struct uip_driver_s *dev);
-uint16_t icmp_chksum(struct uip_driver_s *dev, int len);
+uint16_t ip_chksum(FAR struct net_driver_s *dev);
 
 #endif /* __INCLUDE_NUTTX_NET_NETDEV_H */

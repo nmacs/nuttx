@@ -34,10 +34,6 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Compilation Switches
- ****************************************************************************/
-
-/****************************************************************************
  * Included Files
  ****************************************************************************/
 
@@ -386,9 +382,10 @@ static int audio_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
           FAR struct audio_caps_s *caps = (FAR struct audio_caps_s*)((uintptr_t)arg);
           DEBUGASSERT(lower->ops->getcaps != NULL);
 
-          audvdbg("AUDIOIOC_GETCAPS: Device=%d", caps->ac_type);
+          audvdbg("AUDIOIOC_GETCAPS: Device=%d\n", caps->ac_type);
 
           /* Call the lower-half driver capabilities handler */
+
           ret = lower->ops->getcaps(lower, caps->ac_type, caps);
         }
         break;
@@ -399,7 +396,7 @@ static int audio_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
             (FAR const struct audio_caps_desc_s*)((uintptr_t)arg);
           DEBUGASSERT(lower->ops->configure != NULL);
 
-          audvdbg("AUDIOIOC_INITIALIZE: Device=%d", caps->caps.ac_type);
+          audvdbg("AUDIOIOC_INITIALIZE: Device=%d\n", caps->caps.ac_type);
 
           /* Call the lower-half driver configure handler */
 
@@ -588,6 +585,8 @@ static int audio_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case AUDIOIOC_REGISTERMQ:
         {
+          audvdbg("AUDIOIOC_REGISTERMQ\n");
+
           upper->usermq = (mqd_t) arg;
           ret = OK;
         }
@@ -600,6 +599,8 @@ static int audio_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case AUDIOIOC_UNREGISTERMQ:
         {
+          audvdbg("AUDIOIOC_UNREGISTERMQ\n");
+
           upper->usermq = NULL;
           ret = OK;
         }
@@ -612,6 +613,7 @@ static int audio_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case AUDIOIOC_RESERVE:
         {
+          audvdbg("AUDIOIOC_RESERVE\n");
           DEBUGASSERT(lower->ops->reserve != NULL);
 
           /* Call lower-half to perform the reservation */
@@ -631,6 +633,7 @@ static int audio_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 
       case AUDIOIOC_RELEASE:
         {
+          audvdbg("AUDIOIOC_RELEASE\n");
           DEBUGASSERT(lower->ops->release != NULL);
 
           /* Call lower-half to perform the release */
@@ -713,7 +716,8 @@ static inline void audio_dequeuebuffer(FAR struct audio_upperhalf_s *upper,
       msg.session = session;
 #endif
       apb->flags |= AUDIO_APB_DEQUEUED;
-      mq_send(upper->usermq, &msg, sizeof(msg), CONFIG_AUDIO_BUFFER_DEQUEUE_PRIO);
+      mq_send(upper->usermq, &msg, sizeof(msg),
+              CONFIG_AUDIO_BUFFER_DEQUEUE_PRIO);
     }
 }
 
@@ -751,7 +755,7 @@ static inline void audio_complete(FAR struct audio_upperhalf_s *upper,
       msg.session = session;
 #endif
       mq_send(upper->usermq, &msg, sizeof(msg),
-          CONFIG_AUDIO_BUFFER_DEQUEUE_PRIO);
+              CONFIG_AUDIO_BUFFER_DEQUEUE_PRIO);
     }
 }
 

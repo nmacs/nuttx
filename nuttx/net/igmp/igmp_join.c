@@ -46,11 +46,14 @@
 #include <assert.h>
 #include <debug.h>
 
+#include <netinet/in.h>
+
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
+#include <nuttx/net/netstats.h>
+#include <nuttx/net/ip.h>
 #include <nuttx/net/igmp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "igmp/igmp.h"
 
 #ifdef CONFIG_NET_IGMP
@@ -121,7 +124,7 @@
  *
  ****************************************************************************/
 
-int igmp_joingroup(struct uip_driver_s *dev, FAR const struct in_addr *grpaddr)
+int igmp_joingroup(struct net_driver_s *dev, FAR const struct in_addr *grpaddr)
 {
   struct igmp_group_s *group;
 
@@ -136,11 +139,11 @@ int igmp_joingroup(struct uip_driver_s *dev, FAR const struct in_addr *grpaddr)
 
        nvdbg("Join to new group: %08x\n", grpaddr->s_addr);
        group = igmp_grpalloc(dev, &grpaddr->s_addr);
-       IGMP_STATINCR(uip_stat.igmp.joins);
+       IGMP_STATINCR(g_netstats.igmp.joins);
 
        /* Send the Membership Report */
 
-       IGMP_STATINCR(uip_stat.igmp.report_sched);
+       IGMP_STATINCR(g_netstats.igmp.report_sched);
        igmp_waitmsg(group, IGMPv2_MEMBERSHIP_REPORT);
 
        /* And start the timer at 10*100 msec */
@@ -149,7 +152,7 @@ int igmp_joingroup(struct uip_driver_s *dev, FAR const struct in_addr *grpaddr)
 
        /* Add the group (MAC) address to the ether drivers MAC filter list */
 
-       igmp_addmcastmac(dev, (FAR uip_ipaddr_t *)&grpaddr->s_addr);
+       igmp_addmcastmac(dev, (FAR net_ipaddr_t *)&grpaddr->s_addr);
        return OK;
     }
 

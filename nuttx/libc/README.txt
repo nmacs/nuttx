@@ -52,7 +52,7 @@ Library Database
 
 Information about functions available in the NuttX C library information is
 maintained in a database.  That "database" is implemented as a simple comma-
-separated-value file, lib.csv.  Most spreadsheets programs will accept this
+separated-value file, libc.csv.  Most spreadsheets programs will accept this
 format and can be used to maintain the library database.
 
 This library database will (eventually) be used to generate symbol library
@@ -78,7 +78,7 @@ Each type field has a format as follows:
         A similar situation exists for unions.  For example, the formal
         parameter type union sigval -- You cannot cast a uintptr_t to
         a union sigval, but you can cast to the type of one of the union
-        member types when passing the actual paramter.  Similarly, we
+        member types when passing the actual parameter.  Similarly, we
         cannot cast a union sigval to a uinptr_t either.  Rather, we need
         to cast a specific union member fieldname to uintptr_t.
 

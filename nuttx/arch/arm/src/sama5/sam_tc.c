@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/sama5/sam_tc.c
  *
- *   Copyright (C) 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * References:
@@ -56,8 +56,8 @@
 #include <semaphore.h>
 #include <assert.h>
 #include <errno.h>
-#include <debug.h>
 
+#include <nuttx/arch.h>
 #include <arch/board/board.h>
 
 #include "up_arch.h"
@@ -73,44 +73,6 @@
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
-
-/* Clocking */
-
-#if BOARD_MCK_FREQUENCY <= SAM_TC_MAXPERCLK
-#  define TC_FREQUENCY BOARD_MCK_FREQUENCY
-#  define TC_PCR_DIV PMC_PCR_DIV1
-#elif (BOARD_MCK_FREQUENCY >> 1) <= SAM_TC_MAXPERCLK
-#  define TC_FREQUENCY (BOARD_MCK_FREQUENCY >> 1)
-#  define TC_PCR_DIV PMC_PCR_DIV2
-#elif (BOARD_MCK_FREQUENCY >> 2) <= SAM_TC_MAXPERCLK
-#  define TC_FREQUENCY (BOARD_MCK_FREQUENCY >> 2)
-#  define TC_PCR_DIV PMC_PCR_DIV4
-#elif (BOARD_MCK_FREQUENCY >> 3) <= SAM_TC_MAXPERCLK
-#  define TC_FREQUENCY (BOARD_MCK_FREQUENCY >> 3)
-#  define TC_PCR_DIV PMC_PCR_DIV8
-#else
-#  error Cannot realize TC input frequency
-#endif
-
-/* Timer debug is enabled if any timer client is enabled */
-
-#ifndef CONFIG_DEBUG
-#  undef CONFIG_DEBUG_ANALOG
-#  undef CONFIG_SAMA5_TC_REGDEBUG
-#endif
-
-#undef DEBUG_TC
-#if defined(CONFIG_SAMA5_ADC) && defined(CONFIG_DEBUG_ANALOG)
-#  define DEBUG_TC 1
-#endif
-
-#ifdef DEBUG_TC
-#  define tcdbg    dbg
-#  define tcvdbg   vdbg
-#else
-#  define tcdbg(x...)
-#  define tcvdbg(x...)
-#endif
 
 /****************************************************************************
  * Private Types
@@ -146,17 +108,19 @@ struct sam_chan_s
 {
   struct sam_tc_s *tc;     /* Parent timer/counter */
   uintptr_t base;          /* Channel register base address */
+  tc_handler_t handler;    /* Attached interrupt handler */
+  void *arg;               /* Interrupt handler argument */
   uint8_t chan;            /* Channel number (0, 1, or 2 OR 3, 4, or 5) */
   bool inuse;              /* True: channel is in use */
 };
 
-/* This structure describes on timer/counter */
+/* This structure describes one timer/counter */
 
 struct sam_tc_s
 {
   sem_t exclsem;           /* Assures mutually exclusive access to TC */
   uintptr_t base;          /* Register base address */
-  uint8_t pid;             /* Peripheral ID */
+  uint8_t pid;             /* Peripheral ID/irq number */
   uint8_t tc;              /* Timer/channel number (0 or 1) */
   bool initialized;        /* True: Timer data has been initialized */
 
@@ -202,8 +166,26 @@ static inline uint32_t sam_chan_getreg(struct sam_chan_s *chan,
 static inline void sam_chan_putreg(struct sam_chan_s *chan,
                                    unsigned int offset, uint32_t regval);
 
+/* Interrupt Handling *******************************************************/
+
+static int sam_tc_interrupt(struct sam_tc_s *tc);
+#ifdef CONFIG_SAMA5_TC0
+static int sam_tc012_interrupt(int irq, void *context);
+#endif
+#ifdef CONFIG_SAMA5_TC1
+static int sam_tc345_interrupt(int irq, void *context);
+#endif
+#ifdef CONFIG_SAMA5_TC2
+static int sam_tc678_interrupt(int irq, void *context);
+#endif
+
 /* Initialization ***********************************************************/
 
+#ifdef SAMA5_HAVE_PMC_PCR_DIV
+static int sam_tc_mckdivider(uint32_t mck);
+#endif
+static int sam_tc_freqdiv_lookup(uint32_t ftcin, int ndx);
+static uint32_t sam_tc_divfreq_lookup(uint32_t ftcin, int ndx);
 static inline struct sam_chan_s *sam_tc_initialize(int channel);
 
 /****************************************************************************
@@ -437,28 +419,17 @@ static struct sam_tc_s g_tc678;
 
 /* TC frequency data.  This table provides the frequency for each selection of TCCLK */
 
-#define TC_NDIVIDERS 5
+#define TC_NDIVIDERS   4
+#define TC_NDIVOPTIONS 5
 
-/* This is the list of divider values */
+/* This is the list of divider values: divider = (1 << value) */
 
-static const uint16_t g_divider[TC_NDIVIDERS] =
+static const uint8_t g_log2divider[TC_NDIVIDERS] =
 {
-  2,                     /* TIMER_CLOCK1 -> div2 */
-  8,                     /* TIMER_CLOCK2 -> div8 */
-  32,                    /* TIMER_CLOCK3 -> div32 */
-  128,                   /* TIMER_CLOCK4 -> div128 */
-  TC_FREQUENCY / 32768   /* TIMER_CLOCK5 -> slow clock (not really a divider) */
-};
-
-/* This is the list of divided down frequencies */
-
-static const uint32_t g_divfreq[TC_NDIVIDERS] =
-{
-  TC_FREQUENCY / 2,      /* TIMER_CLOCK1 -> div2 */
-  TC_FREQUENCY / 8,      /* TIMER_CLOCK2 -> div8 */
-  TC_FREQUENCY / 32,     /* TIMER_CLOCK3 -> div32 */
-  TC_FREQUENCY / 128,    /* TIMER_CLOCK4 -> div128 */
-  32768                  /* TIMER_CLOCK5 -> slow clock */
+  1,                     /* TIMER_CLOCK1 -> div2 */
+  3,                     /* TIMER_CLOCK2 -> div8 */
+  5,                     /* TIMER_CLOCK3 -> div32 */
+  7                      /* TIMER_CLOCK4 -> div128 */
 };
 
 /* TC register lookup used by sam_tc_setregister */
@@ -700,8 +671,221 @@ static inline void sam_chan_putreg(struct sam_chan_s *chan, unsigned int offset,
 }
 
 /****************************************************************************
+ * Interrupt Handling
+ ****************************************************************************/
+/****************************************************************************
+ * Name: sam_tc_interrupt
+ *
+ * Description:
+ *  Common timer channel interrupt handling.
+ *
+ * Input Parameters:
+ *   tc   Timer status instance
+ *
+ * Returned Value:
+ *   A pointer to the initialized timer channel structure associated with tc
+ *   and channel.  NULL is returned on any failure.
+ *
+ *   On successful return, the caller holds the tc exclusive access semaphore.
+ *
+ ****************************************************************************/
+
+static int sam_tc_interrupt(struct sam_tc_s *tc)
+{
+  struct sam_chan_s *chan;
+  uint32_t sr;
+  uint32_t imr;
+  uint32_t pending;
+  int i;
+
+  /* Process interrupts on each channel */
+
+  for (i = 0; i < 3; i++)
+    {
+      /* Get the handy channel reference */
+
+      chan = &tc->channel[i];
+
+      /* Get the interrupt status for this channel */
+
+      sr      = sam_chan_getreg(chan, SAM_TC_SR_OFFSET);
+      imr     = sam_chan_getreg(chan, SAM_TC_IMR_OFFSET);
+      pending = sr & imr;
+
+      /* Are there any pending interrupts for this channel? */
+
+      if (pending)
+        {
+          /* Yes... if we have pending interrupts then interrupts must be
+           * enabled and we must have a handler attached.
+           */
+
+          DEBUGASSERT(chan->handler);
+          if (chan->handler)
+            {
+              /* Execute the callback */
+
+              chan->handler(chan, chan->arg, sr);
+            }
+          else
+            {
+              /* Should never happen */
+
+              sam_chan_putreg(chan, SAM_TC_IDR_OFFSET, TC_INT_ALL);
+            }
+        }
+    }
+
+  return OK;
+}
+
+/****************************************************************************
+ * Name: sam_tcABC_interrupt
+ *
+ * Description:
+ *  Timer block interrupt handlers
+ *
+ * Input Parameters:
+ *   chan TC channel structure
+ *   sr   The status register value that generated the interrupt
+ *
+ * Returned Value:
+ *   A pointer to the initialized timer channel structure associated with tc
+ *   and channel.  NULL is returned on any failure.
+ *
+ *   On successful return, the caller holds the tc exclusive access semaphore.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_SAMA5_TC0
+static int sam_tc012_interrupt(int irq, void *context)
+{
+  return sam_tc_interrupt(&g_tc012);
+}
+#endif
+
+#ifdef CONFIG_SAMA5_TC1
+static int sam_tc345_interrupt(int irq, void *context)
+{
+  return sam_tc_interrupt(&g_tc345);
+}
+#endif
+
+#ifdef CONFIG_SAMA5_TC2
+static int sam_tc678_interrupt(int irq, void *context)
+{
+  return sam_tc_interrupt(&g_tc678);
+}
+#endif
+
+/****************************************************************************
  * Initialization
  ****************************************************************************/
+/****************************************************************************
+ * Name: sam_tc_mckdivider
+ *
+ * Description:
+ *  Return the TC clock input divider value.  One of n=0..3 corresponding
+ *  to divider values of {1, 2, 4, 8}.
+ *
+ *  NOTE: The SAMA5D4 has no clock input divider
+ *
+ * Input Parameters:
+ *   mck - The MCK frequency to be divider.
+ *
+ * Returned Value:
+ *   Log2 of the TC clock divider.
+ *
+ ****************************************************************************/
+
+#ifdef SAMA5_HAVE_PMC_PCR_DIV
+static int sam_tc_mckdivider(uint32_t mck)
+{
+  if (mck <= SAM_TC_MAXPERCLK)
+    {
+      return 0;
+    }
+  else if ((mck >> 1) <= SAM_TC_MAXPERCLK)
+    {
+      return 1;
+    }
+  else if ((mck >> 2) <= SAM_TC_MAXPERCLK)
+    {
+      return 2;
+    }
+  else /* if ((mck >> 3) <= SAM_TC_MAXPERCLK) */
+    {
+      DEBUGASSERT((mck >> 3) <= SAM_TC_MAXPERCLK);
+      return 3;
+    }
+}
+#endif
+
+/****************************************************************************
+ * Name: sam_tc_freqdiv_lookup
+ *
+ * Description:
+ *  Given the TC input frequency (Ftcin) and a divider index, return the value of
+ *  the Ftcin divider.
+ *
+ * Input Parameters:
+ *   ftcin - TC input frequency
+ *   ndx   - Divider index
+ *
+ * Returned Value:
+ *   The Ftcin input divider value
+ *
+ ****************************************************************************/
+
+static int sam_tc_freqdiv_lookup(uint32_t ftcin, int ndx)
+{
+  /* The final option is to use the SLOW clock */
+
+  if (ndx >= TC_NDIVIDERS)
+    {
+      /* Not really a divider.  In this case, the board is actually driven
+       * by the 32.768KHz slow clock.  This returns a value that looks like
+       * correct divider if MCK were the input.
+       */
+
+      return ftcin / BOARD_SLOWCLK_FREQUENCY;
+    }
+  else
+    {
+      return 1 << g_log2divider[ndx];
+    }
+}
+
+/****************************************************************************
+ * Name: sam_tc_divfreq_lookup
+ *
+ * Description:
+ *  Given the TC input frequency (Ftcin) and a divider index, return the
+ *  value of the divided frequency
+ *
+ * Input Parameters:
+ *   ftcin - TC input frequency
+ *   ndx   - Divider index
+ *
+ * Returned Value:
+ *   The divided frequency value
+ *
+ ****************************************************************************/
+
+static uint32_t sam_tc_divfreq_lookup(uint32_t ftcin, int ndx)
+{
+  /* The final option is to use the SLOW clock */
+
+  if (ndx >= TC_NDIVIDERS)
+    {
+      return BOARD_SLOWCLK_FREQUENCY;
+    }
+  else
+    {
+      return ftcin >> g_log2divider[ndx];
+    }
+}
+
 /****************************************************************************
  * Name: sam_tc_initialize
  *
@@ -724,11 +908,12 @@ static inline void sam_chan_putreg(struct sam_chan_s *chan, unsigned int offset,
 
 static inline struct sam_chan_s *sam_tc_initialize(int channel)
 {
-  FAR struct sam_tc_s *tc;
-  FAR const struct sam_tcconfig_s *tcconfig;
-  FAR struct sam_chan_s *chan;
-  FAR const struct sam_chconfig_s *chconfig;
+  struct sam_tc_s *tc;
+  const struct sam_tcconfig_s *tcconfig;
+  struct sam_chan_s *chan;
+  const struct sam_chconfig_s *chconfig;
   irqstate_t flags;
+  xcpt_t handler;
   uint32_t regval;
   uint8_t ch;
   int i;
@@ -742,6 +927,7 @@ static inline struct sam_chan_s *sam_tc_initialize(int channel)
     {
       tc       = &g_tc012;
       tcconfig = &g_tc012config;
+      handler  = sam_tc012_interrupt;
     }
   else
 #endif
@@ -750,6 +936,7 @@ static inline struct sam_chan_s *sam_tc_initialize(int channel)
     {
       tc       = &g_tc345;
       tcconfig = &g_tc345config;
+      handler  = sam_tc345_interrupt;
     }
   else
 #endif
@@ -758,6 +945,7 @@ static inline struct sam_chan_s *sam_tc_initialize(int channel)
     {
       tc       = &g_tc678;
       tcconfig = &g_tc678config;
+      handler  = sam_tc678_interrupt;
     }
   else
 #endif
@@ -820,16 +1008,33 @@ static inline struct sam_chan_s *sam_tc_initialize(int channel)
 
               sam_configpio(chconfig->tiobset);
             }
+
+          /* Disable and clear all channel interrupts */
+
+          sam_chan_putreg(chan, SAM_TC_IDR_OFFSET, TC_INT_ALL);
+          (void)sam_chan_getreg(chan, SAM_TC_SR_OFFSET);
         }
 
       /* Set the maximum TC peripheral clock frequency */
 
-      regval = PMC_PCR_PID(tcconfig->pid) | PMC_PCR_CMD | TC_PCR_DIV | PMC_PCR_EN;
+      regval  = PMC_PCR_PID(tcconfig->pid) | PMC_PCR_CMD | PMC_PCR_EN;
+
+#ifdef SAMA5_HAVE_PMC_PCR_DIV
+      /* Set the MCK divider (if any) */
+
+      regval |= PMC_PCR_DIV(sam_tc_mckdivider(BOARD_MCK_FREQUENCY));
+#endif
+
       putreg32(regval, SAM_PMC_PCR);
 
       /* Enable clocking to the timer counter */
 
       sam_enableperiph0(tcconfig->pid);
+
+      /* Attach the timer interrupt handler and enable the timer interrupts */
+
+      (void)irq_attach(tc->pid, handler);
+      up_enable_irq(tc->pid);
 
       /* Now the channel is initialized */
 
@@ -917,6 +1122,7 @@ TC_HANDLE sam_tc_allocate(int channel, int mode)
 
       sam_chan_putreg(chan, SAM_TC_CMR_OFFSET, mode);
       sam_regdump(chan, "Allocated");
+      sam_givesem(chan->tc);
     }
 
   /* Return an opaque reference to the channel */
@@ -946,8 +1152,11 @@ void sam_tc_free(TC_HANDLE handle)
   tcvdbg("Freeing %p channel=%d inuse=%d\n", chan, chan->chan, chan->inuse);
   DEBUGASSERT(chan && chan->inuse);
 
-  /* Make sure that the channel is stopped */
+  /* Make sure that interrupts are detached and disabled and that the channel
+   * is stopped and disabled.
+   */
 
+  sam_tc_attach(handle, NULL, NULL, 0);
   sam_tc_stop(handle);
 
   /* Mark the channel as available */
@@ -975,6 +1184,14 @@ void sam_tc_start(TC_HANDLE handle)
 
   tcvdbg("Starting channel %d inuse=%d\n", chan->chan, chan->inuse);
   DEBUGASSERT(chan && chan->inuse);
+
+  /* Read the SR to clear any pending interrupts on this channel */
+
+  (void)sam_chan_getreg(chan, SAM_TC_SR_OFFSET);
+
+  /* Then enable the timer (by setting the CLKEN bit).  Setting SWTRIG
+   * will also reset the timer counter and starting the timer.
+   */
 
   sam_chan_putreg(chan, SAM_TC_CCR_OFFSET, TC_CCR_CLKEN | TC_CCR_SWTRG);
   sam_regdump(chan, "Started");
@@ -1005,43 +1222,162 @@ void sam_tc_stop(TC_HANDLE handle)
 }
 
 /****************************************************************************
+ * Name: sam_tc_attach
+ *
+ * Description:
+ *   Attach or detach an interrupt handler to the timer interrupt.  The
+ *   interrupt is detached if the handler argument is NULL.
+ *
+ * Input Parameters:
+ *   handle  The handle that represents the timer state
+ *   handler The interrupt handler that will be invoked when the interrupt
+ *           condition occurs
+ *   arg     An opaque argument that will be provided when the interrupt
+ *           handler callback is executed.
+ *   mask    The value of the timer interrupt mask register that defines
+ *           which interrupts should be disabled.
+ *
+ * Returned Value:
+ *
+ ****************************************************************************/
+
+tc_handler_t sam_tc_attach(TC_HANDLE handle, tc_handler_t handler,
+                           void *arg, uint32_t mask)
+{
+  struct sam_chan_s *chan = (struct sam_chan_s *)handle;
+  tc_handler_t oldhandler;
+  irqstate_t flags;
+
+  DEBUGASSERT(chan);
+
+  /* Remember the old interrupt handler and set the new handler */
+
+  flags         = irqsave();
+  oldhandler    = chan->handler;
+  chan->handler = handler;
+
+  /* Don't enable interrupt if we are detaching no matter what the caller
+   * says.
+   */
+
+  if (!handler)
+    {
+      arg  = NULL;
+      mask = 0;
+    }
+
+  chan->arg = arg;
+
+  /* Now enable interrupt as requested */
+
+  sam_chan_putreg(chan, SAM_TC_IDR_OFFSET, TC_INT_ALL & ~mask);
+  sam_chan_putreg(chan, SAM_TC_IER_OFFSET, TC_INT_ALL & mask);
+  irqrestore(flags);
+
+  return oldhandler;
+}
+
+/****************************************************************************
+ * Name: sam_tc_getpending
+ *
+ * Description:
+ *   Return the current contents of the interrupt status register, clearing
+ *   all pending interrupts.
+ *
+ * Input Parameters:
+ *   handle  The handle that represents the timer state
+ *
+ * Returned Value:
+ *   The value of the channel interrupt status register.
+ *
+ ****************************************************************************/
+
+uint32_t sam_tc_getpending(TC_HANDLE handle)
+{
+  struct sam_chan_s *chan = (struct sam_chan_s *)handle;
+  DEBUGASSERT(chan);
+  return sam_chan_getreg(chan, SAM_TC_SR_OFFSET);
+}
+
+/****************************************************************************
  * Name: sam_tc_setregister
  *
  * Description:
- *    Set TC_RA, TC_RB, or TC_RB using the provided divisor.  The actual
- *    setting in the register will be the TC input frequency divided by
- *    the provided divider (which should derive from the divider returned
- *    by sam_tc_divider).
+ *    Set TC_REGA, TC_REGB, or TC_REGC register.
  *
  * Input Parameters:
  *   handle Channel handle previously allocated by sam_tc_allocate()
+ *   regid  One of {TC_REGA, TC_REGB, or TC_REGC}
+ *   regval Then value to set in the register
  *
  * Returned Value:
  *   None
  *
  ****************************************************************************/
 
-void sam_tc_setregister(TC_HANDLE handle, int reg, unsigned int div)
+void sam_tc_setregister(TC_HANDLE handle, int regid, uint32_t regval)
 {
   struct sam_chan_s *chan = (struct sam_chan_s *)handle;
-  uint32_t regval;
 
-  DEBUGASSERT(reg < TC_NREGISTERS);
+  DEBUGASSERT(chan && regid < TC_NREGISTERS);
 
-  regval = TC_FREQUENCY / div;
-  tcvdbg("Channel %d: Set register %d to %d / %d = %d\n",
-         chan->chan, reg, TC_FREQUENCY, div, (unsigned int)regval);
+  tcvdbg("Channel %d: Set register RC%d to %08lx\n",
+         chan->chan, regid, (unsigned long)regval);
 
-  sam_chan_putreg(chan, g_regoffset[reg], regval);
+  sam_chan_putreg(chan, g_regoffset[regid], regval);
   sam_regdump(chan, "Set register");
 }
 
 /****************************************************************************
- * Name: sam_tc_frequency
+ * Name: sam_tc_getregister
  *
  * Description:
- *   Return the timer input frequency, that is, the MCK frequency divided
- *   down so that the timer/counter is driven within its maximum frequency.
+ *    Get the current value of the TC_REGA, TC_REGB, or TC_REGC register.
+ *
+ * Input Parameters:
+ *   handle Channel handle previously allocated by sam_tc_allocate()
+ *   regid  One of {TC_REGA, TC_REGB, or TC_REGC}
+ *
+ * Returned Value:
+ *   The value of the specified register.
+ *
+ ****************************************************************************/
+
+uint32_t sam_tc_getregister(TC_HANDLE handle, int regid)
+{
+  struct sam_chan_s *chan = (struct sam_chan_s *)handle;
+  DEBUGASSERT(chan);
+  return sam_chan_getreg(chan, g_regoffset[regid]);
+}
+
+/****************************************************************************
+ * Name: sam_tc_getcounter
+ *
+ * Description:
+ *   Return the current value of the timer counter register
+ *
+ * Input Parameters:
+ *   handle Channel handle previously allocated by sam_tc_allocate()
+ *
+ * Returned Value:
+ *  The current value of the timer counter register for this channel.
+ *
+ ****************************************************************************/
+
+uint32_t sam_tc_getcounter(TC_HANDLE handle)
+{
+  struct sam_chan_s *chan = (struct sam_chan_s *)handle;
+  DEBUGASSERT(chan);
+  return sam_chan_getreg(chan, SAM_TC_CV_OFFSET);
+}
+
+/****************************************************************************
+ * Name: sam_tc_infreq
+ *
+ * Description:
+ *   Return the timer input frequency (Ftcin), that is, the MCK frequency
+ *   divided down so that the timer/counter is driven within its maximum
+ *   frequency.
  *
  * Input Parameters:
  *   None
@@ -1051,9 +1387,51 @@ void sam_tc_setregister(TC_HANDLE handle, int reg, unsigned int div)
  *
  ****************************************************************************/
 
-uint32_t sam_tc_frequency(void)
+uint32_t sam_tc_infreq(void)
 {
-  return TC_FREQUENCY;
+#ifdef SAMA5_HAVE_PMC_PCR_DIV
+  uint32_t mck = BOARD_MCK_FREQUENCY;
+  int shift = sam_tc_mckdivider(mck);
+  return mck >> shift;
+#else
+  return BOARD_MCK_FREQUENCY;
+#endif
+}
+
+/****************************************************************************
+ * Name: sam_tc_divfreq
+ *
+ * Description:
+ *   Return the divided timer input frequency that is currently driving the
+ *   the timer counter.
+ *
+ * Input Parameters:
+ *   handle Channel handle previously allocated by sam_tc_allocate()
+ *
+ * Returned Value:
+ *  The timer counter frequency.
+ *
+ ****************************************************************************/
+
+uint32_t sam_tc_divfreq(TC_HANDLE handle)
+{
+  struct sam_chan_s *chan = (struct sam_chan_s *)handle;
+  uint32_t ftcin = sam_tc_infreq();
+  uint32_t regval;
+  int tcclks;
+
+  DEBUGASSERT(chan);
+
+  /* Get the the TC_CMR register contents for this channel and extract the
+   * TCCLKS index.
+   */
+
+  regval = sam_chan_getreg(chan, SAM_TC_CMR_OFFSET);
+  tcclks = (regval & TC_CMR_TCCLKS_MASK) >> TC_CMR_TCCLKS_SHIFT;
+
+  /* And use the TCCLKS index to calculate the timer counter frequency */
+
+  return sam_tc_divfreq_lookup(ftcin, tcclks);
 }
 
 /****************************************************************************
@@ -1063,12 +1441,12 @@ uint32_t sam_tc_frequency(void)
  *   Finds the best MCK divisor given the timer frequency and MCK.  The
  *   result is guaranteed to satisfy the following equation:
  *
- *     (Ftc / (div * 65536)) <= freq <= (Ftc / dev)
+ *     (Ftcin / (div * 65536)) <= freq <= (Ftcin / dev)
  *
  *   where:
- *     freq - the desitred frequency
- *     Ftc  - The timer/counter input frequency
- *     div  - With DIV being the highest possible value.
+ *     freq  - the desired frequency
+ *     Ftcin - The timer/counter input frequency
+ *     div   - With DIV being the highest possible value.
  *
  * Input Parameters:
  *   frequency  Desired timer frequency.
@@ -1083,15 +1461,19 @@ uint32_t sam_tc_frequency(void)
 
 int sam_tc_divisor(uint32_t frequency, uint32_t *div, uint32_t *tcclks)
 {
+  uint32_t ftcin = sam_tc_infreq();
   int ndx = 0;
 
   tcvdbg("frequency=%d\n", frequency);
 
-  /* Satisfy lower bound */
+  /* Satisfy lower bound.  That is, the value of the divider such that:
+   *
+   *   frequency >= (tc_input_frequency * 65536) / divider.
+   */
 
-  while (frequency < (g_divfreq[ndx] >> 16))
+  while (frequency < (sam_tc_divfreq_lookup(ftcin, ndx) >> 16))
     {
-      if (++ndx > TC_NDIVIDERS)
+      if (++ndx > TC_NDIVOPTIONS)
         {
           /* If no divisor can be found, return -ERANGE */
 
@@ -1100,11 +1482,15 @@ int sam_tc_divisor(uint32_t frequency, uint32_t *div, uint32_t *tcclks)
         }
     }
 
-  /* Try to maximize DIV while still satisfying upper bound */
+  /* Try to maximize DIV while still satisfying upper bound.  That the
+   * value of the divider such that:
+   *
+   *   frequency < tc_input_frequency / divider.
+   */
 
-  for (; ndx < (TC_NDIVIDERS-1); ndx++)
+  for (; ndx < (TC_NDIVOPTIONS-1); ndx++)
     {
-      if (frequency > g_divfreq[ndx + 1])
+      if (frequency > sam_tc_divfreq_lookup(ftcin, ndx + 1))
         {
           break;
         }
@@ -1114,16 +1500,17 @@ int sam_tc_divisor(uint32_t frequency, uint32_t *div, uint32_t *tcclks)
 
   if (div)
     {
-      tcvdbg("return div=%d\n", g_divider[ndx]);
-      *div = g_divider[ndx];
+      uint32_t value = sam_tc_freqdiv_lookup(ftcin, ndx);
+      tcvdbg("return div=%lu\n", (unsigned long)value);
+      *div = value;
     }
 
-  /* REturn the TCCLKS selection */
+  /* Return the TCCLKS selection */
 
   if (tcclks)
     {
-      tcvdbg("return tcclks=%d\n", ndx);
-      *tcclks = ndx;
+      tcvdbg("return tcclks=%08lx\n", (unsigned long)TC_CMR_TCCLKS(ndx));
+      *tcclks = TC_CMR_TCCLKS(ndx);
     }
 
   return OK;

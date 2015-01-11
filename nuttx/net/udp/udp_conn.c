@@ -37,10 +37,6 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Compilation Switches
- ****************************************************************************/
-
-/****************************************************************************
  * Included Files
  ****************************************************************************/
 
@@ -57,10 +53,12 @@
 #include <arch/irq.h>
 
 #include <nuttx/net/netconfig.h>
-#include <nuttx/net/uip.h>
+#include <nuttx/net/net.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/ip.h>
+#include <nuttx/net/udp.h>
 
-#include "uip/uip.h"
+#include "devif/devif.h"
 #include "udp/udp.h"
 
 /****************************************************************************
@@ -89,18 +87,18 @@ static uint16_t g_last_udp_port;
  ****************************************************************************/
 
 /****************************************************************************
- * Name: _uip_semtake() and _uip_semgive()
+ * Name: _udp_semtake() and _udp_semgive()
  *
  * Description:
  *   Take/give semaphore
  *
  ****************************************************************************/
 
-static inline void _uip_semtake(FAR sem_t *sem)
+static inline void _udp_semtake(FAR sem_t *sem)
 {
   /* Take the semaphore (perhaps waiting) */
 
-  while (uip_lockedwait(sem) != 0)
+  while (net_lockedwait(sem) != 0)
     {
       /* The only case that an error should occur here is if
        * the wait was awakened by a signal.
@@ -110,10 +108,10 @@ static inline void _uip_semtake(FAR sem_t *sem)
     }
 }
 
-#define _uip_semgive(sem) sem_post(sem)
+#define _udp_semgive(sem) sem_post(sem)
 
 /****************************************************************************
- * Name: uip_find_conn()
+ * Name: udp_find_conn()
  *
  * Description:
  *   Find the UDP connection that uses this local port number.  Called only
@@ -121,7 +119,7 @@ static inline void _uip_semtake(FAR sem_t *sem)
  *
  ****************************************************************************/
 
-static FAR struct udp_conn_s *uip_find_conn(uint16_t portno)
+static FAR struct udp_conn_s *udp_find_conn(uint16_t portno)
 {
   int i;
 
@@ -139,7 +137,7 @@ static FAR struct udp_conn_s *uip_find_conn(uint16_t portno)
 }
 
 /****************************************************************************
- * Name: uip_selectport()
+ * Name: udp_select_port()
  *
  * Description:
  *   Select an unused port number.
@@ -158,7 +156,7 @@ static FAR struct udp_conn_s *uip_find_conn(uint16_t portno)
  *
  ****************************************************************************/
 
-static uint16_t uip_selectport(void)
+static uint16_t udp_select_port(void)
 {
   uint16_t portno;
 
@@ -166,7 +164,7 @@ static uint16_t uip_selectport(void)
    * listen port number that is not being used by any other connection.
    */
 
-  uip_lock_t flags = uip_lock();
+  net_lock_t flags = net_lock();
   do
     {
       /* Guess that the next available port number will be the one after
@@ -182,14 +180,14 @@ static uint16_t uip_selectport(void)
           g_last_udp_port = 4096;
         }
     }
-  while (uip_find_conn(htons(g_last_udp_port)));
+  while (udp_find_conn(htons(g_last_udp_port)));
 
   /* Initialize and return the connection structure, bind it to the
    * port number
    */
 
   portno = g_last_udp_port;
-  uip_unlock(flags);
+  net_unlock(flags);
 
   return portno;
 }
@@ -232,7 +230,8 @@ void udp_initialize(void)
  * Name: udp_alloc()
  *
  * Description:
- *   Allocate a new, uninitialized UDP connection structure.
+ *   Allocate a new, uninitialized UDP connection structure.  This is
+ *   normally something done by the implementation of the socket() API
  *
  ****************************************************************************/
 
@@ -244,7 +243,7 @@ FAR struct udp_conn_s *udp_alloc(void)
    * is protected by a semaphore (that behaves like a mutex).
    */
 
-  _uip_semtake(&g_free_sem);
+  _udp_semtake(&g_free_sem);
   conn = (FAR struct udp_conn_s *)dq_remfirst(&g_free_udp_connections);
   if (conn)
     {
@@ -257,7 +256,7 @@ FAR struct udp_conn_s *udp_alloc(void)
       dq_addlast(&conn->node, &g_active_udp_connections);
     }
 
-  _uip_semgive(&g_free_sem);
+  _udp_semgive(&g_free_sem);
   return conn;
 }
 
@@ -266,8 +265,7 @@ FAR struct udp_conn_s *udp_alloc(void)
  *
  * Description:
  *   Free a UDP connection structure that is no longer in use. This should be
- *   done by the implementation of close().  udp_disable must have been
- *   previously called.
+ *   done by the implementation of close().
  *
  ****************************************************************************/
 
@@ -279,7 +277,7 @@ void udp_free(FAR struct udp_conn_s *conn)
 
   DEBUGASSERT(conn->crefs == 0);
 
-  _uip_semtake(&g_free_sem);
+  _udp_semtake(&g_free_sem);
   conn->lport = 0;
 
   /* Remove the connection from the active list */
@@ -289,7 +287,7 @@ void udp_free(FAR struct udp_conn_s *conn)
   /* Free the connection */
 
   dq_addlast(&conn->node, &g_free_udp_connections);
-  _uip_semgive(&g_free_sem);
+  _udp_semgive(&g_free_sem);
 }
 
 /****************************************************************************
@@ -322,9 +320,9 @@ FAR struct udp_conn_s *udp_active(FAR struct udp_iphdr_s *buf)
 
       if (conn->lport != 0 && buf->destport == conn->lport &&
           (conn->rport == 0 || buf->srcport == conn->rport) &&
-            (uip_ipaddr_cmp(conn->ripaddr, g_allzeroaddr) ||
-             uip_ipaddr_cmp(conn->ripaddr, g_alloneaddr) ||
-             uiphdr_ipaddr_cmp(buf->srcipaddr, &conn->ripaddr)))
+            (net_ipaddr_cmp(conn->ripaddr, g_allzeroaddr) ||
+             net_ipaddr_cmp(conn->ripaddr, g_alloneaddr) ||
+             net_ipaddr_hdrcmp(buf->srcipaddr, &conn->ripaddr)))
         {
           /* Matching connection found.. return a reference to it */
 
@@ -340,7 +338,7 @@ FAR struct udp_conn_s *udp_active(FAR struct udp_iphdr_s *buf)
 }
 
 /****************************************************************************
- * Name: uip_nextudpconn()
+ * Name: udp_nextconn()
  *
  * Description:
  *   Traverse the list of allocated UDP connections
@@ -351,7 +349,7 @@ FAR struct udp_conn_s *udp_active(FAR struct udp_iphdr_s *buf)
  *
  ****************************************************************************/
 
-FAR struct udp_conn_s *uip_nextudpconn(FAR struct udp_conn_s *conn)
+FAR struct udp_conn_s *udp_nextconn(FAR struct udp_conn_s *conn)
 {
   if (!conn)
     {
@@ -382,7 +380,7 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr_in *addr)
 #endif
 {
   int ret = -EADDRINUSE;
-  uip_lock_t flags;
+  net_lock_t flags;
 #ifdef CONFIG_NET_IPv6
   uint16_t port = addr->sin6_port;
 #else
@@ -394,18 +392,18 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr_in *addr)
     {
       /* Yes.. Find an unused local port number */
 
-      conn->lport = htons(uip_selectport());
+      conn->lport = htons(udp_select_port());
       ret         = OK;
     }
   else
     {
       /* Interrupts must be disabled while access the UDP connection list */
 
-      flags = uip_lock();
+      flags = net_lock();
 
       /* Is any other UDP connection bound to this port? */
 
-      if (!uip_find_conn(port))
+      if (!udp_find_conn(port))
         {
           /* No.. then bind the socket to the port */
 
@@ -413,7 +411,7 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr_in *addr)
           ret         = OK;
         }
 
-      uip_unlock(flags);
+      net_unlock(flags);
     }
 
   return ret;
@@ -429,10 +427,12 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr_in *addr)
  *   udp_bind() call, after the udp_connect() function has been
  *   called.
  *
- * udp_enable() must be called before the connection is made active (i.e.,
- * is eligible for callbacks.
+ *   This function is called as part of the implementation of sendto
+ *   and recvfrom.
  *
- * addr The address of the remote host.
+ * Input Parameters:
+ *   conn - A reference to UDP connection structure
+ *   addr - The address of the remote host.
  *
  * Assumptions:
  *   This function is called user code.  Interrupts may be enabled.
@@ -455,7 +455,7 @@ int udp_connect(FAR struct udp_conn_s *conn,
        * connection structure.
        */
 
-      conn->lport = htons(uip_selectport());
+      conn->lport = htons(udp_select_port());
     }
 
   /* Is there a remote port (rport) */
@@ -464,19 +464,19 @@ int udp_connect(FAR struct udp_conn_s *conn,
     {
 #ifndef CONFIG_NET_IPv6
       conn->rport = addr->sin_port;
-      uip_ipaddr_copy(conn->ripaddr, addr->sin_addr.s_addr);
+      net_ipaddr_copy(conn->ripaddr, addr->sin_addr.s_addr);
 #else
       conn->rport = addr->sin6_port;
-      uip_ipaddr_copy(conn->ripaddr, addr->sin6_addr.in6_u.u6_addr16);
+      net_ipaddr_copy(conn->ripaddr, addr->sin6_addr.in6_u.u6_addr16);
 #endif
     }
   else
     {
       conn->rport = 0;
-      uip_ipaddr_copy(conn->ripaddr, g_allzeroaddr);
+      net_ipaddr_copy(conn->ripaddr, g_allzeroaddr);
     }
 
-  conn->ttl = UIP_TTL;
+  conn->ttl = IP_TTL;
   return OK;
 }
 

@@ -1,7 +1,7 @@
 /****************************************************************************
  * NxWidgets/libnxwidgets/src/ctabpanel.hxx
  *
- *   Copyright (C) 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Petteri Aimonen <jpa@kapsi.fi>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -103,18 +103,15 @@ void CTabPanel::showPage(uint8_t index)
 
   for (int i = 0; i < m_tabpages.size(); i++)
     {
-      if (i == index)
-        {
-          m_tabpages.at(i)->enable();
-          m_tabpages.at(i)->show();
-          m_tabpages.at(i)->redraw();
-        }
-      else
+      if (i != index)
         {
           m_tabpages.at(i)->hide();
           m_tabpages.at(i)->disable();
         }
     }
+
+  m_tabpages.at(index)->enable();
+  m_tabpages.at(index)->show();
 }
 
 void CTabPanel::handleActionEvent(const CWidgetEventArgs &e)
@@ -126,8 +123,14 @@ void CTabPanel::handleActionEvent(const CWidgetEventArgs &e)
 
       m_buttonbar->isAnyButtonStuckDown(x, y);
       showPage(x);
+      m_widgetEventHandlers->raiseActionEvent();
     }
 }
 
-
-
+uint8_t CTabPanel::getCurrentPageIndex() const
+{
+  int x = 0;
+  int y = 0;
+  m_buttonbar->isAnyButtonStuckDown(x, y);
+  return x;
+}

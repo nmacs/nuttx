@@ -1,8 +1,8 @@
 /****************************************************************************
  * crypto/testmngr.c
  *
- *   Copyright (C) 2007, 2008, 2013 Gregory Nutt. All rights reserved.
- *   Author: Gregory Nutt <gnutt@nuttx.org>
+ *   Copyright (C) 2014 Gregory Nutt. All rights reserved.
+ *   Author:  Max Nekludov <macscomp@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,10 +44,11 @@
 #include <string.h>
 #include <poll.h>
 #include <errno.h>
-#include <nuttx/fs/fs.h>
-#include <crypto/crypto.h>
-#include <nuttx/kmalloc.h>
 #include <debug.h>
+
+#include <nuttx/fs/fs.h>
+#include <nuttx/kmalloc.h>
+#include <nuttx/crypto/crypto.h>
 
 #ifdef CONFIG_CRYPTO_ALGTEST
 
@@ -55,12 +56,20 @@
 
 #if defined(CONFIG_CRYPTO_AES)
 
-static int do_test_aes(struct cipher_testvec* test, int mode, int encrypt)
+/****************************************************************************
+ * Private Functions
+ ****************************************************************************/
+
+static int do_test_aes(FAR struct cipher_testvec* test, int mode, int encrypt)
 {
-  void *out = kzalloc(test->rlen);
-  int res = aes_cypher(out, test->input, test->ilen, test->iv, test->key, test->klen, mode, encrypt);
+  FAR void *out = kzalloc(test->rlen);
+  int res = aes_cypher(out, test->input, test->ilen, test->iv, test->key,
+                       test->klen, mode, encrypt);
   if (res == OK)
-    res = memcmp(out, test->result, test->rlen);
+    {
+      res = memcmp(out, test->result, test->rlen);
+    }
+
   kfree(out);
   return res;
 }
@@ -68,7 +77,7 @@ static int do_test_aes(struct cipher_testvec* test, int mode, int encrypt)
 #define AES_CYPHER_TEST_ENCRYPT(mode, mode_str, count, template) \
   for (i = 0; i < count; i++) { \
     if (do_test_aes(template + i, mode, CYPHER_ENCRYPT)) { \
-      cryptdbg("Failed " mode_str " encrypt test #%i\n", i); \
+      cryptlldbg("Failed " mode_str " encrypt test #%i\n", i); \
       return -1; \
     } \
   }
@@ -76,7 +85,7 @@ static int do_test_aes(struct cipher_testvec* test, int mode, int encrypt)
 #define AES_CYPHER_TEST_DECRYPT(mode, mode_str, count, template) \
   for (i = 0; i < count; i++) { \
     if (do_test_aes(template + i, mode, CYPHER_DECRYPT)) { \
-      cryptdbg("Failed " mode_str " decrypt test #%i\n", i); \
+      cryptlldbg("Failed " mode_str " decrypt test #%i\n", i); \
       return -1; \
     } \
   }

@@ -1,7 +1,7 @@
 /****************************************************************************
  * drivers/bch/bch_internal.h
  *
- *   Copyright (C) 2008-2009 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2008-2009, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -70,8 +70,9 @@ struct bchlib_s
   bool  dirty;         /* Data has been written to the buffer */
   bool  readonly;      /* true:  Only read operations are supported */
   FAR uint8_t *buffer; /* One sector buffer */
-#if defined(CONFIG_BCH_ENCRIPTION)
-  uint8_t   key[CONFIG_BCH_ENCRIPTION_KEY_SIZE];   /* Encryption key */
+
+#if defined(CONFIG_BCH_ENCRYPTION)
+  uint8_t   key[CONFIG_BCH_ENCRYPTION_KEY_SIZE];   /* Encryption key */
 #endif
 };
 

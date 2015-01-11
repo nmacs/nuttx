@@ -46,7 +46,7 @@
 
 #include "chip.h"
 #include "up_arch.h"
-#include "clock_internal.h"
+#include "clock/clock.h"
 #include "up_internal.h"
 
 /****************************************************************************
@@ -126,7 +126,7 @@ int up_timerisr(int irq, uint32_t *regs)
 }
 
 /****************************************************************************
- * Function:  up_timerinit
+ * Function:  up_timer_initialize
  *
  * Description:
  *   This function is called during start-up to initialize the timer
@@ -134,12 +134,12 @@ int up_timerisr(int irq, uint32_t *regs)
  *
  ****************************************************************************/
 
-void up_timerinit(void)
+void up_timer_initialize(void)
 {
   up_disable_irq(DM320_IRQ_SYSTIMER);
 
   /* Start timer0 running so that an interrupt is generated at
-   * the rate MSEC_PER_TICK.
+   * the rate USEC_PER_TICK.
    */
 
   putreg16(DM320_TMR0_PRSCL, DM320_TIMER0_TMPRSCL); /* Timer 0 Prescalar */

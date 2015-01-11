@@ -33,18 +33,15 @@
 #
 ############################################################################
 
-ifeq ($(CONFIG_NET),y)
-
 # UDP source files
 
 ifeq ($(CONFIG_NET_UDP),y)
 
 NET_CSRCS += udp_conn.c udp_poll.c udp_send.c udp_input.c udp_callback.c
 
-# Include uip build support
+# Include UDP build support
 
 DEPPATH += --dep-path udp
 VPATH += :udp
 
 endif # CONFIG_NET_UDP
-endif # CONFIG_NET

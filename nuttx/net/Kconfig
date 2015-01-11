@@ -47,42 +47,6 @@ config NET_PROMISCUOUS
 		Force the Ethernet driver to operate in promiscuous mode (if supported
 		by the Ethernet driver).
 
-config NET_IPv6
-	bool "IPv6"
-	default n
-	depends on EXPERIMENTAL
-	---help---
-		Build in support for IPv6.  Not fully implemented.
-
-config NSOCKET_DESCRIPTORS
-	int "Number of socket descriptor"
-	default 8
-	---help---
-		Maximum number of socket descriptors per task/thread.
-
-config NET_NACTIVESOCKETS
-	int "Max socket operations"
-	default 16
-	---help---
-		Maximum number of concurrent socket operations (recv, send, etc.).
-		Default: 16
-
-config NET_SOCKOPTS
-	bool "Socket options"
-	default n
-	---help---
-		Enable or disable support for socket options
-
-if NET_SOCKOPTS
-
-config NET_SOLINGER
-	bool "SO_LINGER socket option"
-	default n
-	---help---
-		Enable or disable support for the SO_LINGER socket option.
-
-endif # NET_SOCKOPTS
-
 config NET_BUFSIZE
 	int "Network packet buffer size (MTU)"
 	default 1294 if !NET_SLIP && NET_IPv6
@@ -124,6 +88,9 @@ config NET_GUARDSIZE
 		packet size will be chopped down to the size indicated in the TCP
 		header.
 
+source "net/socket/Kconfig"
+source "net/netdev/Kconfig"
+source "net/ipv6/Kconfig"
 source "net/pkt/Kconfig"
 source "net/tcp/Kconfig"
 source "net/udp/Kconfig"
@@ -131,6 +98,7 @@ source "net/icmp/Kconfig"
 source "net/igmp/Kconfig"
 source "net/arp/Kconfig"
 source "net/iob/Kconfig"
+source "net/utils/Kconfig"
 
 config NET_STATISTICS
 	bool "Collect network statistics"
@@ -138,18 +106,7 @@ config NET_STATISTICS
 	---help---
 		uIP statistics on or off
 
-config NET_ROUTE
-	bool "Routing table suport"
-	default n
-	---help---
-		Build in support for a routing table.  See include/net/route.h
-
-config NET_MAXROUTES
-	int "Routing table size"
-	default 4
-	depends on NET_ROUTE
-	---help---
-		The size of the routing table (in entries).
+source "net/route/Kconfig"
 
 config NET_MULTICAST
 	bool "Multi-cast Tx support"
