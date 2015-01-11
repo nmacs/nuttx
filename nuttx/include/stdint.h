@@ -155,7 +155,7 @@
 
 /* Macros for minimum-width integer constant expressions */
 
-#if 0 /* REVISIT: Depends on architecture specific implementation */
+#if 1 /* REVISIT: Depends on architecture specific implementation */
 #define INT8_C(x) x
 #define INT16_C(x) x
 #define INT32_C(x) x ## L
