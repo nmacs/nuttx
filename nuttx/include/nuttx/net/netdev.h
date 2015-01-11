@@ -96,7 +96,7 @@ struct uip_driver_s
 
   /* Ethernet device identity */
 
-#ifdef CONFIG_NET_ETHERNET
+#if defined(CONFIG_NET_ETHERNET) || defined(CONFIG_WIRELESS)
   struct ether_addr d_mac;  /* Device MAC address */
 #endif
 

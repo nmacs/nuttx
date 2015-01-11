@@ -361,7 +361,7 @@ static int netdev_ifrioctl(FAR struct socket *psock, int cmd,
 
       /* MAC address operations only make sense if Ethernet is supported */
 
-#ifdef CONFIG_NET_ETHERNET
+#if defined(CONFIG_NET_ETHERNET) || defined(CONFIG_WIRELESS)
       case SIOCGIFHWADDR:  /* Get hardware address */
         {
           dev = netdev_ifrdev(req);

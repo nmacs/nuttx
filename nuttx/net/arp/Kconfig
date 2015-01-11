@@ -11,6 +11,7 @@ config NET_ARP
 	default n if NET_SLIP
 	---help---
 		This setting is currently overridden by logic in include/nuttx/net
+	depends on !NET_IPv6
 
 if NET_ARP
 
