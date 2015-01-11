@@ -42,22 +42,24 @@
  ************************************************************************************/
 
 #include <nuttx/config.h>
+
 #ifndef __ASSEMBLY__
 # include <stdint.h>
 #endif
+
 #include "stm32_rcc.h"
 #include "stm32_sdio.h"
 #include "stm32.h"
 
 /************************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ************************************************************************************/
 
 /* Clocking *************************************************************************/
 /* Four clock sources are available on STM3240G-EVAL evaluation board for
  * STM32F407IGH6 and RTC embedded:
  *
- * X1, 25 MHz crystal for ethernet PHY with socket. It can be removed when clock is
+ * X1, 25 MHz crystal for Ethernet PHY with socket. It can be removed when clock is
  *     provided by MCO pin of the MCU
  * X2, 26 MHz crystal for USB OTG HS PHY
  * X3, 32 kHz crystal for embedded RTC
@@ -444,7 +446,7 @@
 
 /* DMA Channl/Stream Selections *****************************************************/
 /* Stream selections are arbitrary for now but might become important in the future
- * is we set aside more DMA channels/streams.
+ * if we set aside more DMA channels/streams.
  *
  * SDIO DMA
  *   DMAMAP_SDIO_1 = Channel 4, Stream 3

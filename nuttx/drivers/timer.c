@@ -148,7 +148,7 @@ static int timer_open(FAR struct file *filep)
   ret = 1; //sem_wait(&upper->exclsem);
   if (ret < 0)
     {
-      ret = -errno;
+      ret = -get_errno();
       goto errout;
     }
 
@@ -199,7 +199,7 @@ static int timer_close(FAR struct file *filep)
   ret = 1; //sem_wait(&upper->exclsem);
   if (ret < 0)
     {
-      ret = -errno;
+      ret = -get_errno();
       goto errout;
     }
 
@@ -380,7 +380,7 @@ static int timer_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
      * case direct callbacks from kernel space into user space is forbidden.
      */
 
-#ifndef CONFIG_NUTTX_KERNEL
+#if !defined(CONFIG_BUILD_PROTECTED) && !defined(CONFIG_BUILD_KERNEL)
     case TCIOC_SETHANDLER:
       {
         FAR struct timer_sethandler_s *sethandler;
@@ -481,7 +481,7 @@ FAR void *timer_register(FAR const char *path,
   /* Allocate the upper-half data structure */
 
   upper = (FAR struct timer_upperhalf_s *)
-    kzalloc(sizeof(struct timer_upperhalf_s));
+    kmm_zalloc(sizeof(struct timer_upperhalf_s));
   if (!upper)
     {
       tmrdbg("Upper half allocation failed\n");
@@ -489,7 +489,7 @@ FAR void *timer_register(FAR const char *path,
     }
 
   /* Initialize the timer device structure (it was already zeroed
-   * by kzalloc()).
+   * by kmm_zalloc()).
    */
 
   //sem_init(&upper->exclsem, 0, 1);
@@ -516,11 +516,11 @@ FAR void *timer_register(FAR const char *path,
   return (FAR void *)upper;
 
 errout_with_path:
-  kfree(upper->path);
+  kmm_free(upper->path);
 
 errout_with_upper:
   //sem_destroy(&upper->exclsem);
-  kfree(upper);
+  kmm_free(upper);
 
 errout:
   return NULL;
@@ -565,9 +565,9 @@ void timer_unregister(FAR void *handle)
 
   /* Then free all of the driver resources */
 
-  kfree(upper->path);
+  kmm_free(upper->path);
   //sem_destroy(&upper->exclsem);
-  kfree(upper);
+  kmm_free(upper);
 }
 
 #endif /* CONFIG_TIMER */

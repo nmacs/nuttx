@@ -1745,7 +1745,7 @@ static int mxt_hwinitialize(FAR struct mxt_dev_s *priv)
 
   /* Allocate memory for the object table */
 
-  priv->objtab = kzalloc(info->nobjects * sizeof(struct mxt_object_s));
+  priv->objtab = kmm_zalloc(info->nobjects * sizeof(struct mxt_object_s));
   if (priv->objtab == NULL)
     {
       idbg("ERROR: Failed to allocate object table\n");
@@ -1807,7 +1807,7 @@ static int mxt_hwinitialize(FAR struct mxt_dev_s *priv)
   /* Allocate a place to hold sample data for each slot */
 
   priv->sample = (FAR struct mxt_sample_s *)
-    kzalloc(nslots * sizeof(struct mxt_sample_s));
+    kmm_zalloc(nslots * sizeof(struct mxt_sample_s));
   if (priv->sample == NULL)
     {
       idbg("ERROR: Failed to allocate object table\n");
@@ -1819,7 +1819,7 @@ static int mxt_hwinitialize(FAR struct mxt_dev_s *priv)
   /* Error exits */
 
 errout_with_objtab:
-  kfree(priv->objtab);
+  kmm_free(priv->objtab);
   priv->objtab = NULL;
 
   return ret;
@@ -1863,7 +1863,7 @@ int mxt_register(FAR struct i2c_dev_s *i2c,
 
   /* Create and initialize a maXTouch device driver instance */
 
-  priv = (FAR struct mxt_dev_s *)kzalloc(sizeof(struct mxt_dev_s));
+  priv = (FAR struct mxt_dev_s *)kmm_zalloc(sizeof(struct mxt_dev_s));
   if (priv == NULL)
     {
       idbg("ERROR: Failed allocate device structure\n");
@@ -1923,13 +1923,13 @@ int mxt_register(FAR struct i2c_dev_s *i2c,
   /* Error clean-up exits */
 
 errout_with_hwinit:
-  kfree(priv->objtab);
-  kfree(priv->sample);
+  kmm_free(priv->objtab);
+  kmm_free(priv->sample);
 errout_with_irq:
   MXT_DETACH(lower);
 errout_with_priv:
   sem_destroy(&priv->devsem);
   sem_destroy(&priv->waitsem);
-  kfree(priv);
+  kmm_free(priv);
   return ret;
 }

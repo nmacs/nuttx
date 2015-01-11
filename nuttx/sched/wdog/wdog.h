@@ -1,7 +1,7 @@
 /************************************************************************
  * sched/wdog/wdog.h
  *
- *   Copyright (C) 2007, 2009 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007, 2009, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,9 +44,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <wdog.h>
 
 #include <nuttx/compiler.h>
+#include <nuttx/wdog.h>
 
 /************************************************************************
  * Pre-processor Definitions
@@ -55,24 +55,6 @@
 /************************************************************************
  * Public Type Declarations
  ************************************************************************/
-
-/* This is the watchdog structure.  The WDOG_ID is a pointer to a
- * watchdog structure.
- */
-
-struct wdog_s
-{
-  FAR struct wdog_s *next;       /* Support for singly linked lists. */
-  wdentry_t          func;       /* Function to execute when delay expires */
-#ifdef CONFIG_PIC
-  FAR void          *picbase;    /* PIC base address */
-#endif
-  int                lag;        /* Timer associated with the delay */
-  bool               active;     /* true if the watchdog is actively timing */
-  uint8_t            argc;       /* The number of parameters to pass */
-  uint32_t           parm[CONFIG_MAX_WDOGPARMS];
-};
-typedef struct wdog_s wdog_t;
 
 /************************************************************************
  * Public Variables
@@ -92,18 +74,19 @@ extern "C"
 
 extern sq_queue_t g_wdfreelist;
 
-/* g_wdpool is a pointer to a list of pre-allocated watchdogs. The number
- * of watchdogs in the pool is a configuration item.
- */
-
-extern FAR wdog_t *g_wdpool;
-
 /* The g_wdactivelist data structure is a singly linked list ordered by
  * watchdog expiration time. When watchdog timers expire,the functions on
  * this linked list are removed and the function is called.
  */
 
 extern sq_queue_t g_wdactivelist;
+
+/* This is the number of free, pre-allocated watchdog structures in the
+ * g_wdfreelist.  This value is used to enforce a reserve for interrupt
+ * handlers.
+ */
+
+extern uint16_t g_wdnfree;
 
 /************************************************************************
  * Public Function Prototypes

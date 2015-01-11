@@ -2359,7 +2359,7 @@ static int sam_epalloc(FAR struct usbhost_driver_s *drvr,
 
   /* Allocate a container for the endpoint data */
 
-  eplist = (struct sam_eplist_s *)kzalloc(sizeof(struct sam_eplist_s));
+  eplist = (struct sam_eplist_s *)kmm_zalloc(sizeof(struct sam_eplist_s));
   if (!eplist)
     {
       usbhost_trace1(OHCI_TRACE1_EPLISTALLOC_FAILED, 0);
@@ -2500,7 +2500,7 @@ errout_with_ed:
   sam_edfree(ed);
 errout_with_semaphore:
   sam_givesem(&g_ohci.exclsem);
-  kfree(eplist);
+  kmm_free(eplist);
 errout:
   return ret;
 }
@@ -2577,7 +2577,7 @@ static int sam_epfree(FAR struct usbhost_driver_s *drvr, usbhost_ep_t ep)
   /* And free the container */
 
   sem_destroy(&eplist->wdhsem);
-  kfree(eplist);
+  kmm_free(eplist);
   sam_givesem(&g_ohci.exclsem);
   return ret;
 }
@@ -2589,7 +2589,7 @@ static int sam_epfree(FAR struct usbhost_driver_s *drvr, usbhost_ep_t ep)
  *   Some hardware supports special memory in which request and descriptor data can
  *   be accessed more efficiently.  This method provides a mechanism to allocate
  *   the request/descriptor memory.  If the underlying hardware does not support
- *   such "special" memory, this functions may simply map to kmalloc.
+ *   such "special" memory, this functions may simply map to kmm_malloc.
  *
  *   This interface was optimized under a particular assumption.  It was assumed
  *   that the driver maintains a pool of small, pre-allocated buffers for descriptor
@@ -2642,7 +2642,7 @@ static int sam_alloc(FAR struct usbhost_driver_s *drvr,
  *   Some hardware supports special memory in which request and descriptor data
  *   can be accessed more efficiently.  This method provides a mechanism to
  *   free that request/descriptor memory.  If the underlying hardware does not
- *   support such "special" memory, this functions may simply map to kfree().
+ *   support such "special" memory, this functions may simply map to kmm_free().
  *
  * Input Parameters:
  *   drvr - The USB host driver instance obtained as a parameter from the call
@@ -2677,7 +2677,7 @@ static int sam_free(FAR struct usbhost_driver_s *drvr, FAR uint8_t *buffer)
  *   Some hardware supports special memory in which larger IO buffers can
  *   be accessed more efficiently.  This method provides a mechanism to allocate
  *   the request/descriptor memory.  If the underlying hardware does not support
- *   such "special" memory, this functions may simply map to kumalloc.
+ *   such "special" memory, this functions may simply map to kumm_malloc.
  *
  *   This interface differs from DRVR_ALLOC in that the buffers are variable-sized.
  *
@@ -2702,9 +2702,9 @@ static int sam_ioalloc(FAR struct usbhost_driver_s *drvr, FAR uint8_t **buffer,
 {
   DEBUGASSERT(drvr && buffer);
 
-  /* kumalloc() should return user accessible, DMA-able memory */
+  /* kumm_malloc() should return user accessible, DMA-able memory */
 
-  *buffer = kumalloc(buflen);
+  *buffer = kumm_malloc(buflen);
   return *buffer ? OK : -ENOMEM;
 }
 
@@ -2715,7 +2715,7 @@ static int sam_ioalloc(FAR struct usbhost_driver_s *drvr, FAR uint8_t **buffer,
  *   Some hardware supports special memory in which IO data can  be accessed more
  *   efficiently.  This method provides a mechanism to free that IO buffer
  *   memory.  If the underlying hardware does not support such "special" memory,
- *   this functions may simply map to kufree().
+ *   this functions may simply map to kumm_free().
  *
  * Input Parameters:
  *   drvr - The USB host driver instance obtained as a parameter from the call to
@@ -2735,9 +2735,9 @@ static int sam_iofree(FAR struct usbhost_driver_s *drvr, FAR uint8_t *buffer)
 {
   DEBUGASSERT(drvr && buffer);
 
-  /* kufree is all that is required */
+  /* kumm_free is all that is required */
 
-  kufree(buffer);
+  kumm_free(buffer);
   return OK;
 }
 

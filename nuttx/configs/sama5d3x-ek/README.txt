@@ -1069,7 +1069,77 @@ Networking
   so that access to the NSH prompt is not delayed.
 
   This delay will be especially long if the board is not connected to
-  a network.
+  a network.  On the order of a minute!  You will probably think that
+  NuttX has crashed!  And then, when it finally does come up, the
+  network will not be available.
+
+  Network Initialization Thread
+  -----------------------------
+  There is a configuration option enabled by CONFIG_NSH_NETINIT_THREAD
+  that will do the NSH network bring-up asynchronously in parallel on
+  a separate thread.  This eliminates the (visible) networking delay
+  altogether.  This networking initialization feature by itself has
+  some limitations:
+
+    - If no network is connected, the network bring-up will fail and
+      the network initialization thread will simply exit.  There are no
+      retries and no mechanism to know if the network initialization was
+      successful.
+
+    - Furthermore, there is no support for detecting loss of the network
+      connection and recovery of networking when the connection is restored.
+
+  Both of these shortcomings can be eliminated by enabling the network
+  monitor:
+
+  Network Monitor
+  ---------------
+  By default the network initialization thread will bring-up the network
+  then exit, freeing all of the resources that it required.  This is a
+  good behavior for systems with limited memory.
+
+  If the CONFIG_NSH_NETINIT_MONITOR option is selected, however, then the
+  network initialization thread will persist forever; it will monitor the
+  network status.  In the event that the network goes down (for example, if
+  a cable is removed), then the thread will monitor the link status and
+  attempt to bring the network back up.  In this case the resources
+  required for network initialization are never released.
+
+  Pre-requisites:
+
+    - CONFIG_NSH_NETINIT_THREAD as described above.
+
+    - CONFIG_NETDEV_PHY_IOCTL. Enable PHY IOCTL commands in the Ethernet
+      device driver. Special IOCTL commands must be provided by the Ethernet
+      driver to support certain PHY operations that will be needed for link
+      management. There operations are not complex and are implemented for
+      the Atmel SAMA5 family.
+
+    - CONFIG_ARCH_PHY_INTERRUPT. This is not a user selectable option.
+      Rather, it is set when you select a board that supports PHY interrupts.
+      In most architectures, the PHY interrupt is not associated with the
+      Ethernet driver at all. Rather, the PHY interrupt is provided via some
+      board-specific GPIO and the board-specific logic must provide support
+      for that GPIO interrupt. To do this, the board logic must do two things:
+      (1) It must provide the function arch_phy_irq() as described and
+      prototyped in the nuttx/include/nuttx/arch.h, and (2) it must select
+      CONFIG_ARCH_PHY_INTERRUPT in the board configuration file to advertise
+      that it supports arch_phy_irq().  This logic can be found at
+      nuttx/configs/sama5d3x-ek/src/sam_ethernet.c.
+
+    - And a few other things: UDP support is required (CONFIG_NET_UDP) and
+      signals must not be disabled (CONFIG_DISABLE_SIGNALS).
+
+  Given those prerequisites, the newtork monitor can be selected with these additional settings.
+
+    Networking Support -> Networking Device Support
+      CONFIG_NETDEV_PHY_IOCTL=y             : Enable PHY ioctl support
+
+    Application Configuration -> NSH Library -> Networking Configuration
+      CONFIG_NSH_NETINIT_THREAD             : Enable the network initialization thread
+      CONFIG_NSH_NETINIT_MONITOR=y          : Enable the network monitor
+      CONFIG_NSH_NETINIT_RETRYMSEC=2000     : Configure the network monitor as you like
+      CONFIG_NSH_NETINIT_SIGNO=18
 
 AT25 Serial FLASH
 =================
@@ -3613,10 +3683,10 @@ Configurations
     graphics demo. It provides an interactive windowing experience.
 
     The NxWM window manager is a tiny window manager tailored for use
-    with smaller LCDs.  It supports a toolchain, a start window, and
-    multiple application windows.  However, to make the best use of
-    the visible LCD space, only one application window is visible at
-    at time.
+    with smaller LCDs.  It supports a taskbar, a start window, and
+    multiple application windows with toolbars.  However, to make the
+    best use of the visible LCD space, only one application window is
+    visible at at time.
 
     The NxWM window manager can be found here:
 
@@ -3712,6 +3782,9 @@ Configurations
 
     Bottom line:  Not ready for prime time.
 
+    2014-9-20:  Trying to verify the build today, there are now compilation
+    errors in the ADC/Touchscreen driver.  See STATUS at the end of this file
+
   ov2640:
 
     A test of the SAMA5 ISI using an OV2640 camera.
@@ -3780,3 +3853,35 @@ To-Do List
    for the PWM and the Timer/Counter drivers.  These drivers use the
    BOARD_MCK_FREQUENCY definition in more complex ways and will require some
    minor redesign and re-testing before they can be available.
+
+10) 2014-9-20: Failed to build the NxWM configuration:
+
+   CC:  chip/sam_adc.c
+   chip/sam_adc.c: In function 'sam_adc_interrupt':
+   chip/sam_adc.c:886:21: warning: unused variable 'priv' [-Wunused-variable]
+      struct sam_adc_s *priv = &g_adcpriv;
+                        ^
+   chip/sam_adc.c: In function 'sam_adc_initialize':
+   chip/sam_adc.c:1977:7: error: 'g_adcdev' undeclared (first use in this function)
+          g_adcdev.ad_ops  = &g_adcops;
+          ^
+   chip/sam_adc.c:1977:7: note: each undeclared identifier is reported only once for each function it appears in
+   chip/sam_adc.c:1977:27: error: 'g_adcops' undeclared (first use in this function)
+          g_adcdev.ad_ops  = &g_adcops;
+                              ^
+   chip/sam_adc.c:1983:11: error: 'struct sam_adc_s' has no member named 'dev'
+          priv->dev = &g_adcdev;
+              ^
+   chip/sam_adc.c:2090:1: warning: control reaches end of non-void function [-Wreturn-type]
+    }
+    ^
+
+   The failure occurs because there are no ADC channels configured (as there
+   should not be) so SAMA5_ADC_HAVE_CHANNELS is not defined (as it should
+   not be).  However, if there are no configured ADC channel, then
+   sam_adc_initialize() does not compile correctly -- and it should not
+   given nature the logic that is in place there now.
+
+   A quick glance at the history of these files does not reveal what the
+   obvious solution is so I will need to come back and revisit this in the
+   future.

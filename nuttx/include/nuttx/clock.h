@@ -53,18 +53,39 @@
 /* Efficient, direct access to OS global timer variables will be supported
  * if the execution environment has direct access to kernel global data.
  * The code in this execution context can access the kernel global data
- * directly if:  (1) we are not running tick-less (in which case there is
- * no global timer data), (2) this is an un-protected, non-kernel build, or
- * (2) this is a protected build, but this code is being built for execution
- * within the kernel space.
+ * directly if:
+ *
+ * 1. We are not running tick-less (in which case there is no global timer
+ *    data),
+ * 2. This is an un-protected, non-kernel build,
+ * 3. This is a protected build, but this code is being built for execution
+ *    within the kernel space.
+ * 4. It we are building with SYSCALLs enabled, but not in a kernel build,
+ *    then we can't know a priori whether the code has access to the
+ *    global variables or not.  In that case we have to assume not.
  */
 
 #undef __HAVE_KERNEL_GLOBALS
-#if !defined(CONFIG_SCHED_TICKLESS) && \
-    (!defined(CONFIG_NUTTX_KERNEL) || defined(__KERNEL__))
-#  define __HAVE_KERNEL_GLOBALS 1
+#if defined(CONFIG_SCHED_TICKLESS)
+   /* Case 1: There is no global timer data */
+
+#elif defined(CONFIG_BUILD_PROTECTED) && defined(__KERNEL__)
+     /* Case 3: Kernel mode of protected kernel build */
+
+#    define __HAVE_KERNEL_GLOBALS 1
+
+#elif defined(CONFIG_BUILD_KERNEL) && defined(__KERNEL__)
+     /* Case 3: Kernel only build */
+
+#    define __HAVE_KERNEL_GLOBALS 1
+
+#elif defined(CONFIG_LIB_SYSCALL)
+   /* Case 4: Building with SYSCALLs enabled, but not part of a kernel build */
+
 #else
-#  define __HAVE_KERNEL_GLOBALS 0
+   /* Case 2: Un-protected, non-kernel build */
+
+#    define __HAVE_KERNEL_GLOBALS 1
 #endif
 
 /* If CONFIG_SYSTEM_TIME64 is selected and the CPU supports long long types,
@@ -167,7 +188,7 @@ struct cpuload_s
  * access to kernel global data
  */
 
-#if __HAVE_KERNEL_GLOBALS
+#ifdef __HAVE_KERNEL_GLOBALS
 #  ifdef CONFIG_SYSTEM_TIME64
 
 extern volatile uint64_t g_system_timer;
@@ -245,7 +266,7 @@ void clock_synchronize(void);
  *
  ****************************************************************************/
 
-#if !__HAVE_KERNEL_GLOBALS
+#ifndef __HAVE_KERNEL_GLOBALS
 #  ifdef CONFIG_SYSTEM_TIME64
 #    define clock_systimer()  (uint32_t)(clock_systimer64() & 0x00000000ffffffff)
 #  else
@@ -272,9 +293,28 @@ uint32_t clock_systimer(void);
  *
  ****************************************************************************/
 
-#if !__HAVE_KERNEL_GLOBALS && defined(CONFIG_SYSTEM_TIME64)
+#if !defined(__HAVE_KERNEL_GLOBALS) && defined(CONFIG_SYSTEM_TIME64)
 uint64_t clock_systimer64(void);
 #endif
+
+/****************************************************************************
+ * Name: clock_systimespec
+ *
+ * Description:
+ *   Return the current value of the system timer counter as a struct
+ *   timespec.
+ *
+ * Parameters:
+ *   ts - Location to return the time
+ *
+ * Return Value:
+ *   Current version always returns OK
+ *
+ * Assumptions:
+ *
+ ****************************************************************************/
+
+int clock_systimespec(FAR struct timespec *ts);
 
 /****************************************************************************
  * Function:  clock_cpuload

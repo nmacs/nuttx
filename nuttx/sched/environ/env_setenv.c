@@ -161,7 +161,7 @@ int setenv(FAR const char *name, FAR const char *value, int overwrite)
   if (group->tg_envp)
     {
       newsize = group->tg_envsize + varlen;
-      newenvp = (FAR char *)kurealloc(group->tg_envp, newsize);
+      newenvp = (FAR char *)kumm_realloc(group->tg_envp, newsize);
       if (!newenvp)
         {
           ret = ENOMEM;
@@ -173,7 +173,7 @@ int setenv(FAR const char *name, FAR const char *value, int overwrite)
   else
     {
       newsize = varlen;
-      newenvp = (FAR char *)kumalloc(varlen);
+      newenvp = (FAR char *)kumm_malloc(varlen);
       if (!newenvp)
         {
           ret = ENOMEM;
@@ -197,7 +197,7 @@ int setenv(FAR const char *name, FAR const char *value, int overwrite)
 errout_with_lock:
   sched_unlock();
 errout:
-  errno = ret;
+  set_errno(ret);
   return ERROR;
 }
 

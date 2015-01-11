@@ -439,7 +439,7 @@ int nxffs_dump(FAR struct mtd_dev_s *mtd, bool verbose)
 
   /* Allocate a buffer to hold one block */
 
-  blkinfo.buffer = (FAR uint8_t *)kmalloc(blkinfo.geo.blocksize);
+  blkinfo.buffer = (FAR uint8_t *)kmm_malloc(blkinfo.geo.blocksize);
   if (!blkinfo.buffer)
     {
       fdbg("ERROR: Failed to allocate block cache\n");
@@ -465,7 +465,7 @@ int nxffs_dump(FAR struct mtd_dev_s *mtd, bool verbose)
           /* Read errors are fatal */
 
           fdbg("ERROR: Failed to read block %d\n", blkinfo.block);
-          kfree(blkinfo.buffer);
+          kmm_free(blkinfo.buffer);
           return ret;
 #else
           /* A read error is probably fatal on all media but NAND.
@@ -488,7 +488,7 @@ int nxffs_dump(FAR struct mtd_dev_s *mtd, bool verbose)
 
   fdbg("%d blocks analyzed\n", blkinfo.nblocks);
 
-  kfree(blkinfo.buffer);
+  kmm_free(blkinfo.buffer);
   return OK;
 
 #else

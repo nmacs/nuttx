@@ -52,6 +52,7 @@
 #include "tiva_lowputc.h"
 #include "tiva_syscontrol.h"
 #include "tiva_userspace.h"
+#include "tiva_start.h"
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -64,8 +65,6 @@
 /****************************************************************************
  * Public Data
  ****************************************************************************/
-
-extern void _vectors(void);
 
 /****************************************************************************
  * Private Functions
@@ -104,10 +103,14 @@ void __start(void)
 #endif
   uint32_t *dest;
 
-  /* Configure the uart so that we can get debug output as soon as possible */
+  /* Configure the UART so that we can get debug output as soon as possible */
 
+#ifdef CONFIG_TIVA_BOARD_EARLYINIT
+  board_earlyinit();
+#else
   up_clockconfig();
   up_lowsetup();
+#endif
   showprogress('A');
 
   /* Clear .bss.  We'll do this inline (vs. calling memset) just to be
@@ -147,7 +150,7 @@ void __start(void)
    * segments.
    */
 
-#ifdef CONFIG_NUTTX_KERNEL
+#ifdef CONFIG_BUILD_PROTECTED
   tiva_userspace();
   showprogress('E');
 #endif
@@ -163,7 +166,7 @@ void __start(void)
   showprogress('\n');
   os_start();
 
-  /* Shoulnd't get here */
+  /* Shouldn't get here */
 
   for (;;);
 }

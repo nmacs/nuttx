@@ -175,7 +175,7 @@ int nxffs_initialize(FAR struct mtd_dev_s *mtd)
 
   /* Allocate a NXFFS volume structure */
 
-  volume = (FAR struct nxffs_volume_s *)kzalloc(sizeof(struct nxffs_volume_s));
+  volume = (FAR struct nxffs_volume_s *)kmm_zalloc(sizeof(struct nxffs_volume_s));
   if (!volume)
     {
       return -ENOMEM;
@@ -203,7 +203,7 @@ int nxffs_initialize(FAR struct mtd_dev_s *mtd)
 
   /* Allocate one I/O block buffer to general files system access */
 
-  volume->cache = (FAR uint8_t *)kmalloc(volume->geo.blocksize);
+  volume->cache = (FAR uint8_t *)kmm_malloc(volume->geo.blocksize);
   if (!volume->cache)
     {
       fdbg("ERROR: Failed to allocate an erase block buffer\n");
@@ -216,7 +216,7 @@ int nxffs_initialize(FAR struct mtd_dev_s *mtd)
    * often, but is best to have pre-allocated and in-place.
    */
 
-  volume->pack = (FAR uint8_t *)kmalloc(volume->geo.erasesize);
+  volume->pack = (FAR uint8_t *)kmm_malloc(volume->geo.erasesize);
   if (!volume->pack)
     {
       fdbg("ERROR: Failed to allocate an I/O block buffer\n");
@@ -313,12 +313,12 @@ int nxffs_initialize(FAR struct mtd_dev_s *mtd)
   fdbg("ERROR: Failed to calculate file system limits: %d\n", -ret);
 
 errout_with_buffer:
-  kfree(volume->pack);
+  kmm_free(volume->pack);
 errout_with_cache:
-  kfree(volume->cache);
+  kmm_free(volume->cache);
 errout_with_volume:
 #ifndef CONFIG_NXFFS_PREALLOCATED
-  kfree(volume);
+  kmm_free(volume);
 #endif
   return ret;
 }

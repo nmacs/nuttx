@@ -12,15 +12,6 @@ choice
 		be available for selection.  Use ARCH_BOARD_CUSTOM to create a new
 		board configuration.
 
-config ARCH_BOARD_16Z
-	bool "16z Board"
-	depends on ARCH_CHIP_Z16F2811
-	select ARCH_HAVE_LEDS
-	---help---
-		This selection enables the port of NuttX port to the 16z board. The
-		16z board is based on the ZiLOG ZNEO Z16F2811AL20EG part.  See
-		https://github.com/toyaga/16z for further information.
-
 config ARCH_BOARD_AMBER
 	bool "Amber Web Server"
 	depends on ARCH_CHIP_ATMEGA128
@@ -509,14 +500,6 @@ config ARCH_BOARD_PIRELLI_DPL10
 		This directory contains the board support for Pirelli dpl10 phones.  The
 		additions were made by Craig Comstock (with help form Alan Carvalho de Assis).
 
-config ARCH_BOARD_PJRC_87C52
-	bool "PJRC 87C52 development system"
-	depends on ARCH_CHIP_8052
-	select ARCH_HAVE_LEDS
-	---help---
-		8051 Microcontroller.  This port uses the PJRC 87C52 development system
-		and the SDCC toolchain.   This port is not quite ready for prime time.
-
 config ARCH_BOARD_PX4FMU_V2
 	bool "PX4FMU v2"
 	depends on ARCH_CHIP_STM32F427V
@@ -563,6 +546,7 @@ config ARCH_BOARD_SAMA5D3X_EK
 	select ARCH_HAVE_LEDS
 	select ARCH_HAVE_BUTTONS
 	select ARCH_HAVE_IRQBUTTONS
+	select ARCH_PHY_INTERRUPT if NETDEVICES
 	---help---
 		The port of NuttX to the Atmel SAMA5D3x-EK development board (where x=1,3,4, or 5).
 
@@ -572,6 +556,7 @@ config ARCH_BOARD_SAMA5D3_XPLAINED
 	select ARCH_HAVE_LEDS
 	select ARCH_HAVE_BUTTONS
 	select ARCH_HAVE_IRQBUTTONS
+	select ARCH_PHY_INTERRUPT if NETDEVICES
 	---help---
 		The port of NuttX to the Atmel SAMA5D3 Xplained development board.
 
@@ -581,6 +566,7 @@ config ARCH_BOARD_SAMA5D4_EK
 	select ARCH_HAVE_LEDS
 	select ARCH_HAVE_BUTTONS
 	select ARCH_HAVE_IRQBUTTONS
+	select ARCH_PHY_INTERRUPT if NETDEVICES
 	---help---
 		The port of NuttX to the Atmel SAMA5D4-EK development board
 
@@ -805,6 +791,16 @@ config ARCH_BOARD_TM4C123G_LAUNCHPAD
 	---help---
 		Tiva TM4C123G LaunchPad.
 
+config ARCH_BOARD_CC3200_LAUNCHPAD
+	bool "Tiva CC3200 Launchpad"
+	depends on ARCH_CHIP_CC3200
+	select ARCH_HAVE_LEDS
+	select ARCH_HAVE_BUTTONS
+	select ARCH_HAVE_IRQBUTTONS
+	select TIVA_BOARD_EARLYINIT
+	---help---
+		Tiva CC3200 Launchpad.
+
 config ARCH_BOARD_TWR_K60N512
 	bool "FreeScale TWR-K60N512d evelopment board"
 	depends on ARCH_CHIP_MK60N512VMD100
@@ -964,7 +960,6 @@ config ARCH_BOARD_CUSTOM_DIR
 
 config ARCH_BOARD
 	string
-	default "16z"                 if ARCH_BOARD_16Z
 	default "amber"               if ARCH_BOARD_AMBER
 	default "arduino-due"         if ARCH_BOARD_ARDUINO_DUE
 	default "avr32dev1"           if ARCH_BOARD_AVR32DEV1
@@ -1014,7 +1009,6 @@ config ARCH_BOARD
 	default "pic32-starterkit"    if ARCH_BOARD_PIC32_STARTERKIT
 	default "pic32mx7mmb"         if ARCH_BOARD_PIC32MX7MMB
 	default "pirelli_dpl10"       if ARCH_BOARD_PIRELLI_DPL10
-	default "pjrc-8051"           if ARCH_BOARD_PJRC_87C52
 	default "px4fmu-v2_upstream"  if ARCH_BOARD_PX4FMU_V2
 	default "nucleo-f401re"       if ARCH_BOARD_NUCLEO_F401RE
 	default "qemu-i486"           if ARCH_BOARD_QEMU_I486
@@ -1045,6 +1039,7 @@ config ARCH_BOARD
 	default "sure-pic32mx"        if ARCH_BOARD_SUREPIC32MX
 	default "teensy"              if ARCH_BOARD_TEENSY
 	default "tm4c123g-launchpad"  if ARCH_BOARD_TM4C123G_LAUNCHPAD
+	default "cc3200-launchpad"    if ARCH_BOARD_CC3200_LAUNCHPAD
 	default "twr-k60n512"         if ARCH_BOARD_TWR_K60N512
 	default "ubw32"               if ARCH_BOARD_UBW32
 	default "us7032evb1"          if ARCH_BOARD_US7032EVB1
@@ -1116,9 +1111,6 @@ config NSH_MMCSDSPIPORTNO
 
 comment "Board-Specific Options"
 
-if ARCH_BOARD_16Z
-source "configs/16z/Kconfig"
-endif
 if ARCH_BOARD_AMBER
 source "configs/amber/Kconfig"
 endif
@@ -1263,9 +1255,6 @@ endif
 if ARCH_BOARD_PIRELLI_DPL10
 source "configs/pirelli_dpl10/Kconfig"
 endif
-if ARCH_BOARD_PJRC_87C52
-source "configs/pjrc-8051/Kconfig"
-endif
 if ARCH_BOARD_NUCLEO_F401RE
 source "configs/nucleo-f401re/Kconfig"
 endif
@@ -1349,6 +1338,9 @@ source "configs/teensy/Kconfig"
 endif
 if ARCH_BOARD_TM4C123G_LAUNCHPAD
 source "configs/tm4c123g-launchpad/Kconfig"
+endif
+if ARCH_BOARD_CC3200_LAUNCHPAD
+source "configs/cc3200-launchpad/Kconfig"
 endif
 if ARCH_BOARD_TWR_K60N512
 source "configs/twr-k60n512/Kconfig"

@@ -164,7 +164,7 @@ void __start(void* args)
    * segements.
    */
 
-#ifdef CONFIG_NUTTX_KERNEL
+#ifdef CONFIG_BUILD_PROTECTED
   sam_userspace();
   showprogress('C');
 #endif

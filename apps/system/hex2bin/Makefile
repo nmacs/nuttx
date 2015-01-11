@@ -42,19 +42,34 @@ include $(APPDIR)/Make.defs
 ASRCS =
 CSRCS = hex2bin.c hex2mem.c fhex2mem.c
 
+ifeq ($(CONFIG_BUILD_KERNEL),y)
+
+HEX2BIN_MAINSRC = hex2bin_main.c
+HEX2MEM_MAINSRC = hex2mem_main.c
+
+else
+
 ifeq ($(CONFIG_SYSTEM_HEX2BIN_BUILTIN),y)
-CSRCS += hex2bin_main.c
+HEX2BIN_MAINSRC = hex2bin_main.c
 endif
 
 ifeq ($(CONFIG_SYSTEM_HEX2MEM_BUILTIN),y)
-CSRCS += hex2mem_main.c
+HEX2MEM_MAINSRC = hex2mem_main.c
+endif
+
 endif
 
 AOBJS = $(ASRCS:.S=$(OBJEXT))
 COBJS = $(CSRCS:.c=$(OBJEXT))
+HEX2BIN_MAINOBJ = $(HEX2BIN_MAINSRC:.c=$(OBJEXT))
+HEX2MEM_MAINOBJ = $(HEX2MEM_MAINSRC:.c=$(OBJEXT))
 
-SRCS = $(ASRCS) $(CSRCS)
+SRCS = $(ASRCS) $(CSRCS) $(MAINSRC)
 OBJS = $(AOBJS) $(COBJS)
+
+ifneq ($(CONFIG_BUILD_KERNEL),y)
+  OBJS += $(HEX2BIN_MAINOBJ) $(HEX2MEM_MAINOBJ)
+endif
 
 ifeq ($(CONFIG_WINDOWS_NATIVE),y)
   BIN = ..\..\libapps$(LIBEXT)
@@ -65,6 +80,18 @@ else
   BIN = ../../libapps$(LIBEXT)
 endif
 endif
+
+ifeq ($(WINTOOL),y)
+  INSTALL_DIR = "${shell cygpath -w $(BIN_DIR)}"
+else
+  INSTALL_DIR = $(BIN_DIR)
+endif
+
+CONFIG_EXAMPLES_HEX2BIN_PROGNAME ?= hex2bin$(EXEEXT)
+HEX2BIN_PROGNAME = $(CONFIG_EXAMPLES_HEX2BIN_PROGNAME)
+
+CONFIG_EXAMPLES_HEX2MEM_PROGNAME ?= hex2mem$(EXEEXT)
+HEX2MEM_PROGNAME = $(CONFIG_EXAMPLES_HEX2MEM_PROGNAME)
 
 ROOTDEPPATH = --dep-path .
 VPATH =
@@ -89,7 +116,7 @@ all: .built
 $(AOBJS): %$(OBJEXT): %.S
 	$(call ASSEMBLE, $<, $@)
 
-$(COBJS): %$(OBJEXT): %.c
+$(COBJS) $(MAINOBJ): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
 .built: $(OBJS)
@@ -114,6 +141,24 @@ $(BUILTIN_REGISTRY)$(DELIM)hex2mem.bdat: $(DEPCONFIG) Makefile
 rhex2mem: $(BUILTIN_REGISTRY)$(DELIM)hex2mem.bdat
 else
 rhex2mem:
+endif
+
+ifeq ($(CONFIG_BUILD_KERNEL),y)
+$(BIN_DIR)$(DELIM)$(HEX2BIN_PROGNAME): $(OBJS) $(HEX2BIN_MAINOBJ)
+	@echo "LD: $(HEX2BIN_PROGNAME)"
+	$(Q) $(LD) $(LDELFFLAGS) $(LDLIBPATH) -o $(INSTALL_DIR)$(DELIM)$(HEX2BIN_PROGNAME) $(ARCHCRT0OBJ) $(HEX2BIN_MAINOBJ) $(LDLIBS)
+	$(Q) $(NM) -u  $(INSTALL_DIR)$(DELIM)$(HEX2BIN_PROGNAME)
+
+$(BIN_DIR)$(DELIM)$(HEX2MEM_PROGNAME): $(OBJS) $(HEX2MEM_MAINOBJ)
+	@echo "LD: $(HEX2MEM_PROGNAME)"
+	$(Q) $(LD) $(LDELFFLAGS) $(LDLIBPATH) -o $(INSTALL_DIR)$(DELIM)$(HEX2MEM_PROGNAME) $(ARCHCRT0OBJ) $(HEX2MEM_MAINOBJ) $(LDLIBS)
+	$(Q) $(NM) -u  $(INSTALL_DIR)$(DELIM)$(HEX2MEM_PROGNAME)
+
+install: $(BIN_DIR)$(DELIM)$(HEX2BIN_PROGNAME) $(BIN_DIR)$(DELIM)$(HEX2MEM_PROGNAME)
+
+else
+install:
+
 endif
 
 context: rhex2bin rhex2mem

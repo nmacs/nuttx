@@ -66,14 +66,19 @@
 /********************************************************************************
  * Global Variables
  ********************************************************************************/
+#if !defined(CONFIG_SCHED_TICKLESS) && !defined(__HAVE_KERNEL_GLOBALS)
+  /* The system clock exists (CONFIG_SCHED_TICKLESS), but it not prototyped
+   * globally in include/nuttx/clock.h.
+   */
 
-#ifdef CONFIG_SYSTEM_TIME64
-extern uint64_t        g_tickbias;
-#else
-extern uint32_t        g_tickbias;
+#  ifdef CONFIG_SYSTEM_TIME64
+extern volatile uint64_t g_system_timer;
+#  else
+extern volatile uint32_t g_system_timer;
+#  endif
 #endif
 
-extern struct timespec g_basetime;
+extern struct timespec   g_basetime;
 
 /********************************************************************************
  * Public Function Prototypes

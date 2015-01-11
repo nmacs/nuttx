@@ -2,7 +2,7 @@
 # apps/Makefile
 #
 #   Copyright (C) 2011 Uros Platise. All rights reserved.
-#   Copyright (C) 2011-2013 Gregory Nutt. All rights reserved.
+#   Copyright (C) 2011-2014 Gregory Nutt. All rights reserved.
 #   Authors: Uros Platise <uros.platise@isotel.eu>
 #            Gregory Nutt <gnutt@nuttx.org>
 #
@@ -35,21 +35,21 @@
 #
 ############################################################################
 
--include $(TOPDIR)/Make.defs
-
 APPDIR = ${shell pwd}
+TOPDIR ?= $(APPDIR)/import
+
+-include $(TOPDIR)/Make.defs
 
 # Application Directories
 
 # CONFIGURED_APPS is the list of all configured built-in directories/built
 #   action.
 # SUBDIRS is the list of all directories containing Makefiles.  It is used
-#   only for cleaning. builtin must always be the first in the list.  This
-#   list can be extended by the .config file as well.
+#   only for cleaning. builtin must always be the first in the list.
 
 CONFIGURED_APPS =
-SUBDIRS  = examples graphics interpreters modbus builtin nshlib netutils
-SUBDIRS += platform system
+SUBDIRS  = examples graphics interpreters modbus builtin import nshlib
+SUBDIRS += netutils platform system
 
 # The list of configured directories is derived from NuttX configuration
 # file:  The selected applications are enabled settings in the configuration
@@ -99,6 +99,14 @@ EXTERNAL_DIR := $(dir $(wildcard external$(DELIM)Makefile))
 INSTALLED_APPS += $(EXTERNAL_DIR)
 SUBDIRS += $(EXTERNAL_DIR)
 
+# Library path
+
+LIBPATH ?= $(TOPDIR)$(DELIM)libs
+
+# The install path
+
+BIN_DIR = $(APPDIR)$(DELIM)bin
+
 # The final build target
 
 BIN = libapps$(LIBEXT)
@@ -106,69 +114,56 @@ BIN = libapps$(LIBEXT)
 # Build targets
 
 all: $(BIN)
-.PHONY: $(INSTALLED_APPS) context depend clean distclean
+.PHONY: import install context .depdirs depend clean distclean
 
-$(INSTALLED_APPS):
-	$(Q) $(MAKE) -C $@ TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)"
+define SDIR_template
+$(1)_$(2):
+	$(Q) $(MAKE) -C $(1) $(2) TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)" BIN_DIR="$(BIN_DIR)"
+endef
 
-$(BIN):	$(INSTALLED_APPS)
+$(foreach SDIR, $(INSTALLED_APPS), $(eval $(call SDIR_template,$(SDIR),all)))
+$(foreach SDIR, $(INSTALLED_APPS), $(eval $(call SDIR_template,$(SDIR),install)))
+$(foreach SDIR, $(INSTALLED_APPS), $(eval $(call SDIR_template,$(SDIR),context)))
+$(foreach SDIR, $(INSTALLED_APPS), $(eval $(call SDIR_template,$(SDIR),depend)))
+$(foreach SDIR, $(SUBDIRS), $(eval $(call SDIR_template,$(SDIR),clean)))
+$(foreach SDIR, $(SUBDIRS), $(eval $(call SDIR_template,$(SDIR),distclean)))
 
-context:
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-	$(Q) for %%G in ($(INSTALLED_APPS)) do ( \
-		$(MAKE) -C %%G TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)" context \
-	)
-else
-	$(Q) for dir in $(INSTALLED_APPS) ; do \
-		$(MAKE) -C $$dir TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)" context ; \
-	done
-endif
+$(BIN): $(foreach SDIR, $(INSTALLED_APPS), $(SDIR)_all)
 
-.depend: context Makefile $(SRCS)
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-	$(Q) for %%G in ($(INSTALLED_APPS)) do ( \
-		if exist %%G\.depend del /f /q %%G\.depend \
-		$(MAKE) -C %%G TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)" depend \
-	)
-else
-	$(Q) for dir in $(INSTALLED_APPS) ; do \
-		rm -f $$dir/.depend ; \
-		$(MAKE) -C $$dir TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)" depend ; \
-	done
-endif
+.install: $(foreach SDIR, $(INSTALLED_APPS), $(SDIR)_install)
+
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
+
+install: $(BIN_DIR) .install
+
+.import: $(BIN) install
+
+import:
+	$(Q) $(MAKE) .import TOPDIR="$(APPDIR)$(DELIM)import"
+
+context: $(foreach SDIR, $(INSTALLED_APPS), $(SDIR)_context)
+
+.depdirs: $(foreach SDIR, $(INSTALLED_APPS), $(SDIR)_depend)
+
+.depend: context Makefile .depdirs
 	$(Q) touch $@
 
 depend: .depend
 
-clean:
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-	$(Q) for %%G in ($(SUBDIRS)) do ( \
-		$(MAKE) -C %%G clean TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)" \
-	)
-else
-	$(Q) for dir in $(SUBDIRS) ; do \
-		$(MAKE) -C $$dir clean TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)"; \
-	done
-endif
+clean: $(foreach SDIR, $(SUBDIRS), $(SDIR)_clean)
 	$(call DELFILE, $(BIN))
+	$(call DELDIR, $(BIN_DIR))
 	$(call CLEAN)
 
-distclean:
+distclean: $(foreach SDIR, $(SUBDIRS), $(SDIR)_distclean)
 ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-	$(Q) for %%G in ($(SUBDIRS)) do ( \
-		$(MAKE) -C %%G distclean TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)" \
-	)
-	$(call DELFILE, .depend)
 	$(Q) ( if exist  external ( \
 		echo ********************************************************" \
 		echo * The external directory/link must be removed manually *" \
 		echo ********************************************************" \
 	)
 else
-	$(Q) for dir in $(SUBDIRS) ; do \
-		$(MAKE) -C $$dir distclean TOPDIR="$(TOPDIR)" APPDIR="$(APPDIR)"; \
-	done
-	$(call DELFILE, .depend)
 	$(Q) ( if [ -e external ]; then \
 		echo "********************************************************"; \
 		echo "* The external directory/link must be removed manually *"; \
@@ -176,5 +171,7 @@ else
 	   fi; \
 	)
 endif
+	$(call DELFILE, .depend)
+	$(call DELDIR, $(BIN_DIR))
 
 

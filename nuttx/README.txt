@@ -918,8 +918,6 @@ nuttx
  |   `-libpcode/
  |       `-README.txt
  |- configs/
- |   |- 16z/
- |   |   `- README.txt
  |   |- amber/
  |   |   `- README.txt
  |   |- arduino-due/
@@ -927,6 +925,8 @@ nuttx
  |   |- avr32dev1/
  |   |   `- README.txt
  |   |- c5471evm/
+ |   |   `- README.txt
+ |   |- cc3200-launchpad/
  |   |   `- README.txt
  |   |- cloudctrl
  |   |   `- README.txt
@@ -961,7 +961,9 @@ nuttx
  |   |   `- README.txt
  |   |-  freedom-kl25z/
  |   |   `- README.txt
- |   |-  hymini-stm32v/
+ |   |- galileo/
+ |   |   `- README.txt
+ |   |- hymini-stm32v/
  |   |   `- README.txt
  |   |- kwikstik-k40/
  |   |   `- README.txt
@@ -988,6 +990,8 @@ nuttx
  |   |- mikroe-stm32f/
  |   |   `- README.txt
  |   |- mirtoo/
+ |   |   `- README.txt
+ |   |- mt-db-x3/
  |   |   `- README.txt
  |   |- mx1ads/
  |   |   `- README.txt
@@ -1029,8 +1033,6 @@ nuttx
  |   |- pic32mx7mmb/
  |   |   `- README.txt
  |   |- pirelli_dpl10/
- |   |   `- README.txt
- |   |- pjrc-8051/
  |   |   `- README.txt
  |   |- qemu-i486/
  |   |   `- README.txt
@@ -1151,6 +1153,8 @@ nuttx
  |- libxx/
  |   `- README.txt
  |- mm/
+ |   |- shm/
+ |   |   `- README.txt
  |   `- README.txt
  |- net/
  |   `- README.txt

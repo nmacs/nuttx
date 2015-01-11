@@ -272,8 +272,8 @@ static int mtd_ioctl(FAR struct mtd_dev_s *dev, int cmd, unsigned long arg)
                */
 
               geo->blocksize    = priv->rwb.blocksize;
-              geo->erasesize    = priv->rwb.blocksize* priv->spb;
-              geo->neraseblocks = priv->rwb.nblocks * priv->spb;
+              geo->erasesize    = priv->rwb.blocksize * priv->spb;
+              geo->neraseblocks = priv->rwb.nblocks / priv->spb;
               ret               = OK;
 
               fvdbg("blocksize: %d erasesize: %d neraseblocks: %d\n",
@@ -356,11 +356,11 @@ FAR struct mtd_dev_s *mtd_rwb_initialize(FAR struct mtd_dev_s *mtd)
    * to be extended to handle multiple FLASH parts on the same SPI bus.
    */
 
-  priv = (FAR struct mtd_rwbuffer_s *)kzalloc(sizeof(struct mtd_rwbuffer_s));
+  priv = (FAR struct mtd_rwbuffer_s *)kmm_zalloc(sizeof(struct mtd_rwbuffer_s));
   if (priv)
     {
       /* Initialize the allocated structure. (unsupported methods/fields
-       * were already nullified by kzalloc).
+       * were already nullified by kmm_zalloc).
        */
 
       priv->mtd.erase    = mtd_erase;  /* Our MTD erase method */
@@ -376,7 +376,7 @@ FAR struct mtd_dev_s *mtd_rwb_initialize(FAR struct mtd_dev_s *mtd)
        */
 
       priv->spb          = geo.erasesize / geo.blocksize;
-      DEBUGASSERT((size_t)priv->spb * geo_blocksize = geo.erasesize);
+      DEBUGASSERT((size_t)priv->spb * geo.blocksize == geo.erasesize);
 
       /* Values must be provided to rwb_initialize() */
       /* Supported geometry */
@@ -405,7 +405,7 @@ FAR struct mtd_dev_s *mtd_rwb_initialize(FAR struct mtd_dev_s *mtd)
       if (ret < 0)
         {
           fdbg("ERROR: rwb_initialize failed: %d\n", ret);
-          kfree(priv);
+          kmm_free(priv);
           return NULL;
         }
     }

@@ -226,7 +226,7 @@ static int romfs_open(FAR struct file *filep, FAR const char *relpath,
    * file.
    */
 
-  rf = (FAR struct romfs_file_s *)kzalloc(sizeof(struct romfs_file_s));
+  rf = (FAR struct romfs_file_s *)kmm_zalloc(sizeof(struct romfs_file_s));
   if (!rf)
     {
       fdbg("Failed to allocate private data\n", ret);
@@ -318,12 +318,12 @@ static int romfs_close(FAR struct file *filep)
 
   if (!rm->rm_xipbase && rf->rf_buffer)
     {
-      kfree(rf->rf_buffer);
+      kmm_free(rf->rf_buffer);
     }
 
   /* Then free the file structure itself. */
 
-  kfree(rf);
+  kmm_free(rf);
   filep->f_priv = NULL;
   return ret;
 }
@@ -637,7 +637,7 @@ static int romfs_dup(FAR const struct file *oldp, FAR struct file *newp)
    * dup'ed file.
    */
 
-  newrf = (FAR struct romfs_file_s *)kmalloc(sizeof(struct romfs_file_s));
+  newrf = (FAR struct romfs_file_s *)kmm_malloc(sizeof(struct romfs_file_s));
   if (!newrf)
     {
       fdbg("Failed to allocate private data\n", ret);
@@ -916,7 +916,7 @@ static int romfs_bind(FAR struct inode *blkdriver, FAR const void *data,
 
   /* Create an instance of the mountpt state structure */
 
-  rm = (FAR struct romfs_mountpt_s *)kzalloc(sizeof(struct romfs_mountpt_s));
+  rm = (FAR struct romfs_mountpt_s *)kmm_zalloc(sizeof(struct romfs_mountpt_s));
   if (!rm)
     {
       fdbg("Failed to allocate mountpoint structure\n");
@@ -960,12 +960,12 @@ static int romfs_bind(FAR struct inode *blkdriver, FAR const void *data,
 errout_with_buffer:
   if (!rm->rm_xipbase)
     {
-      kfree(rm->rm_buffer);
+      kmm_free(rm->rm_buffer);
     }
 
 errout_with_sem:
   sem_destroy(&rm->rm_sem);
-  kfree(rm);
+  kmm_free(rm);
   return ret;
 }
 
@@ -1032,11 +1032,11 @@ static int romfs_unbind(FAR void *handle, FAR struct inode **blkdriver)
 
       if (!rm->rm_xipbase && rm->rm_buffer)
         {
-          kfree(rm->rm_buffer);
+          kmm_free(rm->rm_buffer);
         }
 
       sem_destroy(&rm->rm_sem);
-      kfree(rm);
+      kmm_free(rm);
       return OK;
     }
 

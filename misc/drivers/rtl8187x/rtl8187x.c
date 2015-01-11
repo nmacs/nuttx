@@ -57,13 +57,13 @@
 #include <string.h>
 #include <semaphore.h>
 #include <time.h>
-#include <wdog.h>
 #include <assert.h>
 #include <errno.h>
 #include <debug.h>
 
 #include <arpa/inet.h>
 
+#include <nuttx/wdog.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/clock.h>
@@ -631,7 +631,7 @@ static inline FAR struct rtl8187x_state_s *rtl8187x_allocclass(void)
   FAR struct rtl8187x_state_s *priv;
 
   DEBUGASSERT(!up_interrupt_context());
-  priv = (FAR struct rtl8187x_state_s *)kmalloc(sizeof(struct rtl8187x_state_s));
+  priv = (FAR struct rtl8187x_state_s *)kmm_malloc(sizeof(struct rtl8187x_state_s));
   uvdbg("Allocated: %p\n", priv);;
   return priv;
 }

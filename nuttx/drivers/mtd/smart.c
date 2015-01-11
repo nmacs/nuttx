@@ -3,7 +3,7 @@
  *
  * Sector Mapped Allocation for Really Tiny (SMART) Flash block driver.
  *
- *   Copyright (C) 2013 Ken Pettit. All rights reserved.
+ *   Copyright (C) 2013-2014 Ken Pettit. All rights reserved.
  *   Author: Ken Pettit <pettitkd@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -56,6 +56,7 @@
 #include <nuttx/fs/fs.h>
 #include <nuttx/fs/ioctl.h>
 #include <nuttx/mtd/mtd.h>
+#include <nuttx/mtd/smart.h>
 #include <nuttx/fs/smart.h>
 
 /****************************************************************************
@@ -502,12 +503,12 @@ static int smart_setsectorsize(struct smart_struct_s *dev, uint16_t size)
 
   if (dev->sMap != NULL)
     {
-      kfree(dev->sMap);
+      kmm_free(dev->sMap);
     }
 
   if (dev->rwbuffer != NULL)
     {
-      kfree(dev->rwbuffer);
+      kmm_free(dev->rwbuffer);
     }
 
   /* Allocate a virtual to physical sector map buffer.  Also allocate
@@ -517,12 +518,12 @@ static int smart_setsectorsize(struct smart_struct_s *dev, uint16_t size)
   totalsectors = dev->neraseblocks * dev->sectorsPerBlk;
   dev->totalsectors = (uint16_t) totalsectors;
 
-  dev->sMap = (uint16_t *) kmalloc(totalsectors * sizeof(uint16_t) +
+  dev->sMap = (uint16_t *) kmm_malloc(totalsectors * sizeof(uint16_t) +
               (dev->neraseblocks << 1));
   if (!dev->sMap)
     {
       fdbg("Error allocating SMART virtual map buffer\n");
-      kfree(dev);
+      kmm_free(dev);
       return -EINVAL;
     }
 
@@ -531,12 +532,12 @@ static int smart_setsectorsize(struct smart_struct_s *dev, uint16_t size)
 
   /* Allocate a read/write buffer */
 
-  dev->rwbuffer = (char *) kmalloc(size);
+  dev->rwbuffer = (char *) kmm_malloc(size);
   if (!dev->rwbuffer)
     {
       fdbg("Error allocating SMART read/write buffer\n");
-      kfree(dev->sMap);
-      kfree(dev);
+      kmm_free(dev->sMap);
+      kmm_free(dev);
       return -EINVAL;
     }
 
@@ -823,7 +824,7 @@ static int smart_scan(struct smart_struct_s *dev)
                * the SMART device structure and the root directory number.
                */
 
-              rootdirdev = (struct smart_multiroot_device_s*) kmalloc(sizeof(*rootdirdev));
+              rootdirdev = (struct smart_multiroot_device_s*) kmm_malloc(sizeof(*rootdirdev));
               if (rootdirdev == NULL)
                 {
                   fdbg("Memory alloc failed\n");
@@ -1976,6 +1977,8 @@ static int smart_ioctl(FAR struct inode *inode, int cmd, unsigned long arg)
 {
   struct smart_struct_s *dev ;
   int ret;
+  uint32_t sector;
+  struct mtd_smart_procfs_data_s * procfs_data;
 
   fvdbg("Entry\n");
   DEBUGASSERT(inode && inode->i_private);
@@ -2059,9 +2062,46 @@ static int smart_ioctl(FAR struct inode *inode, int cmd, unsigned long arg)
       goto ok_out;
 #endif /* CONFIG_FS_WRITABLE */
 
+#if defined(CONFIG_FS_PROCFS) && !defined(CONFIG_FS_PROCFS_EXCLUDE_SMARTFS)
+    case BIOC_GETPROCFSD:
+
+      /* Get ProcFS data */
+
+      procfs_data = (FAR struct mtd_smart_procfs_data_s *) arg;
+      procfs_data->totalsectors = dev->totalsectors;
+      procfs_data->sectorsize = dev->sectorsize;
+      procfs_data->freesectors = dev->freesectors;
+      procfs_data->releasesectors = 0;
+      for (sector = 0; sector < dev->neraseblocks; sector++)
+        {
+          procfs_data->releasesectors += dev->releasecount[sector];
+        }
+
+      procfs_data->namelen = dev->namesize;
+      procfs_data->formatversion = dev->formatversion;
+      procfs_data->unusedsectors = 0;
+      procfs_data->blockerases = 0;
+      procfs_data->sectorsperblk = dev->sectorsPerBlk;
+
+#ifndef CONFIG_MTD_SMART_MINIMIZE_RAM
+      procfs_data->formatsector = dev->sMap[0];
+      procfs_data->dirsector = dev->sMap[3];
+#endif
+
+#ifdef CONFIG_MTD_SMART_SECTOR_ERASE_DEBUG
+      procfs_data->neraseblocks = dev->geo.neraseblocks;
+      procfs_data->erasecounts = dev->erasecounts;
+#endif
+#ifdef CONFIG_MTD_SMART_ALLOC_DEBUG
+      procfs_data->allocs = dev->alloc;
+      procfs_data->alloccount = SMART_MAX_ALLOCS;
+#endif
+      ret = OK;
+      goto ok_out;
+#endif
     }
 
-  /* No other block driver ioctl commmands are not recognized by this
+  /* No other block driver ioctl commands are not recognized by this
    * driver.  Other possible MTD driver ioctl commands are passed through
    * to the MTD driver (unchanged).
    */
@@ -2113,7 +2153,7 @@ int smart_initialize(int minor, FAR struct mtd_dev_s *mtd, const char *partname)
 
   /* Allocate a SMART device structure */
 
-  dev = (struct smart_struct_s *)kmalloc(sizeof(struct smart_struct_s));
+  dev = (struct smart_struct_s *)kmm_malloc(sizeof(struct smart_struct_s));
   if (dev)
     {
       /* Initialize the SMART device structure */
@@ -2131,7 +2171,7 @@ int smart_initialize(int minor, FAR struct mtd_dev_s *mtd, const char *partname)
       if (ret < 0)
         {
           fdbg("MTD ioctl(MTDIOC_GEOMETRY) failed: %d\n", ret);
-          kfree(dev);
+          kmm_free(dev);
           goto errout;
         }
 
@@ -2142,7 +2182,7 @@ int smart_initialize(int minor, FAR struct mtd_dev_s *mtd, const char *partname)
       ret = smart_setsectorsize(dev, CONFIG_MTD_SMART_SECTOR_SIZE);
       if (ret != OK)
         {
-          kfree(dev);
+          kmm_free(dev);
           goto errout;
         }
 
@@ -2152,7 +2192,7 @@ int smart_initialize(int minor, FAR struct mtd_dev_s *mtd, const char *partname)
       if (totalsectors > 65534)
         {
           fdbg("SMART Sector size too small for device\n");
-          kfree(dev);
+          kmm_free(dev);
           ret = -EINVAL;
           goto errout;
         }
@@ -2192,13 +2232,13 @@ int smart_initialize(int minor, FAR struct mtd_dev_s *mtd, const char *partname)
        * the SMART device structure and the root directory number.
        */
 
-      rootdirdev = (struct smart_multiroot_device_s*) kmalloc(sizeof(*rootdirdev));
+      rootdirdev = (struct smart_multiroot_device_s*) kmm_malloc(sizeof(*rootdirdev));
       if (rootdirdev == NULL)
         {
           fdbg("register_blockdriver failed: %d\n", -ret);
-          kfree(dev->sMap);
-          kfree(dev->rwbuffer);
-          kfree(dev);
+          kmm_free(dev->sMap);
+          kmm_free(dev->rwbuffer);
+          kmm_free(dev);
           ret = -ENOMEM;
           goto errout;
         }
@@ -2227,9 +2267,9 @@ int smart_initialize(int minor, FAR struct mtd_dev_s *mtd, const char *partname)
       if (ret < 0)
         {
           fdbg("register_blockdriver failed: %d\n", -ret);
-          kfree(dev->sMap);
-          kfree(dev->rwbuffer);
-          kfree(dev);
+          kmm_free(dev->sMap);
+          kmm_free(dev->rwbuffer);
+          kmm_free(dev);
           goto errout;
         }
 

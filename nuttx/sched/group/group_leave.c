@@ -1,7 +1,7 @@
 /*****************************************************************************
  *  sched/group/group_leave.c
  *
- *   Copyright (C) 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -90,8 +90,8 @@
  *
  *****************************************************************************/
 
-#ifdef HAVE_GROUP_MEMBERS
-void group_remove(FAR struct task_group_s *group)
+#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
+static void group_remove(FAR struct task_group_s *group)
 {
   FAR struct task_group_s *curr;
   FAR struct task_group_s *prev;
@@ -169,11 +169,11 @@ static inline void group_release(FAR struct task_group_s *group)
   pthread_release(group);
 #endif
 
+#if CONFIG_NFILE_DESCRIPTORS > 0
   /* Free all file-related resources now.  We really need to close files as
    * soon as possible while we still have a functioning task.
    */
 
-#if CONFIG_NFILE_DESCRIPTORS > 0
   /* Free resources held by the file descriptor list */
 
   files_releaselist(&group->tg_filelist);
@@ -181,11 +181,7 @@ static inline void group_release(FAR struct task_group_s *group)
 #if CONFIG_NFILE_STREAMS > 0
   /* Free resource held by the stream list */
 
-#if defined(CONFIG_NUTTX_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
-  lib_releaselist(group->tg_streamlist);
-#else
-  lib_releaselist(&group->tg_streamlist);
-#endif
+  lib_stream_release(group);
 
 #endif /* CONFIG_NFILE_STREAMS */
 #endif /* CONFIG_NFILE_DESCRIPTORS */
@@ -196,23 +192,41 @@ static inline void group_release(FAR struct task_group_s *group)
   net_releaselist(&group->tg_socketlist);
 #endif /* CONFIG_NSOCKET_DESCRIPTORS */
 
+#ifndef CONFIG_DISABLE_ENVIRON
   /* Release all shared environment variables */
 
-#ifndef CONFIG_DISABLE_ENVIRON
   env_release(group);
 #endif
 
+#ifndef CONFIG_DISABLE_MQUEUE
   /* Close message queues opened by members of the group */
 
-#ifndef CONFIG_DISABLE_MQUEUE
   mq_release(group);
 #endif
 
-#ifdef HAVE_GROUP_MEMBERS
+#if defined(CONFIG_BUILD_KERNEL) && defined(CONFIG_MM_SHM)
+  /* Release any resource held by shared memory virtual page allocator */
+
+  (void)shm_group_release(group);
+#endif
+
+#ifdef CONFIG_ARCH_ADDRENV
+  /* Destroy the group address environment */
+
+  (void)up_addrenv_destroy(&group->tg_addrenv);
+
+  /* Mark no address environment */
+
+  g_gid_current = 0;
+#endif
+
+#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
   /* Remove the group from the list of groups */
 
   group_remove(group);
+#endif
 
+#ifdef HAVE_GROUP_MEMBERS
   /* Release the members array */
 
   if (group->tg_members)
@@ -222,15 +236,39 @@ static inline void group_release(FAR struct task_group_s *group)
     }
 #endif
 
-#if CONFIG_NFILE_STREAMS > 0 && defined(CONFIG_NUTTX_KERNEL) && \
-    defined(CONFIG_MM_KERNEL_HEAP)
-
+#if CONFIG_NFILE_STREAMS > 0 && defined(CONFIG_MM_KERNEL_HEAP)
   /* In a flat, single-heap build.  The stream list is part of the
-   * group structure.  But in a kernel build with a kernel allocator, it
-   * must be separately de-allocated user the user-space deallocator.
+   * group structure and, hence will be freed when the group structure
+   * is freed.  Otherwise, it is separately allocated an must be
+   * freed here.
+   */
+
+#  if defined(CONFIG_BUILD_PROTECTED)
+  /* In the protected build, the task's stream list is always allocated
+   * and freed from the single, global user allocator.
    */
 
   sched_ufree(group->tg_streamlist);
+
+#  elif defined(CONFIG_BUILD_KERNEL)
+  /* In the kernel build, the unprivileged process' stream list will be
+   * allocated from with its per-process, private user heap. But in that
+   * case, there is no reason to do anything here:  That allocation resides
+   * in the user heap which which be completely freed when we destroy the
+   * process' address environment.
+   */
+
+  if ((group->tg_flags & GROUP_FLAG_PRIVILEGED) != 0)
+    {
+      /* But kernel threads are different in this build configuration: Their
+       * stream lists were allocated from the common, global kernel heap and
+       * must explicitly freed here.
+       */
+
+      sched_kfree(group->tg_streamlist);
+    }
+
+#  endif
 #endif
 
   /* Release the group container itself */

@@ -161,11 +161,6 @@ http://nuttx.org/Documentation/NuttXConfigVariables.html.
 Supported Boards
 ^^^^^^^^^^^^^^^^
 
-configs/16z
-  This is the port of NuttX port to the 16z board. The 16z board is based on
-  the ZiLOG ZNEO Z16F2811AL20EG part.  See https://github.com/toyaga/16z for
-  further information.
-
 configs/amber
   This is placeholder for the SoC Robotics Amber Web Server that is based
   on the Atmel AVR ATMega128 MCU.  There is not much there yet and what is
@@ -435,10 +430,6 @@ configs/pirelli_dpl10
   This directory contains the board support for Pirelli "Discus" DP-L10 phones.
   It is a variant of the compal_e88 config with the small changes for the
   differences in the board.
-
-configs/pjrc-8051
-  8051 Microcontroller.  This port uses the PJRC 87C52 development system
-  and the SDCC toolchain.   This port is not quite ready for prime time.
 
 config/px4fmu-v2_upstream
   This is a minimal configuration that supports low-level test of the

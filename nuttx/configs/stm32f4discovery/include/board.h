@@ -1,8 +1,7 @@
 /************************************************************************************
  * configs/stm32f4discovery/include/board.h
- * include/arch/board/board.h
  *
- *   Copyright (C) 2012 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2012, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -157,6 +156,36 @@
 #define STM32_TIM18_FREQUENCY   STM32_HCLK_FREQUENCY
 #define STM32_TIM27_FREQUENCY   (STM32_HCLK_FREQUENCY/2)
 
+/* SDIO dividers.  Note that slower clocking is required when DMA is disabled
+ * in order to avoid RX overrun/TX underrun errors due to delayed responses
+ * to service FIFOs in interrupt driven mode.  These values have not been
+ * tuned!!!
+ *
+ * SDIOCLK=48MHz, SDIO_CK=SDIOCLK/(118+2)=400 KHz
+ */
+
+#define SDIO_INIT_CLKDIV        (118 << SDIO_CLKCR_CLKDIV_SHIFT)
+
+/* DMA ON:  SDIOCLK=48MHz, SDIO_CK=SDIOCLK/(1+2)=16 MHz
+ * DMA OFF: SDIOCLK=48MHz, SDIO_CK=SDIOCLK/(2+2)=12 MHz
+ */
+
+#ifdef CONFIG_SDIO_DMA
+#  define SDIO_MMCXFR_CLKDIV    (1 << SDIO_CLKCR_CLKDIV_SHIFT)
+#else
+#  define SDIO_MMCXFR_CLKDIV    (2 << SDIO_CLKCR_CLKDIV_SHIFT)
+#endif
+
+/* DMA ON:  SDIOCLK=48MHz, SDIO_CK=SDIOCLK/(1+2)=16 MHz
+ * DMA OFF: SDIOCLK=48MHz, SDIO_CK=SDIOCLK/(2+2)=12 MHz
+ */
+
+#ifdef CONFIG_SDIO_DMA
+#  define SDIO_SDXFR_CLKDIV     (1 << SDIO_CLKCR_CLKDIV_SHIFT)
+#else
+#  define SDIO_SDXFR_CLKDIV     (2 << SDIO_CLKCR_CLKDIV_SHIFT)
+#endif
+
 /* LED definitions ******************************************************************/
 /* If CONFIG_ARCH_LEDS is not defined, then the user can control the LEDs in any
  * way.  The following definitions are used to access individual LEDs.
@@ -209,12 +238,27 @@
 /* UART2:
  *
  * The STM32F4 Discovery has no on-board serial devices, but the console is
- * brought out to PA2 (TX) and PA3 (RX) for connection to an external serial device.
- * (See the README.txt file for other options)
+ * brought out to PA2 (TX) and PA3 (RX) for connection to an external serial
+ * device. (See the README.txt file for other options)
+ *
+ * These pins selections, however, conflict with pin usage on the STM32F4DIS-BB.
  */
 
-#define GPIO_USART2_RX GPIO_USART2_RX_1
-#define GPIO_USART2_TX GPIO_USART2_TX_1
+#ifdef CONFIG_STM32F4DISBB
+#  define GPIO_USART2_RX GPIO_USART2_RX_1
+#  define GPIO_USART2_TX GPIO_USART2_TX_1
+#endif
+
+/* UART6:
+ *
+ * The STM32F4DIS-BB base board provides RS-232 drivers and a DB9 connector
+ * for USART6.  This is the preferred serial console for use with the STM32F4DIS-BB.
+ */
+
+#ifdef CONFIG_STM32F4DISBB
+#  define GPIO_USART6_RX GPIO_USART6_RX_1
+#  define GPIO_USART6_TX GPIO_USART6_TX_1
+#endif
 
 /* PWM
  *
@@ -238,6 +282,41 @@
 #define GPIO_TIM8_CH1IN  GPIO_TIM8_CH1IN_1
 #define GPIO_TIM8_CH2IN  GPIO_TIM8_CH2IN_1
 
+/* Ethernet *************************************************************************/
+
+#if defined(CONFIG_STM32F4DISBB) && defined(CONFIG_STM32_ETHMAC)
+  /* RMII interface to the LAN8720 PHY */
+
+#  ifndef CONFIG_STM32_RMII
+#    error CONFIG_STM32_RMII must be defined
+#  endif
+
+  /* Clocking is provided by an external 25Mhz XTAL */
+
+#  ifndef CONFIG_STM32_RMII_EXTCLK
+#    error CONFIG_STM32_RMII_EXTCLK must be defined
+#  endif
+
+  /* Pin disambiguation */
+
+#  define GPIO_ETH_RMII_TX_EN GPIO_ETH_RMII_TX_EN_1
+#  define GPIO_ETH_RMII_TXD0  GPIO_ETH_RMII_TXD0_1
+#  define GPIO_ETH_RMII_TXD1  GPIO_ETH_RMII_TXD1_1
+#  define GPIO_ETH_PPS_OUT    GPIO_ETH_PPS_OUT_1
+
+#endif
+
+/* DMA Channl/Stream Selections *****************************************************/
+/* Stream selections are arbitrary for now but might become important in the future
+ * if we set aside more DMA channels/streams.
+ *
+ * SDIO DMA
+ *   DMAMAP_SDIO_1 = Channel 4, Stream 3
+ *   DMAMAP_SDIO_2 = Channel 4, Stream 6
+ */
+
+#define DMAMAP_SDIO DMAMAP_SDIO_1
+
 /************************************************************************************
  * Public Data
  ************************************************************************************/
@@ -247,7 +326,8 @@
 #undef EXTERN
 #if defined(__cplusplus)
 #define EXTERN extern "C"
-extern "C" {
+extern "C"
+{
 #else
 #define EXTERN extern
 #endif
@@ -260,7 +340,7 @@ extern "C" {
  *
  * Description:
  *   All STM32 architectures must provide the following entry point.  This entry point
- *   is called early in the intitialization -- after all memory has been configured
+ *   is called early in the initialization -- after all memory has been configured
  *   and mapped but before any devices have been initialized.
  *
  ************************************************************************************/

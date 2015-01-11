@@ -1,7 +1,7 @@
 /********************************************************************************
  * sched/timer/timer_create.c
  *
- *   Copyright (C) 2007-2009, 2011 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007-2009, 2011, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,9 +43,9 @@
 #include <unistd.h>
 #include <time.h>
 #include <string.h>
-#include <wdog.h>
 #include <errno.h>
 
+#include <nuttx/wdog.h>
 #include <nuttx/kmalloc.h>
 
 #include "timer/timer.h"
@@ -100,7 +100,7 @@ static struct posix_timer_s *timer_allocate(void)
     {
       /* Allocate a new timer from the heap */
 
-      ret      = (struct posix_timer_s*)kmalloc(sizeof(struct posix_timer_s));
+      ret      = (struct posix_timer_s*)kmm_malloc(sizeof(struct posix_timer_s));
       pt_flags = 0;
     }
 
@@ -184,7 +184,7 @@ int timer_create(clockid_t clockid, FAR struct sigevent *evp, FAR timer_t *timer
 
   if (!timerid || clockid != CLOCK_REALTIME)
     {
-      errno = EINVAL;
+      set_errno(EINVAL);
       return ERROR;
     }
 
@@ -193,7 +193,7 @@ int timer_create(clockid_t clockid, FAR struct sigevent *evp, FAR timer_t *timer
   wdog = wd_create();
   if (!wdog)
     {
-      errno = EAGAIN;
+      set_errno(EAGAIN);
       return ERROR;
     }
 
@@ -202,7 +202,7 @@ int timer_create(clockid_t clockid, FAR struct sigevent *evp, FAR timer_t *timer
   ret = timer_allocate();
   if (!ret)
     {
-      errno = EAGAIN;
+      set_errno(EAGAIN);
       return ERROR;
     }
 

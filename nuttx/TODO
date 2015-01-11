@@ -1,4 +1,4 @@
-NuttX TODO List (Last updated August 11, 2014)
+NuttX TODO List (Last updated September 25, 2014)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This file summarizes known NuttX bugs, limitations, inconsistencies with
@@ -12,13 +12,13 @@ nuttx/
   (2)  Memory Managment (mm/)
   (3)  Signals (sched/, arch/)
   (2)  pthreads (sched/)
- (11)  Kernel Build
+  (8)  Kernel/Protected Builds
   (4)  C++ Support
   (6)  Binary loaders (binfmt/)
  (13)  Network (net/, drivers/net)
   (4)  USB (drivers/usbdev, drivers/usbhost)
  (10)  Libraries (libc/, )
- (13)  File system/Generic drivers (fs/, drivers/)
+ (12)  File system/Generic drivers (fs/, drivers/)
   (6)  Graphics subystem (graphics/)
   (1)  Pascal add-on (pcode/)
   (1)  Documentation (Documentation/)
@@ -38,7 +38,6 @@ nuttx/
   (5)  ARM/STM32 (arch/arm/src/stm32/)
   (3)  AVR (arch/avr)
   (0)  Intel x86 (arch/x86)
-  (5)  8051 / MCS51 (arch/8051/)
   (3)  MIPS/PIC32 (arch/mips)
   (1)  Hitachi/Renesas SH-1 (arch/sh/src/sh1)
   (4)  Renesas M16C/26 (arch/sh/src/m16c)
@@ -49,7 +48,7 @@ nuttx/
 apps/
 
   (4)  Network Utilities (apps/netutils/)
-  (5)  NuttShell (NSH) (apps/nshlib)
+  (3)  NuttShell (NSH) (apps/nshlib)
   (1)  System libraries apps/system (apps/system)
   (5)  Other Applications & Tests (apps/examples/)
 
@@ -327,26 +326,17 @@ o pthreads (sched/)
                solution. So I discarded a few hours of programming. Not a
                big loss from the experience I gained."
 
-o Kernel Build
-  ^^^^^^^^^^^^
-
-  Title:       GRAPHICS PARTITIONING.
-  Description: In the kernel build mode (where NuttX is built as a monolithic
-               kernel and user code must trap into the protected kernel via
-               syscalls), the single user mode cannot be supported.  In this
-               built configuration, only the multiple user mode can be supported
-               with the NX server residing inside of the kernel space.
-  Status:      Closed.  This is not a bug, this is just the things are.
-  Priority:    N/A.
+o Kernel/Protected Build
+  ^^^^^^^^^^^^^^^^^^^^^^
 
   Title:       NSH PARTITIONING.
   Description: There are issues with several NSH commands in the NuttX kernel
-               build mode (where NuttX is built as a monolithic kernel and
-               user code must trap into the protected kernel via syscalls).
-               The current NSH implementation has several commands that call
-               directly into kernel internel functions for whicht there is
-               no syscall available.  The commands cause link failures in
-               the kernel build mode and must currently be disabled.
+               and protected build modes (where NuttX is built as a monolithic
+               kernel and user code must trap into the protected kernel via
+               syscalls). The current NSH implementation has several commands
+               that call  directly into kernel internal functions for which
+               there is no syscall available.  The commands cause link failures
+               in the kernel/protected build mode and must currently be disabled.
                Here are known problems that must be fixed:
 
                COMMAND  KERNEL INTERFACE(s)
@@ -375,31 +365,24 @@ o Kernel Build
 
   Title:       TELNETD PARTITIONING.
   Description: Telnetd is implemented as a driver that resides in the apps/
-               directory.  In the kernel build, mode, the driver logic must
-               be moved into the kernel part of the build (nuttx/, although
-               the application level interfaces must stay in apps/).
+               directory.  In the kernel/protected build modes, the driver
+               logic must be moved into the kernel part of the build (nuttx/,
+               although the application level interfaces must stay in apps/).
   Status:      Open
   Priority:    Medium
 
-  Title:       NxCONSOLE PARTITIONING.
-  Description: NxConsole is implemented (correctly) as a driver that resides
+  Title:       NxTERM PARTITIONING.
+  Description: NxTerm is implemented (correctly) as a driver that resides
                in the nuttx/ directory.  However, the user interfaces must be
                moved into a NuttX library or into apps/.  Currently
-               applications calls to the NxConsole user interfaces are
+               applications calls to the NxTerm user interfaces are
                undefined.
   Status:      Open
   Priority:    Medium
 
-  Title:       LOAD-ABLE MODULE SUPPORT UNVERIFIED
-  Description: It has not been verified if NXFLAT and ELF modules work correctly
-               in the kernel build.  They should load into user-space memory.
-  Status:      Open
-  Priority:    Medium.  There is no configuration that uses NXFLAT or ELF with
-               a kernel build now.
-
-  Title:       C++ CONSTRUCTORS HAVE TOO MANY PRIVILEGES
+  Title:       C++ CONSTRUCTORS HAVE TOO MANY PRIVILEGES (PROTECTED MODE)
   Description: When a C++ ELF module is loaded, its C++ constructors are called
-               via sched/task_starthook.c logic.  This logic runs in kernel mode.
+               via sched/task_starthook.c logic.  This logic runs in protected mode.
                The is a security hole because the user code runs with kernel-
                privileges when the constructor executes.
 
@@ -446,24 +429,18 @@ o Kernel Build
                "This one would be easy: Just a change to include/nuttx/userspace.h,
                 configs/*/kernel/up_userspace.c, libc/, sched/sched_addreadytorun.c, and
                 sched/sched_removereadytorun.c. That would eliminate 59% of the syscalls."
+
+               Update:
+               This is probably also just a symptom of the OS test that does mostly
+               console output.  The requests for the pid() are part of the
+               implementation of the I/O's re-entrant semaphore implementation and
+               would not be an issue in the more general case.
   Status:      Open
   Priority:    Low-Medium.  Right now, I do not know if these syscalls are a
                real performance issue or not.  The above statistics were collected
                from a an atypical application (the OS test), and does an excessive
                amount of console output.  There is probably no issue with more typical
                embedded applications.
-
-  Title:       ARMv6/7-M SYSCALL PERFORMANCE IMPROVEMENT
-  Description: Currently the code issues an SVCall to go from user- to kernel-mode
-               and another go return to user-mode.  The second is unnecessary:
-               If there were a stub in user-space that just set the unprivileged
-               mode in the CONTROL register and returned, then the dispatch_syscall()
-               function could just jump to the stub instead of using second SVCall.
-               Hmmm... would this expose a security whole by executing in user-space
-               with privileges?  That already happens when the userspace memory
-               allocators are called.
-  Status:      Open
-  Priority:    Low (unless performance becomes an issue).
 
   Title:       SECURITY ISSUES
   Description: In the current designed, the kernel code calls into the user-space
@@ -491,7 +468,7 @@ o Kernel Build
                and to interfacing with those core OS facilities through traps.
   Status:      Open
   Priority:    Low.  This is a good idea and certainly an architectural
-               improvement.  However, there is no strong motivivation now do
+               improvement.  However, there is no strong motivation now do
                do that partitioning work.
 
 o C++ Support
@@ -519,13 +496,13 @@ o C++ Support
                this will provide the model for all solutions.  Basically, if
                CONFIG_HAVE_CXXINITIALIZE=y is defined in the configuration, then
                board-specific code must provide the interface up_cxxinitialize().
-               up_cxxinitialize() is called from user_start() to initialize
+               up_cxxinitialize() is called from aplication logic to initialize
                all static class instances.  This TODO item probably has to stay
                open because this solution is only available on STM32 F4.
   Status:      Open
   Priority:    Low, depends on toolchain.  Call to gcc's built-in static
                constructor logic will probably have to be performed by
-               user logic in user_start().
+               user logic in the application.
 
   Title:       STATIC CONSTRUCTORS AND MULTITASKING
   Description: The logic that calls static constructors operates on the main
@@ -873,7 +850,8 @@ o Network (net/, drivers/net)
                Or should it remain in the backlog with a status indication so that accept()
                can fail when it encounteres the invalid connection?
   Status:      Open
-  Priority:    Medium.  Important on slow applications that will not accept connections promptly.
+  Priority:    Medium.  Important on slow applications that will not accept
+               connections promptly.
 
 o USB (drivers/usbdev, drivers/usbhost)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1125,12 +1103,6 @@ o File system / Generic drivers (fs/, drivers/)
   Status:      Open
   Priority:    Medium-Low
 
-  Title:       READ-AHEAD/WRITE BUFFER UNTESTED
-  Description: Block driver read-ahead buffer and write buffer support is
-               implemented but not yet tested.
-  Status:      Open
-  Priority:    Low
-
   Title:       SDIO-BASED SD READ-AHEAD/WRITE BUFFERING INCOMPLETE
   Description: The drivers/mmcsd/mmcsd_sdio.c driver has hooks in place to
                support read-ahead buffering and write buffering, but the logic
@@ -1248,20 +1220,20 @@ o Graphics subystem (graphics/)
   Status:      Open
   Priority:    Medium low
 
-  Title:       IMPROVED NXCONSOLE FONT CACHING
-  Description: Now each NxConsole instance has its own private font cache
-               whose size is determined by CONFIG_NXCONSOLE_MXCHARS.  If there
-               are multiple NxConsole instances using the same font, each will
+  Title:       IMPROVED NxTERM FONT CACHING
+  Description: Now each NxTerm instance has its own private font cache
+               whose size is determined by CONFIG_NXTERM_MXCHARS.  If there
+               are multiple NxTerm instances using the same font, each will
                have a separate font cache.  This is inefficient and wasteful
-               of memory:  Each NxConsole instance should share a common font
+               of memory:  Each NxTerm instance should share a common font
                cache.
   Status:      Open
   Priority:    Medium.  Not important for day-to-day testing but would be
-               a critical improvement if NxConsole were to be used in a
+               a critical improvement if NxTerm were to be used in a
                product.
 
-  Title:       NXCONSOLE VT100 SUPPORT
-  Description: If the NxConsole will be used with the Emacs-like command line
+  Title:       NxTERM VT100 SUPPORT
+  Description: If the NxTerm will be used with the Emacs-like command line
                editor (CLE), then it will need to support VT100 cursor control
                commands.
   Status:      Open
@@ -1439,7 +1411,7 @@ o ARM (arch/arm/)
   Priority:    Low
 
   Title:       CORTEX-M3 STACK OVERFLOW
-  Description: There is bit bit logic inf up_fullcontextrestore() that executes on
+  Description: There is bit bit logic in up_fullcontextrestore() that executes on
                return from interrupts (and other context switches) that looks like:
 
                  ldr r1, [r0, #(4*REG_CPSR)] /* Fetch the stored CPSR value */
@@ -1838,58 +1810,6 @@ o AVR (arch/avr)
 o Intel x86 (arch/x86)
   ^^^^^^^^^^^^^^^^^^^^
 
-o 8051 / MCS51 (arch/8051/)
-  ^^^^^^^^^^^^^^^^^^^^^^^^^
-
-  Title:       STACK OVERFLOWS DURING INTERRUPT HANDLING
-  Description: Current status:
-               - Basic OS task management seems OK
-               - Fails when interrupts enabled.  The stack pointer is around
-                 0x6e before the failure occurs.  It looks like some issue
-                 when the stack pointer moves from the directly to indirectly
-                 addressable region (0x80 boundary).
-               - Work on the 8052 is temporarily on hold
-  Status:      Open
-  Priority:    Low, 8051 is a tough platform because of the tiny stack.
-
-  Title:       TIMER 0 AS SYSTEM TIMER
-  Description: Use timer 0 as system timer.  Timer 2 is needed for second UART.
-               Logic is implemented, but there needs to be a system
-               configuration to change the ticks-per-second value to match the
-               timer interrupt rate
-  Status:      Open
-  Priority:    Low
-
-  Title:       OVERFLOWS DURING BUILD
-  Description: During build, there are several integer overflows reported:
-               sched/gmtime_r.c aroud lines 184 and 185
-               sched/clock_initialize.c at line 107
-               sched/pthread_create.c at 330
-               apps/examples/ostest/barrier.c around lines 53 and 74
-               apps/examples/ostest/sighand.c at 225 and 244
-               driver/serial.c in usleep calls around 347 and 354
-  Status:      Open.  Update:  These were reviewed during the hcs12 port.  The
-               hcs12 also has 16-bit integer types (if -mshort is in the CFLAGS).
-               I believe that the warnings in most of the above have been fixed
-               but this has not been verified on this platform).
-  Priority:    Medium
-
-  Title:       DATA INITIALIZATION
-  Description  Global data is not being initialized.  Logic like that of SDCCs
-               crt0*.s needs to be incorporated into the system boot logic
-  Status:      Open
-  Priority:    Low -- only because there as so many other issues with 8051
-
-  Title:       8051 BUILD BROKEN
-  Description: The last time I tried to build the pjrc-8051 configuration using
-               the SDCC 3.2.1 toolchain (for Windows).  I got compilation
-               errors in sched/os_bringup.c.  It complained about type
-               mis-matches.  What I gather from Googling, this is a problem
-               with the --stack-auto option.  At any rate, this problem will
-               need to be fixed if you want to resurrect the 8051 NuttX port.
- Status:       Open
- Priority:     Low -- I don't think anyone uses the 8051 port.
-
 o MIPS/PIC32(arch/mips)
   ^^^^^^^^^^^^^^^^^^^^^
 
@@ -2031,11 +1951,11 @@ o z80/z8/ez80/z180 (arch/z80)
 
   Title:       SDCC INTEGER OVERFLOWS
   Description: The SDCC version the same problems with integer overflow during
-               compilation as described for pjrc-8051.  At typical cause is code like
+               compilation for certain 8-bit platform.  At typical cause is code like
                usleep(500*1000) which exceeds the range of a 16-bit integer.
-  Status:      See pjrc-8051.  These have probably been fixed but have not yet
-               been verified on these platforms.
-  Priority:    See pjrc-8051
+  Status:      These have probably been fixed but have not yet been verified on thes
+               affected platforms.
+  Priority:    Low for now
 
   Title:       Z80 SIMULATED CONSOLE
   Description: The simulated Z80 serial console (configs/z80sim/src/z80_serial.c +
@@ -2275,9 +2195,12 @@ o Network Utilities (apps/netutils/)
   Title:       THE ARP ISSUES AGAIN
   Description: The first GET received by THTTPD is not responded to.  Refreshing the page
                from the browser solves the problem and THTTPD works fine after thatg.  I
-               believe that this is the duplicate of another bug: "Outgoing [uIP] packets are dropped
-               and overwritten by ARP packets if the destination IP has not been mapped to a MAC."
-  Status:      Open
+               believe that this is the duplicate of another bug: "Outgoing
+               [uIP] packets are dropped and overwritten by ARP packets if the
+               destination IP has not been mapped to a MAC."
+  Status:      Probably closed.  The basic ARP issue has been fixed (if
+               CONFIG_NET_ARP_SEND is enable), but this has not been verified
+               with THTTPD.
   Priority:    Medium
 
   Title:       THTTPD WARNINGS
@@ -2313,60 +2236,6 @@ o NuttShell (NSH) (apps/nshlib)
   Status:      Open
   Priority:    Low (enhancement)
 
-  Title:       NETWORK BRINGUP
-  Description: If the network is available on reset, then there is really
-               no problem.  Negotiating the link will take only a second or
-               so and the delay to the NSH prompt is normally acceptable.
-
-               But if there is no network connected, then the start-up delay
-               can be very long depending upon things like the PHY, timeout
-               delay times, and numbers of retries.  A failed negotiation
-               can take a very long time, perhaps as much as a minute...
-               Long enough that you would think that the board would never
-               come up.
-
-               The problem is that all of the initialization is sequential:
-               NSH does not run until each sequential initialization step is
-               completed.
-
-               There is an option enabled by CONFIG_NSH_NETINIT_THREAD that
-               will do the network bring-up asynchronously in parallel on
-               a separate thread.  This eliminates the networking delay
-               altogether.  The initial implementation, however, has some
-               limitations:
-
-               - If no network is connected, the network bring-up will fail
-                 and the network initialization thread will simply exit.
-                 There are no retries and no mechanism to know if the network
-                 initialization was successful.
-
-               - Furthermore, there is currently no support for detecting loss
-                 of network connection and recovery of the connection (see the
-                 next issue).
-  Status:      Open
-  Priority:    Medium, but certainly high if you plan to use the generic
-               NSH in a product with a network.
-
-  Title:       LOSS OF CONNECTION
-  Description: There is no logic in place no to detect that the network
-               connection has been lost (if the cable has been unplugged,
-               for example).  And also no logic to bring the network back
-               up when the link can be re-established.
-
-               This is normally done by catching a GPIO interrupt from a
-               PHY.  This is logic outside of the Ethernet MAC driver
-               (although the Ethernet MAC driver would also have to
-               support the PHY operations to determine the link state).
-               So of the boards provide logic to connect to the PHY
-               interrupt.  Like:
-
-                 xcpt_t sam_phyirq(int intf, xcpt_t irqhandler);
-
-               But that interrupt is not used by anything now.
-  Status:      Open
-  Priority:    Medium.
-
-  Status:      Open
 o System libraries apps/system (apps/system)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

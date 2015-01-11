@@ -105,7 +105,7 @@
 #include <arch/arch.h>
 
 /****************************************************************************
- * Definitions
+ * Pre-processor definitions
  ****************************************************************************/
 
 /****************************************************************************
@@ -113,6 +113,7 @@
  ****************************************************************************/
 
 typedef CODE void (*sig_deliver_t)(FAR struct tcb_s *tcb);
+typedef CODE void (*phy_enable_t)(bool enable);
 
 /****************************************************************************
  * Public Variables
@@ -230,16 +231,15 @@ void up_initial_state(FAR struct tcb_s *tcb);
  *     however, there are certain contexts where the TCB may not be fully
  *     initialized when up_create_stack is called.
  *
- *     If CONFIG_NUTTX_KERNEL is defined, then this thread type may affect
- *     how the stack is allocated.  For example, kernel thread stacks should
- *     be allocated from protected kernel memory.  Stacks for user tasks and
- *     threads must come from memory that is accessible to user code.
+ *     If CONFIG_BUILD_PROTECTED or CONFIG_BUILD_KERNEL are is defined, then
+ *     this thread type may affect how the stack is allocated.  For example,
+ *     kernel thread stacks should be allocated from protected kernel memory.
+ *     Stacks for user tasks and threads must come from memory that is
+ *     accessible to user code.
  *
  ****************************************************************************/
 
-#ifndef CONFIG_CUSTOM_STACK
 int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype);
-#endif
 
 /****************************************************************************
  * Name: up_use_stack
@@ -270,16 +270,14 @@ int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype);
  *
  ****************************************************************************/
 
-#ifndef CONFIG_CUSTOM_STACK
 int up_use_stack(FAR struct tcb_s *tcb, FAR void *stack, size_t stack_size);
-#endif
 
 /****************************************************************************
  * Name: up_stack_frame
  *
  * Description:
  *   Allocate a stack frame in the TCB's stack to hold thread-specific data.
- *   This function may be called anytime after up_create_stack() or
+ *   This function may be called any time after up_create_stack() or
  *   up_use_stack() have been called but before the task has been started.
  *
  *   Thread data may be kept in the stack (instead of in the TCB) if it is
@@ -306,9 +304,7 @@ int up_use_stack(FAR struct tcb_s *tcb, FAR void *stack, size_t stack_size);
  *
  ****************************************************************************/
 
-#if !defined(CONFIG_CUSTOM_STACK) && defined(CONFIG_NUTTX_KERNEL)
 FAR void *up_stack_frame(FAR struct tcb_s *tcb, size_t frame_size);
-#endif
 
 /****************************************************************************
  * Name: up_release_stack
@@ -330,20 +326,18 @@ FAR void *up_stack_frame(FAR struct tcb_s *tcb, size_t frame_size);
  *     however, there are certain error recovery contexts where the TCB may
  *     not be fully initialized when up_release_stack is called.
  *
- *     If CONFIG_NUTTX_KERNEL is defined, then this thread type may affect
- *     how the stack is freed.  For example, kernel thread stacks may have
- *     been allocated from protected kernel memory.  Stacks for user tasks
- *     and threads must have come from memory that is accessible to user
- *     code.
+ *     If CONFIG_BUILD_PROTECTED or CONFIG_BUILD_KERNEL are defined, then
+ *     this thread type may affect how the stack is freed.  For example,
+ *     kernel thread stacks may have been allocated from protected kernel
+ *     memory.  Stacks for user tasks and threads must have come from memory
+ *     that is accessible to user code.
  *
  * Returned Value:
  *   None
  *
  ****************************************************************************/
 
-#ifndef CONFIG_CUSTOM_STACK
 void up_release_stack(FAR struct tcb_s *dtcb, uint8_t ttype);
-#endif
 
 /****************************************************************************
  * Name: up_unblock_task
@@ -525,7 +519,8 @@ void up_schedule_sigaction(FAR struct tcb_s *tcb, sig_deliver_t sigdeliver);
  *
  ****************************************************************************/
 
-#if defined(CONFIG_NUTTX_KERNEL) && defined(__KERNEL__)
+#if (defined(CONFIG_BUILD_PROTECTED) && defined(__KERNEL__)) || \
+     defined(CONFIG_BUILD_KERNEL)
 void up_task_start(main_t taskentry, int argc, FAR char *argv[])
        noreturn_function;
 #endif
@@ -554,7 +549,8 @@ void up_task_start(main_t taskentry, int argc, FAR char *argv[])
  *
  ****************************************************************************/
 
-#if defined(CONFIG_NUTTX_KERNEL) && defined(__KERNEL__) && !defined(CONFIG_DISABLE_PTHREAD)
+#if (defined(CONFIG_BUILD_PROTECTED) && defined(__KERNEL__)) || \
+     defined(CONFIG_BUILD_KERNEL) && !defined(CONFIG_DISABLE_PTHREAD)
 void up_pthread_start(pthread_startroutine_t entrypt, pthread_addr_t arg)
        noreturn_function;
 #endif
@@ -587,7 +583,8 @@ void up_pthread_start(pthread_startroutine_t entrypt, pthread_addr_t arg)
  *
  ****************************************************************************/
 
-#if defined(CONFIG_NUTTX_KERNEL) && defined(__KERNEL__) && !defined(CONFIG_DISABLE_SIGNALS)
+#if (defined(CONFIG_BUILD_PROTECTED) && defined(__KERNEL__)) || \
+     defined(CONFIG_BUILD_KERNEL) && !defined(CONFIG_DISABLE_SIGNALS)
 void up_signal_dispatch(_sa_sigaction_t sighand, int signo,
                         FAR siginfo_t *info, FAR void *ucontext);
 #endif
@@ -611,7 +608,8 @@ void up_signal_dispatch(_sa_sigaction_t sighand, int signo,
  *
  ****************************************************************************/
 
-#if defined(CONFIG_NUTTX_KERNEL) && !defined(__KERNEL__) && !defined(CONFIG_DISABLE_SIGNALS)
+#if (defined(CONFIG_BUILD_PROTECTED) && !defined(__KERNEL__)) && \
+    !defined(CONFIG_DISABLE_SIGNALS)
 void up_signal_handler(_sa_sigaction_t sighand, int signo,
                        FAR siginfo_t *info, FAR void *ucontext)
        noreturn_function;
@@ -623,7 +621,7 @@ void up_signal_handler(_sa_sigaction_t sighand, int signo,
  * Description:
  *   This function will be called to dynamically set aside the heap region.
  *
- *   For the kernel build (CONFIG_NUTTX_KERNEL=y) with both kernel- and
+ *   For the kernel build (CONFIG_BUILD_PROTECTED=y) with both kernel- and
  *   user-space heaps (CONFIG_MM_KERNEL_HEAP=y), this function provides the
  *   size of the unprotected, user-space heap.
  *
@@ -638,14 +636,68 @@ void up_allocate_heap(FAR void **heap_start, size_t *heap_size);
  * Name: up_allocate_kheap
  *
  * Description:
- *   For the kernel build (CONFIG_NUTTX_KERNEL=y) with both kernel- and
- *   user-space heaps (CONFIG_MM_KERNEL_HEAP=y), this function allocates
- *   (and protects) the kernel-space heap.
+ *   For the kernel builds (CONFIG_BUILD_PROTECTED=y or
+ *   CONFIG_BUILD_KERNEL=y) there may be both kernel- and user-space heaps
+ *   as determined by CONFIG_MM_KERNEL_HEAP=y.  This function allocates (and
+ *   protects) the kernel-space heap.
  *
  ****************************************************************************/
 
-#if defined(CONFIG_NUTTX_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
+#ifdef CONFIG_MM_KERNEL_HEAP
 void up_allocate_kheap(FAR void **heap_start, size_t *heap_size);
+#endif
+
+/****************************************************************************
+ * Name: up_allocate_pgheap
+ *
+ * Description:
+ *   If there is a page allocator in the configuration, then this function
+ *   must be provided by the platform-specific code.  The OS initialization
+ *   logic will call this function early in the initialization sequence to
+ *   get the page heap information needed to configure the page allocator.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_MM_PGALLOC
+void up_allocate_pgheap(FAR void **heap_start, size_t *heap_size);
+#endif
+
+/****************************************************************************
+ * Name: pgalloc
+ *
+ * Description:
+ *   If there is a page allocator in the configuration and if and MMU is
+ *   available to map physical addresses to virtual address, then function
+ *   must be provided by the platform-specific code.  This is part of the
+ *   implementation of sbrk().  This function will allocate the requested
+ *   number of pages using the page allocator and map them into consecutive
+ *   virtual addresses beginning with 'brkaddr'
+ *
+ *   NOTE:  This function does not use the up_ naming standard because it
+ *   is indirectly callable from user-space code via a system trap.
+ *   Therefore, it is a system interface and follows a different naming
+ *   convention.
+ *
+ * Input Parameters:
+ *   brkaddr - The heap break address.  The next page will be allocated and
+ *     mapped to this address.  Must be page aligned.  If the memory manager
+ *     has not yet been initialized and this is the first block requested for
+ *     the heap, then brkaddr should be zero.  pgalloc will then assigned the
+ *     well-known virtual address of the beginning of the heap.
+ *   npages - The number of pages to allocate and map.  Mapping of pages
+ *     will be contiguous beginning beginning at 'brkaddr'
+ *
+ * Returned Value:
+ *   The (virtual) base address of the mapped page will returned on success.
+ *   Normally this will be the same as the 'brkaddr' input. However, if
+ *   the 'brkaddr' input was zero, this will be the virtual address of the
+ *   beginning of the heap.  Zero is returned on any failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_MM_PGALLOC) && \
+    defined(CONFIG_ARCH_USE_MMU)
+uintptr_t pgalloc(uintptr_t brkaddr, unsigned int npages);
 #endif
 
 /****************************************************************************
@@ -668,42 +720,89 @@ void up_allocate_kheap(FAR void **heap_start, size_t *heap_size);
  * Address Environment Interfaces
  *
  * Low-level interfaces used in binfmt/ to instantiate tasks with address
- * environments.  These interfaces all operate on type task_addrenv_t which
- * is an abstract representation of a task's address environment and must be
- * defined in arch/arch.h if CONFIG_ADDRENV is defined.
+ * environments.  These interfaces all operate on type group_addrenv_t which
+ * is an abstract representation of a task group's address environment and
+ * must be defined in arch/arch.h if CONFIG_ARCH_ADDRENV is defined.
  *
- *   up_addrenv_create  - Create an address environment
- *   up_addrenv_vaddr   - Returns the virtual base address of the address
- *                        environment
- *   up_addrenv_select  - Instantiate an address environment
- *   up_addrenv_restore - Restore an address environment
- *   up_addrenv_destroy - Destroy an address environment.
- *   up_addrenv_assign  - Assign an address environment to a TCB
+ *   up_addrenv_create   - Create an address environment
+ *   up_addrenv_destroy  - Destroy an address environment.
+ *   up_addrenv_vtext    - Returns the virtual base address of the .text
+ *                         address environment
+ *   up_addrenv_vdata    - Returns the virtual base address of the .bss/.data
+ *                         address environment
+ *   up_addrenv_heapsize - Returns the size of the initial heap allocation.
+ *   up_addrenv_select   - Instantiate an address environment
+ *   up_addrenv_restore  - Restore an address environment
+ *   up_addrenv_clone    - Copy an address environment from one location to
+ *                         another.
  *
  * Higher-level interfaces used by the tasking logic.  These interfaces are
- * used by the functions in sched/ and all operate on the TCB which as been
- * assigned an address environment by up_addrenv_assign().
+ * used by the functions in sched/ and all operate on the thread which whose
+ * group been assigned an address environment by up_addrenv_clone().
  *
- *   up_addrenv_share   - Clone the address environment assigned to one TCB
- *                        to another.  This operation is done when a pthread
- *                        is created that share's the same address
- *                        environment.
- *   up_addrenv_release - Release the TCBs reference to an address
- *                        environment when a task/thread exits.
+ *   up_addrenv_attach   - Clone the address environment assigned to one TCB
+ *                         to another.  This operation is done when a pthread
+ *                         is created that share's the same address
+ *                         environment.
+ *   up_addrenv_detach   - Release the threads reference to an address
+ *                         environment when a task/thread exits.
+ *
+ * CONFIG_ARCH_STACK_DYNAMIC=y indicates that the user process stack resides
+ * in its own address space.  This options is also *required* if
+ * CONFIG_BUILD_KERNEL and CONFIG_LIBC_EXECFUNCS are selected.  Why?
+ * Because the caller's stack must be preserved in its own address space
+ * when we instantiate the environment of the new process in order to
+ * initialize it.
+ *
+ * NOTE: The naming of the CONFIG_ARCH_STACK_DYNAMIC selection implies that
+ * dynamic stack allocation is supported.  Certainly this option must be set
+ * if dynamic stack allocation is supported by a platform.  But the more
+ * general meaning of this configuration environment is simply that the
+ * stack has its own address space.
+ *
+ * If CONFIG_ARCH_STACK_DYNAMIC=y is selected then the platform specific
+ * code must export these additional interfaces:
+ *
+ *   up_addrenv_ustackalloc  - Create a stack address environment
+ *   up_addrenv_ustackfree   - Destroy a stack address environment.
+ *   up_addrenv_vustack      - Returns the virtual base address of the stack
+ *   up_addrenv_ustackselect - Instantiate a stack address environment
+ *
+ * If CONFIG_ARCH_KERNEL_STACK is selected, then each user process will have
+ * two stacks:  (1) a large (and possibly dynamic) user stack and (2) a
+ * smaller kernel stack.  However, this option is *required* if both
+ * CONFIG_BUILD_KERNEL and CONFIG_LIBC_EXECFUNCS are selected.  Why?  Because
+ * when we instantiate and initialize the address environment of the new
+ * user process, we will temporarily lose the address environment of the old
+ * user process, including its stack contents.  The kernel C logic will crash
+ * immediately with no valid stack in place.
+ *
+ * If CONFIG_ARCH_KERNEL_STACK=y is selected then the platform specific
+ * code must export these additional interfaces:
+ *
+ *   up_addrenv_kstackalloc  - Create a stack in the kernel address environment
+ *   up_addrenv_kstackfree   - Destroy the kernel stack.
  *
  ****************************************************************************/
 /****************************************************************************
  * Name: up_addrenv_create
  *
  * Description:
- *   This function is called from the binary loader logic when a new
- *   task is created in order to instantiate an address environment for the
- *   task.  up_addrenv_create is essentially the allocator of the physical
+ *   This function is called when a new task is created in order to
+ *   instantiate an address environment for the new task group.
+ *   up_addrenv_create() is essentially the allocator of the physical
  *   memory for the new task.
  *
  * Input Parameters:
- *   envsize - The size (in bytes) of the address environment needed by the
- *     task.
+ *   textsize - The size (in bytes) of the .text address environment needed
+ *     by the task.  This region may be read/execute only.
+ *   datasize - The size (in bytes) of the .data/.bss address environment
+ *     needed by the task.  This region may be read/write only.  NOTE: The
+ *     actual size of the data region that is allocated will include a
+ *     OS private reserved region at the beginning.  The size of the
+ *     private, reserved region is give by ARCH_DATA_RESERVE_SIZE.
+ *   heapsize - The initial size (in bytes) of the heap address environment
+ *     needed by the task.  This region may be read/write only.
  *   addrenv - The location to return the representation of the task address
  *     environment.
  *
@@ -712,40 +811,115 @@ void up_allocate_kheap(FAR void **heap_start, size_t *heap_size);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ADDRENV
-int up_addrenv_create(size_t envsize, FAR task_addrenv_t *addrenv);
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_create(size_t textsize, size_t datasize, size_t heapsize,
+                      FAR group_addrenv_t *addrenv);
 #endif
 
 /****************************************************************************
- * Name: up_addrenv_vaddr
+ * Name: up_addrenv_destroy
  *
  * Description:
- *   Return the virtual address associated with the newly create address
- *   environment.  This function is used by the binary loaders in order
- *   get an address that can be used to initialize the new task.
+ *   This function is called when a final thread leaves the task group and
+ *   the task group is destroyed.  This function then destroys the defunct
+ *   address environment, releasing the underlying physical memory.
  *
  * Input Parameters:
- *   addrenv - The representation of the task address environment previously
- *      returned by up_addrenv_create.
- *   vaddr - The location to return the virtual address.
+ *   addrenv - The address environment to be destroyed.
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ADDRENV
-int up_addrenv_vaddr(FAR task_addrenv_t addrenv, FAR void **vaddr);
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_destroy(FAR group_addrenv_t *addrenv);
+#endif
+
+/****************************************************************************
+ * Name: up_addrenv_vtext
+ *
+ * Description:
+ *   Return the virtual address associated with the newly create .text
+ *   address environment.  This function is used by the binary loaders in
+ *   order get an address that can be used to initialize the new task.
+ *
+ * Input Parameters:
+ *   addrenv - The representation of the task address environment previously
+ *      returned by up_addrenv_create.
+ *   vtext - The location to return the virtual address.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_vtext(FAR group_addrenv_t *addrenv, FAR void **vtext);
+#endif
+
+/****************************************************************************
+ * Name: up_addrenv_vdata
+ *
+ * Description:
+ *   Return the virtual address associated with the newly create .text
+ *   address environment.  This function is used by the binary loaders in
+ *   order get an address that can be used to initialize the new task.
+ *
+ * Input Parameters:
+ *   addrenv - The representation of the task address environment previously
+ *      returned by up_addrenv_create.
+ *   textsize - For some implementations, the text and data will be saved
+ *      in the same memory region (read/write/execute) and, in this case,
+ *      the virtual address of the data just lies at this offset into the
+ *      common region.
+ *   vdata - The location to return the virtual address.  NOTE that the
+ *      beginning of the data region is reserved for use by the OS.  The
+ *      returned address will be at a offset from the actual allocated base
+ *      address to account for the OS private region.  The size of that
+ *      offset is given by ARCH_DATA_RESERVE_SIZE
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_vdata(FAR group_addrenv_t *addrenv, uintptr_t textsize,
+                     FAR void **vdata);
+#endif
+
+/****************************************************************************
+ * Name: up_addrenv_heapsize
+ *
+ * Description:
+ *   Return the initial heap allocation size.  That is the amount of memory
+ *   allocated by up_addrenv_create() when the heap memory region was first
+ *   created.  This may or may not differ from the heapsize parameter that
+ *   was passed to up_addrenv_create()
+ *
+ * Input Parameters:
+ *   addrenv - The representation of the task address environment previously
+ *     returned by up_addrenv_create.
+ *
+ * Returned Value:
+ *   The initial heap size allocated is returned on success; a negated
+ *   errno value on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_BUILD_KERNEL)
+ssize_t up_addrenv_heapsize(FAR const group_addrenv_t *addrenv);
 #endif
 
 /****************************************************************************
  * Name: up_addrenv_select
  *
  * Description:
- *   After an address environment has been established for a task (via
+ *   After an address environment has been established for a task group (via
  *   up_addrenv_create().  This function may be called to to instantiate
  *   that address environment in the virtual address space.  this might be
- *   necessary, for example, to load the code for the task from a file or
+ *   necessary, for example, to load the code for the task group from a file or
  *   to access address environment private data.
  *
  * Input Parameters:
@@ -755,28 +929,29 @@ int up_addrenv_vaddr(FAR task_addrenv_t addrenv, FAR void **vaddr);
  *     The address environment that was in place before up_addrenv_select().
  *     This may be used with up_addrenv_restore() to restore the original
  *     address environment that was in place before up_addrenv_select() was
- *     called.  Note that this may be a task agnostic, hardware
- *     representation that is different from task_addrenv_t.
+ *     called.  Note that this may be a task agnostic, platform-specific
+ *     representation that may or may not be different from group_addrenv_t.
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ADDRENV
-int up_addrenv_select(task_addrenv_t addrenv, hw_addrenv_t *oldenv);
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_select(FAR const group_addrenv_t *addrenv,
+                      FAR save_addrenv_t *oldenv);
 #endif
 
 /****************************************************************************
  * Name: up_addrenv_restore
  *
  * Description:
- *   After an address environment has been temporarilty instantiated by
- *   up_addrenv_select, this function may be called to to restore the
+ *   After an address environment has been temporarily instantiated by
+ *   up_addrenv_select(), this function may be called to to restore the
  *   original address environment.
  *
  * Input Parameters:
- *   oldenv - The hardware representation of the address environment
+ *   oldenv - The platform-specific representation of the address environment
  *     previously returned by up_addrenv_select.
  *
  * Returned Value:
@@ -784,82 +959,93 @@ int up_addrenv_select(task_addrenv_t addrenv, hw_addrenv_t *oldenv);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ADDRENV
-int up_addrenv_restore(hw_addrenv_t oldenv);
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_restore(FAR const save_addrenv_t *oldenv);
 #endif
 
 /****************************************************************************
- * Name: up_addrenv_destroy
+ * Name: up_addrenv_coherent
  *
  * Description:
- *   Called from the binary loader loader during error handling to destroy
- *   the address environment previously created by up_addrenv_create().
+ *   Flush D-Cache and invalidate I-Cache in preparation for a change in
+ *   address environments.  This should immediately precede a call to
+ *   up_addrenv_select();
  *
  * Input Parameters:
- *   addrenv - The representation of the task address environment previously
- *     returned by up_addrenv_create.
+ *   addrenv - Describes the address environment to be made coherent.
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ADDRENV
-int up_addrenv_destroy(task_addrenv_t addrenv);
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_coherent(FAR const group_addrenv_t *addrenv);
 #endif
 
 /****************************************************************************
- * Name: up_addrenv_assign
+ * Name: up_addrenv_clone
  *
  * Description:
- *   Assign an address environment to a TCB.
+ *   Duplicate an address environment.  This does not copy the underlying
+ *   memory, only the representation that can be used to instantiate that
+ *   memory as an address environment.
  *
  * Input Parameters:
- *   addrenv - The representation of the task address environment previously
- *     returned by up_addrenv_create.
- *   tcb - The TCB of the task to receive the address environment.
+ *   src - The address environment to be copied.
+ *   dest - The location to receive the copied address environment.
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ADDRENV
-int up_addrenv_assign(task_addrenv_t addrenv, FAR struct tcb_s *tcb);
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_clone(FAR const group_addrenv_t *src,
+                     FAR group_addrenv_t *dest);
 #endif
 
 /****************************************************************************
- * Name: up_addrenv_share
+ * Name: up_addrenv_attach
  *
  * Description:
  *   This function is called from the core scheduler logic when a thread
- *   is created that needs to share the address ennvironment of its parent
- *   task.  In this case, the parent's address environment needs to be
- *   "cloned" for the child.
+ *   is created that needs to share the address environment of its task
+ *   group.
+ *
+ *   NOTE: In some platforms, nothing will need to be done in this case.
+ *   Simply being a member of the group that has the address environment
+ *   may be sufficient.
  *
  * Input Parameters:
- *   ptcb - The TCB of the parent task that has the address environment.
- *   ctcb - The TCB of the child thread needing the address environment.
+ *   group - The task group to which the new thread belongs.
+ *   tcb   - The TCB of the thread needing the address environment.
  *
  * Returned Value:
  *   Zero (OK) on success; a negated errno value on failure.
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ADDRENV
-int up_addrenv_share(FAR const struct tcb_s *ptcb, FAR struct tcb_s *ctcb);
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_attach(FAR struct task_group_s *group, FAR struct tcb_s *tcb);
 #endif
 
 /****************************************************************************
- * Name: up_addrenv_release
+ * Name: up_addrenv_detach
  *
  * Description:
  *   This function is called when a task or thread exits in order to release
- *   its reference to an address environment.  When there are no further
- *   references to an address environment, that address environment should
- *   be destroyed.
+ *   its reference to an address environment.  The address environment,
+ *   however, should persist until up_addrenv_destroy() is called when the
+ *   task group is itself destroyed.  Any resources unique to this thread
+ *   may be destroyed now.
+ *
+ *   NOTE: In some platforms, nothing will need to be done in this case.
+ *   Simply being a member of the group that has the address environment
+ *   may be sufficient.
  *
  * Input Parameters:
+ *   group - The group to which the thread belonged.
  *   tcb - The TCB of the task or thread whose the address environment will
  *     be released.
  *
@@ -868,8 +1054,182 @@ int up_addrenv_share(FAR const struct tcb_s *ptcb, FAR struct tcb_s *ctcb);
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ADDRENV
-int up_addrenv_release(FAR struct tcb_s *tcb);
+#ifdef CONFIG_ARCH_ADDRENV
+int up_addrenv_detach(FAR struct task_group_s *group, FAR struct tcb_s *tcb);
+#endif
+
+/****************************************************************************
+ * Name: up_addrenv_ustackalloc
+ *
+ * Description:
+ *   This function is called when a new thread is created in order to
+ *   instantiate an address environment for the new thread's stack.
+ *   up_addrenv_ustackalloc() is essentially the allocator of the physical
+ *   memory for the new task's stack.
+ *
+ * Input Parameters:
+ *   tcb - The TCB of the thread that requires the stack address environment.
+ *   stacksize - The size (in bytes) of the initial stack address
+ *     environment needed by the task.  This region may be read/write only.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_STACK_DYNAMIC)
+int up_addrenv_ustackalloc(FAR struct tcb_s *tcb, size_t stacksize);
+#endif
+
+/****************************************************************************
+ * Name: up_addrenv_ustackfree
+ *
+ * Description:
+ *   This function is called when any thread exits.  This function then
+ *   destroys the defunct address environment for the thread's stack,
+ *   releasing the underlying physical memory.
+ *
+ * Input Parameters:
+ *   tcb - The TCB of the thread that no longer requires the stack address
+ *     environment.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_STACK_DYNAMIC)
+int up_addrenv_ustackfree(FAR struct tcb_s *tcb);
+#endif
+
+/****************************************************************************
+ * Name: up_addrenv_vustack
+ *
+ * Description:
+ *   Return the virtual address associated with the newly create stack
+ *   address environment.
+ *
+ * Input Parameters:
+ *   tcb - The TCB of the thread with the stack address environment of
+ *     interest.
+ *   vstack - The location to return the stack virtual base address.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_STACK_DYNAMIC)
+int up_addrenv_vustack(FAR const struct tcb_s *tcb, FAR void **vstack);
+#endif
+
+/****************************************************************************
+ * Name: up_addrenv_ustackselect
+ *
+ * Description:
+ *   After an address environment has been established for a task's stack
+ *   (via up_addrenv_ustackalloc().  This function may be called to instantiate
+ *   that address environment in the virtual address space.  This is a
+ *   necessary step before each context switch to the newly created thread
+ *   (including the initial thread startup).
+ *
+ * Input Parameters:
+ *   tcb - The TCB of the thread with the stack address environment to be
+ *     instantiated.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_STACK_DYNAMIC)
+int up_addrenv_ustackselect(FAR const struct tcb_s *tcb);
+#endif
+
+/****************************************************************************
+ * Name: up_addrenv_kstackalloc
+ *
+ * Description:
+ *   This function is called when a new thread is created to allocate
+ *   the new thread's kernel stack.   This function may be called for certain
+ *   terminating threads which have no kernel stack.  It must be tolerant of
+ *   that case.
+ *
+ * Input Parameters:
+ *   tcb - The TCB of the thread that requires the kernel stack.
+ *   stacksize - The size (in bytes) of the kernel stack needed by the
+ *     thread.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_KERNEL_STACK)
+int up_addrenv_kstackalloc(FAR struct tcb_s *tcb);
+#endif
+
+/****************************************************************************
+ * Name: up_addrenv_kstackfree
+ *
+ * Description:
+ *   This function is called when any thread exits.  This function frees
+ *   the kernel stack.
+ *
+ * Input Parameters:
+ *   tcb - The TCB of the thread that no longer requires the kernel stack.
+ *
+ * Returned Value:
+ *   Zero (OK) on success; a negated errno value on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_KERNEL_STACK)
+int up_addrenv_kstackfree(FAR struct tcb_s *tcb);
+#endif
+
+/****************************************************************************
+ * Name: up_shmat
+ *
+ * Description:
+ *   Attach, i.e, map, on shared memory region to a user virtual address
+ *
+ * Input Parameters:
+ *   pages - A pointer to the first element in a array of physical address,
+ *     each corresponding to one page of memory.
+ *   npages - The number of pages in the list of physical pages to be mapped.
+ *   vaddr - The virtual address corresponding to the beginning of the
+ *     (contiguous) virtual address region.
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; a negated errno value is returned
+ *   on failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_MM_SHM
+int up_shmat(FAR uintptr_t *pages, unsigned int npages, uintptr_t vaddr);
+#endif
+
+/****************************************************************************
+ * Name: up_shmdt
+ *
+ * Description:
+ *   Detach, i.e, unmap, on shared memory region from a user virtual address
+ *
+ * Input Parameters:
+ *   vaddr - The virtual address corresponding to the beginning of the
+ *     (contiguous) virtual address region.
+ *   npages - The number of pages to be unmapped
+ *
+ * Returned Value:
+ *   Zero (OK) is returned on success; a negated errno value is returned
+ *   on failure.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_MM_SHM
+int up_shmdt(uintptr_t vaddr, unsigned int npages);
 #endif
 
 /****************************************************************************
@@ -1239,9 +1599,9 @@ void up_udelay(useconds_t microseconds);
  *   initialization of the static C++ class instances.
  *
  *   This function should then be called in the application-specific
- *   user_start logic in order to perform the C++ initialization.  NOTE
- *   that no component of the core NuttX RTOS logic is involved; This
- *   function definition only provides the 'contract' between application
+ *   logic in order to perform the C++ initialization.  NOTE  that no
+ *   component of the core NuttX RTOS logic is involved; This function
+ *   definition only provides the 'contract' between application
  *   specific C++ code and platform-specific toolchain support
  *
  ***************************************************************************/
@@ -1444,6 +1804,73 @@ uint8_t board_buttons(void);
 
 #ifdef CONFIG_ARCH_IRQBUTTONS
 xcpt_t board_button_irq(int id, xcpt_t irqhandler);
+#endif
+
+/****************************************************************************
+ * Name: arch_phy_irq
+ *
+ * Description:
+ *   This function may be called to register an interrupt handler that will
+ *   be called when a PHY interrupt occurs.  This function both attaches
+ *   the interrupt handler and enables the interrupt if 'handler' is non-
+ *   NULL.  If handler is NULL, then the interrupt is detached and disabled
+ *   instead.
+ *
+ *   The PHY interrupt is always disabled upon return.  The caller must
+ *   call back through the enable function point to control the state of
+ *   the interrupt.
+ *
+ *   This interrupt may or may not be available on a given platform depending
+ *   on how the network hardware architecture is implemented.  In a typical
+ *   case, the PHY interrupt is provided to board-level logic as a GPIO
+ *   interrupt (in which case this is a board-specific interface and really
+ *   should be called board_phy_irq()); In other cases, the PHY interrupt
+ *   may be cause by the chip's MAC logic (in which case arch_phy_irq()) is
+ *   an appropriate name.  Other other boards, there may be no PHY interrupts
+ *   available at all.  If client attachable PHY interrupts are available
+ *   from the board or from the chip, then CONFIG_ARCH_PHY_INTERRUPT should
+ *   be defined to indicate that fact.
+ *
+ *   Typical usage:
+ *   a. OS service logic (not application logic*) attaches to the PHY
+ *      PHY interrupt and enables the PHY interrupt.
+ *   b. When the PHY interrupt occurs:  (1) the interrupt should be
+ *      disabled and () work should be scheduled on the worker thread (or
+ *      perhaps a dedicated application thread).
+ *   c. That worker thread should use the SIOCGMIIPHY, SIOCGMIIREG,
+ *      and SIOCSMIIREG ioctl calls** to communicate with the PHY,
+ *      determine what network event took place (Link Up/Down?), and
+ *      take the appropriate actions.
+ *   d. It should then interact the the PHY to clear any pending
+ *      interrupts, then re-enable the PHY interrupt.
+ *
+ *    * This is an OS internal interface and should not be used from
+ *      application space.  Rather applications should use the SIOCMIISIG
+ *      ioctl to receive a signal when a PHY event occurs.
+ *   ** This interrupt is really of no use if the Ethernet MAC driver
+ *      does not support these ioctl calls.
+ *
+ * Input Parameters:
+ *   intf    - Identifies the network interface.  For example "eth0".  Only
+ *             useful on platforms that support multiple Ethernet interfaces
+ *             and, hence, multiple PHYs and PHY interrupts.
+ *   handler - The client interrupt handler to be invoked when the PHY
+ *             asserts an interrupt.  Must reside in OS space, but can
+ *             signal tasks in user space.  A value of NULL can be passed
+ *             in order to detach and disable the PHY interrupt.
+ *   enable  - A function pointer that be unsed to enable or disable the
+ *             PHY interrupt.
+ *
+ * Returned Value:
+ *   The previous PHY interrupt handler address is returned.  This allows you
+ *   to temporarily replace an interrupt handler, then restore the original
+ *   interrupt handler.  NULL is returned if there is was not handler in
+ *   place when the call was made.
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_ARCH_PHY_INTERRUPT
+xcpt_t arch_phy_irq(FAR const char *intf, xcpt_t handler, phy_enable_t *enable);
 #endif
 
 /************************************************************************************

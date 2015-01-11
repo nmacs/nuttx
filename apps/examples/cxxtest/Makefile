@@ -39,41 +39,52 @@ include $(APPDIR)/Make.defs
 
 # CXX test program
 
-ASRCS		=
-CSRCS		=
-CXXSRCS		= cxxtest_main.cxx
+ASRCS =
+CSRCS =
+CXXSRCS = 
+MAINSRC = cxxtest_main.cxx
 
-AOBJS		= $(ASRCS:.S=$(OBJEXT))
-COBJS		= $(CSRCS:.c=$(OBJEXT))
-CXXOBJS		= $(CXXSRCS:.cxx=$(OBJEXT))
+AOBJS = $(ASRCS:.S=$(OBJEXT))
+COBJS = $(CSRCS:.c=$(OBJEXT))
+CXXOBJS = $(CXXSRCS:.cxx=$(OBJEXT))
+MAINOBJ = $(MAINSRC:.cxx=$(OBJEXT))
 
-SRCS		= $(ASRCS) $(CSRCS) $(CXXSRCS)
-OBJS		= $(AOBJS) $(COBJS) $(CXXOBJS)
+SRCS = $(ASRCS) $(CSRCS) $(CXXSRCS)
+OBJS = $(AOBJS) $(COBJS) $(CXXOBJS)
+
+ifneq ($(CONFIG_BUILD_KERNEL),y)
+  OBJS += $(MAINOBJ)
+endif
 
 ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN		= ..\..\libapps$(LIBEXT)
+  BIN = ..\..\libapps$(LIBEXT)
 else
 ifeq ($(WINTOOL),y)
-  BIN		= ..\\..\\libapps$(LIBEXT)
+  BIN = ..\\..\\libapps$(LIBEXT)
 else
-  BIN		= ../../libapps$(LIBEXT)
+  BIN = ../../libapps$(LIBEXT)
 endif
 endif
 
-ROOTDEPPATH	= --dep-path .
+CONFIG_XYZ_PROGNAME ?= cxxtest$(EXEEXT)
+PROGNAME = $(CONFIG_XYZ_PROGNAME)
+
+ROOTDEPPATH = --dep-path .
+
+ROOTDEPPATH = --dep-path .
 
 # cxxtest built-in application info
 
-APPNAME		= cxxtest
-PRIORITY	= SCHED_PRIORITY_DEFAULT
-STACKSIZE	= 4096
+APPNAME = cxxtest
+PRIORITY = SCHED_PRIORITY_DEFAULT
+STACKSIZE = 4096
 
 # Common build
 
-VPATH		=
+VPATH =
 
 all: .built
-.PHONY:	clean depend distclean chkcxx
+.PHONY: clean depend distclean chkcxx
 
 chkcxx:
 ifneq ($(CONFIG_HAVE_CXX),y)
@@ -93,13 +104,25 @@ $(AOBJS): %$(OBJEXT): %.S
 $(COBJS): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
-$(CXXOBJS): %$(OBJEXT): %.cxx
+$(CXXOBJS) $(MAINOBJ): %$(OBJEXT): %.cxx
 	$(call COMPILEXX, $<, $@)
 
 .built: chkcxx $(OBJS)
 	$(call ARCHIVE, $(BIN), $(OBJS))
 	@touch .built
 
+ifeq ($(CONFIG_BUILD_KERNEL),y)
+$(BIN_DIR)$(DELIM)$(PROGNAME): $(OBJS) $(MAINOBJ)
+	@echo "LD: $(PROGNAME)"
+	$(Q) $(LD) $(LDELFFLAGS) $(LDLIBPATH) -o $(INSTALL_DIR)$(DELIM)$(PROGNAME) $(ARCHCRT0OBJ) $(MAINOBJ) $(LDLIBS)
+	$(Q) $(NM) -u  $(INSTALL_DIR)$(DELIM)$(PROGNAME)
+
+install: $(BIN_DIR)$(DELIM)$(PROGNAME)
+
+else
+install:
+
+endif
 ifeq ($(CONFIG_NSH_BUILTIN_APPS),y)
 $(BUILTIN_REGISTRY)$(DELIM)$(APPNAME)_main.bdat: $(DEPCONFIG) Makefile
 	$(call REGISTER,$(APPNAME),$(PRIORITY),$(STACKSIZE),$(APPNAME)_main)

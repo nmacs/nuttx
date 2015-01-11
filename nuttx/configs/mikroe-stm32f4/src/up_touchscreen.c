@@ -160,7 +160,7 @@
 #define TC_PENDOWN_POLL_TICKS MSEC2TICK(40)  /* Active polling rate: 40 MSec */
 #define TC_DEBOUNCE_TICKS     MSEC2TICK(16)  /* Delay before re-sampling: 16 MSec */
 #define TC_SAMPLE_TICKS       MSEC2TICK(4)   /* Delay for A/D sampling: 4 MSec */
-#define TC_SETTLE_TICKS       MSECT2TICK(10) /* Delay for A/D settling: 10 MSec */
+#define TC_SETTLE_TICKS       MSEC2TICK(10)  /* Delay for A/D settling: 10 MSec */
 #define TC_RESAMPLE_TICKS     TC_SAMPLE_TICKS
 
 /************************************************************************************
@@ -1529,10 +1529,10 @@ int arch_tcinitialize(int minor)
 #ifndef CONFIG_TOUCHSCREEN_MULTIPLE
   priv = &g_touchscreen;
 #else
-  priv = (FAR struct tc_dev_s *)kmalloc(sizeof(struct tc_dev_s));
+  priv = (FAR struct tc_dev_s *)kmm_malloc(sizeof(struct tc_dev_s));
   if (!priv)
     {
-      idbg("kmalloc(%d) failed\n", sizeof(struct tc_dev_s));
+      idbg("kmm_malloc(%d) failed\n", sizeof(struct tc_dev_s));
       return -ENOMEM;
     }
 #endif
@@ -1578,7 +1578,7 @@ int arch_tcinitialize(int minor)
 errout_with_priv:
   sem_destroy(&priv->devsem);
 #ifdef CONFIG_TOUCHSCREEN_MULTIPLE
-  kfree(priv);
+  kmm_free(priv);
 #endif
   return ret;
 }

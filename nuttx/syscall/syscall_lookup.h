@@ -65,7 +65,11 @@ SYSCALL_LOOKUP(sem_trywait,               1, STUB_sem_trywait)
 SYSCALL_LOOKUP(sem_unlink,                1, STUB_sem_unlink)
 SYSCALL_LOOKUP(sem_wait,                  1, STUB_sem_wait)
 SYSCALL_LOOKUP(set_errno,                 1, STUB_set_errno)
+#ifndef CONFIG_BUILD_KERNEL
 SYSCALL_LOOKUP(task_create,               5, STUB_task_create)
+#else
+SYSCALL_LOOKUP(pgalloc,                   2, STUB_pgalloc)
+#endif
 SYSCALL_LOOKUP(task_delete,               1, STUB_task_delete)
 SYSCALL_LOOKUP(task_restart,              1, STUB_task_restart)
 SYSCALL_LOOKUP(up_assert,                 2, STUB_up_assert)
@@ -73,7 +77,7 @@ SYSCALL_LOOKUP(up_assert,                 2, STUB_up_assert)
 /* The following can be individually enabled */
 
 #ifdef CONFIG_ARCH_HAVE_VFORK
-  SYSCALL_LOOKUP(vfork,                   0, SYS_vfork)
+  SYSCALL_LOOKUP(vfork,                   0, STUB_vfork)
 #endif
 
 #ifdef CONFIG_SCHED_ATEXIT
@@ -96,14 +100,13 @@ SYSCALL_LOOKUP(up_assert,                 2, STUB_up_assert)
  * programs from a file system.
  */
 
-#if defined(CONFIG_BINFMT_DISABLE) && defined(CONFIG_LIBC_EXECFUNCS)
+#if !defined(CONFIG_BINFMT_DISABLE) && defined(CONFIG_LIBC_EXECFUNCS)
 #  ifdef CONFIG_BINFMT_EXEPATH
-  SYSCALL_LOOKUP(posix_spawnp,            6, SYS_posixspawnp)
+  SYSCALL_LOOKUP(posix_spawnp,            6, STUB_posix_spawnp)
 #  else
-  SYSCALL_LOOKUP(posix_spawn,             6, SYS_posixspawn)
+  SYSCALL_LOOKUP(posix_spawn,             6, STUB_posix_spawn)
 #  endif
-  SYSCALL_LOOKUP(execv,                   2, SYS_execv)
-  SYSCALL_LOOKUP(execl,                   6, SYS_execl)
+  SYSCALL_LOOKUP(execv,                   2, STUB_execv)
 #endif
 
 /* The following are only defined is signals are supported in the NuttX
@@ -197,6 +200,15 @@ SYSCALL_LOOKUP(up_assert,                 2, STUB_up_assert)
 #  endif
 #endif
 
+/* Shared memory interfaces */
+
+#ifdef CONFIG_MM_SHM
+  SYSCALL_LOOKUP(shmget,                  3, STUB_shmget)
+  SYSCALL_LOOKUP(shmat,                   3, STUB_shmat)
+  SYSCALL_LOOKUP(shmctl,                  3, STUB_shmctl)
+  SYSCALL_LOOKUP(shmdt,                   1, STUB_shmdt)
+#endif
+
 /* The following are defined if pthreads are enabled */
 
 #ifndef CONFIG_DISABLE_PTHREAD
@@ -287,5 +299,3 @@ SYSCALL_LOOKUP(up_assert,                 2, STUB_up_assert)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
-

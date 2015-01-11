@@ -188,8 +188,23 @@ config PREALLOC_WDOGS
 	int "Number of pre-allocated watchdog timers"
 	default 32
 	---help---
-		The number of pre-allocated watchdog structures.  The system manages a
-		pool of preallocated watchdog structures to minimize dynamic allocations
+		The number of pre-allocated watchdog structures.  The system manages
+		a pool of preallocated watchdog structures to minimize dynamic
+		allocations.  Dynamic allocations will still be made if this pool is
+		exhausted.  You will, however, get better performance and memory
+		usage if this value is tuned to minimize such allocations.
+
+config WDOG_INTRESERVE
+	int "Watchdog structures reserved for interrupt handlers"
+	default 4
+	---help---
+		Watchdog structures may be allocated from normal task and also from
+		interrupt handlers.  Interrupt handlers, however, can only use pre-
+		allocated watchdog timer.  So, in order to keep normal task
+		allocations from exhausting all watchdog structures, a small number
+		of pre-allocated watchdog timers must be reserved for exclusive use
+		by interrupt handler.  This setting determines that number of
+		reserved watchdogs.
 
 config PREALLOC_TIMERS
 	int "Number of pre-allocated POSIX timers"
@@ -203,13 +218,75 @@ endmenu # Clocks and Timers
 
 menu "Tasks and Scheduling"
 
+choice
+	prompt "Initialization Task"
+	default INIT_ENTRYPOINT if !BUILD_KERNEL
+	default INIT_FILEPATH if BUILD_KERNEL && !BINFMT_DISABLE
+	default INIT_NONE if BUILD_KERNEL && BINFMT_DISABLE
+
+config INIT_NONE
+	bool "None"
+
+config INIT_ENTRYPOINT
+	bool "Via application entry point"
+	depends on !BUILD_KERNEL
+
+config INIT_FILEPATH
+	bool "Via executable file"
+	depends on !BINFMT_DISABLE
+
+endchoice # Initialization task
+
+if INIT_ENTRYPOINT
 config USER_ENTRYPOINT
 	string "Application entry point"
-	default "user_start"
+	default "main"
 	---help---
 		The name of the entry point for user applications.  For the example
 		applications this is of the form 'app_main' where 'app' is the application
-		name. If not defined, USER_ENTRYPOINT defaults to "user_start."
+		name. If not defined, USER_ENTRYPOINT defaults to "main".
+
+endif # INIT_ENTRYPOINT
+
+if INIT_FILEPATH
+
+config USER_INITPATH
+	string "Application initialization path"
+	default "/bin/init"
+	---help---
+		The name of the entry point for user applications.  For the example
+		applications this is of the form 'app_main' where 'app' is the application
+		name. If not defined, USER_ENTRYPOINT defaults to "main".
+
+config INIT_SYMTAB
+	string "Symbol table"
+	default "NULL"
+	depends on !BUILD_PROTECTED && !BUILD_KERNEL
+	---help---
+		The name of othe global array that holds the exported symbol table.
+		The special string "NULL" may be provided if there is no symbol
+		table.  Quotation marks will be stripped when config.h is generated.
+
+		NOTE: This setting cannot be used in protected or kernel builds.
+		Any kernel mode symbols tables would not be usable for resolving
+		symbols in user mode executables.
+
+config INIT_NEXPORTS
+	string "Symbol table size"
+	default "0"
+	depends on !BUILD_PROTECTED && !BUILD_KERNEL
+	---help---
+		The size of the symbol table.  NOTE that is is logically a numeric
+		value but is represent by a string.  That allows you to put
+		sizeof(something) or a macro or a global variable name for the
+		symbol table size.  Quotation marks will be stripped when config.h
+		is generated.
+
+		NOTE: This setting cannot be used in protected or kernel builds.
+		Any kernel mode symbols tables would not be usable for resolving
+		symbols in user mode executables.
+
+endif # INIT_FILEPATH
 
 config RR_INTERVAL
 	int "Round robin timeslice (MSEC)"
@@ -574,6 +651,40 @@ config BOARD_INITIALIZE
 		phase may be used, for example, to initialize board-specific
 		device drivers.
 
+if BOARD_INITIALIZE
+
+config BOARD_INITTHREAD
+	bool "Board initialization thread"
+	default n
+	---help---
+		Some initialization operations cannot be performed on the start-up,
+		initialization thread.  That is because the initialization thread
+		cannot wait for event.  If waiting is required as part of the board
+		initialization then this option must be selected.  Waiting may be
+		required, for example, to mount a file system or or initialize a
+		device such as an SD card.
+
+if BOARD_INITTHREAD
+
+config BOARD_INITTHREAD_STACKSIZE
+	int "Board initialization thread stack size"
+	default 2048
+	---help---
+		The size of the stack to allocate when starting the board
+		initialization thread.
+
+config BOARD_INITTHREAD_PRIORITY
+	int "Board initialization thread priority"
+	default 240
+	---help---
+		The priority of the board initialization thread.  This priority is
+		not a critical setting.  No other application threads will be
+		started until the board initialization is completed.  Hence, there
+		is very little competition for the CPU.
+
+endif # BOARD_INITTHREAD
+endif # BOARD_INITIALIZE
+
 config SCHED_STARTHOOK
 	bool "Enable startup hook"
 	default n
@@ -701,16 +812,16 @@ config IDLETHREAD_STACKSIZE
 	default 1024
 	---help---
 		The size of the initial stack used by the IDLE thread.  The IDLE thread
-		is the thread that (1) performs the inital boot of the system up to the
-		point where user_start() is spawned, and (2) there after is the IDLE
-		thread that executes only when there is no other thread ready to run.
+		is the thread that (1) performs the initial boot of the system up to the
+		point where start-up appliation is spawned, and (2) there after is the
+		IDLE thread that executes only when there is no other thread ready to run.
 
 config USERMAIN_STACKSIZE
 	int "Main thread stack size"
 	default 2048
 	---help---
-		The size of the stack to allocate for the main user thread that begins at
-		the user_start() entry point.
+		The size of the stack to allocate for the user initialization thread
+		that is started as soon as the OS completes its initialization.
 
 config PTHREAD_STACK_MIN
 	int "Minimum pthread stack size"

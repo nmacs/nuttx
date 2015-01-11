@@ -298,9 +298,9 @@ static int usbmsc_bind(FAR struct usbdevclass_driver_s *driver,
 
   /* Pre-allocate all endpoints... the endpoints will not be functional
    * until the SET CONFIGURATION request is processed in usbmsc_setconfig.
-   * This is done here because there may be calls to kmalloc and the SET
+   * This is done here because there may be calls to kmm_malloc and the SET
    * CONFIGURATION processing probably occurrs within interrupt handling
-   * logic where kmalloc calls will fail.
+   * logic where kmm_malloc calls will fail.
    */
 
   /* Pre-allocate the IN bulk endpoint */
@@ -1326,7 +1326,7 @@ int usbmsc_configure(unsigned int nluns, void **handle)
 
   /* Allocate the structures needed */
 
-  alloc = (FAR struct usbmsc_alloc_s*)kmalloc(sizeof(struct usbmsc_alloc_s));
+  alloc = (FAR struct usbmsc_alloc_s*)kmm_malloc(sizeof(struct usbmsc_alloc_s));
   if (!alloc)
     {
       usbtrace(TRACE_CLSERROR(USBMSC_TRACEERR_ALLOCDEVSTRUCT), 0);
@@ -1347,7 +1347,7 @@ int usbmsc_configure(unsigned int nluns, void **handle)
 
   /* Allocate the LUN table */
 
-  priv->luntab = (struct usbmsc_lun_s*)kmalloc(priv->nluns*sizeof(struct usbmsc_lun_s));
+  priv->luntab = (struct usbmsc_lun_s*)kmm_malloc(priv->nluns*sizeof(struct usbmsc_lun_s));
   if (!priv->luntab)
     {
       ret = -ENOMEM;
@@ -1489,7 +1489,7 @@ int usbmsc_bindlun(FAR void *handle, FAR const char *drvrpath,
 
   if (!priv->iobuffer)
     {
-      priv->iobuffer = (uint8_t*)kmalloc(geo.geo_sectorsize);
+      priv->iobuffer = (uint8_t*)kmm_malloc(geo.geo_sectorsize);
       if (!priv->iobuffer)
         {
           usbtrace(TRACE_CLSERROR(USBMSC_TRACEERR_ALLOCIOBUFFER), geo.geo_sectorsize);
@@ -1501,7 +1501,7 @@ int usbmsc_bindlun(FAR void *handle, FAR const char *drvrpath,
   else if (priv->iosize < geo.geo_sectorsize)
     {
       void *tmp;
-      tmp = (uint8_t*)krealloc(priv->iobuffer, geo.geo_sectorsize);
+      tmp = (uint8_t*)kmm_realloc(priv->iobuffer, geo.geo_sectorsize);
       if (!tmp)
         {
           usbtrace(TRACE_CLSERROR(USBMSC_TRACEERR_REALLOCIOBUFFER), geo.geo_sectorsize);
@@ -1646,7 +1646,7 @@ int usbmsc_exportluns(FAR void *handle)
   g_usbmsc_handoff = priv;
 
   uvdbg("Starting SCSI worker thread\n");
-  priv->thpid = KERNEL_THREAD("scsid", CONFIG_USBMSC_SCSI_PRIO,
+  priv->thpid = kernel_thread("scsid", CONFIG_USBMSC_SCSI_PRIO,
                               CONFIG_USBMSC_SCSI_STACKSIZE,
                               usbmsc_scsi_main, NULL);
   if (priv->thpid <= 0)
@@ -1771,7 +1771,7 @@ void usbmsc_uninitialize(FAR void *handle)
        * free the memory resources.
        */
 
-      kfree(priv);
+      kmm_free(priv);
       return;
     }
 #endif
@@ -1818,13 +1818,13 @@ void usbmsc_uninitialize(FAR void *handle)
       usbmsc_lununinitialize(&priv->luntab[i]);
     }
 
-  kfree(priv->luntab);
+  kmm_free(priv->luntab);
 
   /* Release the I/O buffer */
 
   if (priv->iobuffer)
     {
-      kfree(priv->iobuffer);
+      kmm_free(priv->iobuffer);
     }
 
   /* Uninitialize and release the driver structure */
@@ -1840,6 +1840,6 @@ void usbmsc_uninitialize(FAR void *handle)
    * second pass because of priv->thpid == 0)
    */
 
-  kfree(priv);
+  kmm_free(priv);
 #endif
 }

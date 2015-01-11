@@ -603,11 +603,11 @@ FAR struct mtd_dev_s *s512_initialize(FAR struct mtd_dev_s *mtd)
    * to be extended to handle multiple FLASH parts on the same SPI bus.
    */
 
-  priv = (FAR struct s512_dev_s *)kzalloc(sizeof(struct s512_dev_s));
+  priv = (FAR struct s512_dev_s *)kmm_zalloc(sizeof(struct s512_dev_s));
   if (priv)
     {
       /* Initialize the allocated structure. (unsupported methods/fields
-       * were already nullified by kzalloc).
+       * were already nullified by kmm_zalloc).
        */
 
       priv->mtd.erase    = s512_erase;
@@ -624,13 +624,13 @@ FAR struct mtd_dev_s *s512_initialize(FAR struct mtd_dev_s *mtd)
 
       /* Allocate a buffer for the erase block cache */
 
-      priv->eblock = (FAR uint8_t *)kmalloc(priv->eblocksize);
+      priv->eblock = (FAR uint8_t *)kmm_malloc(priv->eblocksize);
       if (!priv->eblock)
         {
           /* Allocation failed! Discard all of that work we just did and return NULL */
 
           fdbg("Allocation failed\n");
-          kfree(priv);
+          kmm_free(priv);
           priv = NULL;
         }
     }

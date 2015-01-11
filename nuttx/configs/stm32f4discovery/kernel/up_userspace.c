@@ -41,11 +41,12 @@
 
 #include <stdlib.h>
 
-#include <nuttx/userspace.h>
+#include <nuttx/arch.h>
+#include <nuttx/mm/mm.h>
 #include <nuttx/wqueue.h>
-#include <nuttx/mm.h>
+#include <nuttx/userspace.h>
 
-#if defined(CONFIG_NUTTX_KERNEL) && !defined(__KERNEL__)
+#if defined(CONFIG_BUILD_PROTECTED) && !defined(__KERNEL__)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -69,7 +70,7 @@
  * following way:
  *
  *  - The linker script defines, for example, the symbol_sdata.
- *  - The declareion extern uint32_t _sdata; makes C happy.  C will believe
+ *  - The declaration extern uint32_t _sdata; makes C happy.  C will believe
  *    that the value _sdata is the address of a uint32_t variable _data (it is
  *    not!).
  *  - We can recoved the linker value then by simply taking the address of
@@ -114,7 +115,7 @@ const struct userspace_s userspace __attribute__ ((section (".userspace"))) =
   .signal_handler   = up_signal_handler,
 #endif
 
-  /* Memory manager entry points (declared in include/nuttx/mm.h) */
+  /* Memory manager entry points (declared in include/nuttx/mm/mm.h) */
 
   .mm_initialize    = umm_initialize,
   .mm_addregion     = umm_addregion,
@@ -139,4 +140,4 @@ const struct userspace_s userspace __attribute__ ((section (".userspace"))) =
  * Public Functions
  ****************************************************************************/
 
-#endif /* CONFIG_NUTTX_KERNEL && !__KERNEL__ */
+#endif /* CONFIG_BUILD_PROTECTED && !__KERNEL__ */

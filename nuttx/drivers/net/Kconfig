@@ -273,6 +273,10 @@ if ARCH_HAVE_PHY
 
 comment "External Ethernet PHY Device Support"
 
+config ARCH_PHY_INTERRUPT
+	bool
+	default n
+
 choice
 	prompt "Board PHY Selection (ETH0)"
 	default ETH0_PHY_NONE
@@ -345,4 +349,17 @@ config ETH1_PHY_DM9161
 	bool "Davicom DM9161 PHY"
 
 endchoice
+
+config NETDEV_PHY_DEBUG
+	bool "PHY debug"
+	default n
+	depends on DEBUG
+	---help---
+		Normally debug output is controlled by DEBUG_NET.  However, that
+		may generate a LOT of debug output, especially if DEBUG_VERBOSE is
+		also selected.  This option is intended to force VERVOSE debug
+		output from certain PHY-related even if DEBUG_NET or DEBUG_VERBOSE
+		are not selected.  This allows for focused, unit-level debug of
+		the NSH network initialization logic.
+
 endif # ARCH_HAVE_PHY

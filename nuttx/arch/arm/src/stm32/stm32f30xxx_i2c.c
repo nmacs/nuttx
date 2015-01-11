@@ -2013,7 +2013,7 @@ FAR struct i2c_dev_s *up_i2cinitialize(int port)
 
   /* Allocate instance */
 
-  if (!(inst = kmalloc( sizeof(struct stm32_i2c_inst_s))))
+  if (!(inst = kmm_malloc( sizeof(struct stm32_i2c_inst_s))))
     {
       return NULL;
     }
@@ -2068,7 +2068,7 @@ int up_i2cuninitialize(FAR struct i2c_dev_s * dev)
   if (--((struct stm32_i2c_inst_s *)dev)->priv->refs)
     {
       irqrestore(irqs);
-      kfree(dev);
+      kmm_free(dev);
       return OK;
     }
 
@@ -2082,7 +2082,7 @@ int up_i2cuninitialize(FAR struct i2c_dev_s * dev)
 
   stm32_i2c_sem_destroy( (struct i2c_dev_s *)dev );
 
-  kfree(dev);
+  kmm_free(dev);
   return OK;
 }
 

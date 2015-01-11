@@ -98,7 +98,8 @@ void sched_ufree(FAR void *address)
        */
 
       flags = irqsave();
-#if defined(CONFIG_NUTTX_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
+#if (defined(CONFIG_BUILD_PROTECTED) || defined(CONFIG_BUILD_KERNEL)) && \
+     defined(CONFIG_MM_KERNEL_HEAP)
       DEBUGASSERT(!kmm_heapmember(address));
 #endif
 
@@ -117,12 +118,12 @@ void sched_ufree(FAR void *address)
     {
       /* No.. just deallocate the memory now. */
 
-      kufree(address);
+      kumm_free(address);
       kumm_givesemaphore();
     }
 }
 
-#if defined(CONFIG_NUTTX_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
+#ifdef CONFIG_MM_KERNEL_HEAP
 void sched_kfree(FAR void *address)
 {
   irqstate_t flags;
@@ -156,7 +157,7 @@ void sched_kfree(FAR void *address)
     {
       /* No.. just deallocate the memory now. */
 
-      kfree(address);
+      kmm_free(address);
       kmm_givesemaphore();
     }
 }

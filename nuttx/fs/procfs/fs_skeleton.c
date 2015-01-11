@@ -179,7 +179,7 @@ static int skel_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Allocate a container to hold the task and attribute selection */
 
-  priv = (FAR struct skel_file_s *)kzalloc(sizeof(struct skel_file_s));
+  priv = (FAR struct skel_file_s *)kmm_zalloc(sizeof(struct skel_file_s));
   if (!priv)
     {
       fdbg("ERROR: Failed to allocate file attributes\n");
@@ -210,7 +210,7 @@ static int skel_close(FAR struct file *filep)
 
   /* Release the file attributes structure */
 
-  kfree(priv);
+  kmm_free(priv);
   filep->f_priv = NULL;
   return OK;
 }
@@ -268,7 +268,7 @@ static int skel_dup(FAR const struct file *oldp, FAR struct file *newp)
 
   /* Allocate a new container to hold the task and attribute selection */
 
-  newpriv = (FAR struct skel_file_s *)kzalloc(sizeof(struct skel_file_s));
+  newpriv = (FAR struct skel_file_s *)kmm_zalloc(sizeof(struct skel_file_s));
   if (!newpriv)
     {
       fdbg("ERROR: Failed to allocate file attributes\n");
@@ -305,7 +305,7 @@ static int skel_opendir(FAR const char *relpath, FAR struct fs_dirent_s *dir)
    */
 
   level1 = (FAR struct skel_level1_s *)
-     kzalloc(sizeof(struct skel_level1_s));
+     kmm_zalloc(sizeof(struct skel_level1_s));
 
   if (!level1)
     {
@@ -342,7 +342,7 @@ static int skel_closedir(FAR struct fs_dirent_s *dir)
 
   if (priv)
     {
-      kfree(priv);
+      kmm_free(priv);
     }
 
   dir->u.procfs = NULL;

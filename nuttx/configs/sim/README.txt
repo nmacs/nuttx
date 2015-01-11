@@ -262,6 +262,11 @@ mtdpart
   This is the apps/examples/mtdpart test using a MTD RAM driver to
   simulate the FLASH part.
 
+mtdrwb
+
+  This is the apps/examples/mtdrwb test using a MTD RAM driver to
+  simulate the FLASH part.
+
 nettest
 
   Configures to use apps/examples/nettest.  This configuration
@@ -452,15 +457,15 @@ nx11
        CONFG_NX_MULTIUSER=y
        CONFIG_DISABLE_MQUEUE=n
 
-   6. apps/examples/nxconsole
+   6. apps/examples/nxterm
 
-      This configuration is also set up to use the apps/examples/nxconsole
+      This configuration is also set up to use the apps/examples/nxterm
       test instead of apps/examples/nx.  To enable this configuration,
       First, select Multi-User mode as described above.  Then add the
       following definitions to the defconfig file:
 
-       -CONFIG_NXCONSOLE=n
-       +CONFIG_NXCONSOLE=y
+       -CONFIG_NXTERM=n
+       +CONFIG_NXTERM=y
 
        -CONFIG_NX_MULTIUSER=n
        +CONFIG_NX_MULTIUSER=y
@@ -468,8 +473,8 @@ nx11
        -CONFIG_EXAMPLES_NX=y
        +CONFIG_EXAMPLES_NX=n
 
-       -CONFIG_EXAMPLES_NXCONSOLE=n
-       +CONFIG_EXAMPLES_NXCONSOLE=y
+       -CONFIG_EXAMPLES_NXTERM=n
+       +CONFIG_EXAMPLES_NXTERM=y
 
      See apps/examples/README.txt for further details.
 
@@ -501,7 +506,7 @@ nxwm
 
   1. There is an issue with running this example under the
      simulation.  In the default configuration, this example will
-     run the NxConsole example which waits on readline() for console
+     run the NxTerm example which waits on readline() for console
      input.  When it calls readline(), the whole system blocks
      waiting from input from the host OS.  So, in order to get
      this example to run, you must comment out the readline call in

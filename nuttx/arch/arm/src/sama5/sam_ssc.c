@@ -45,7 +45,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <semaphore.h>
-#include <wdog.h>
 #include <errno.h>
 #include <assert.h>
 #include <queue.h>
@@ -55,6 +54,7 @@
 
 #include <nuttx/arch.h>
 #include <nuttx/kmalloc.h>
+#include <nuttx/wdog.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/audio/audio.h>
 #include <nuttx/audio/i2s.h>
@@ -103,7 +103,7 @@
 
 #  if defined(CONFIG_SAMA5_HAVE_XDMA)
 #    if !defined(CONFIG_SAMA5_XDMAC0) && !defined(CONFIG_SAMA5_XDMAC1)
-#      error CONFIG_SAMA5_XDMAC1 (or XDMAC0) required by SSC0
+#      error CONFIG_SAMA5_XDMAC0 or XDMAC1 required by SSC0
 #    endif
 #  else
 #    if !defined(CONFIG_SAMA5_DMAC0)
@@ -3524,7 +3524,7 @@ errout_with_clocking:
 
 errout_with_alloc:
   sem_destroy(&priv->exclsem);
-  kfree(priv);
+  kmm_free(priv);
   return NULL;
 }
 

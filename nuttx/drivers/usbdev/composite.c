@@ -797,7 +797,7 @@ FAR void *composite_initialize(void)
 
   /* Allocate the structures needed */
 
-  alloc = (FAR struct composite_alloc_s*)kmalloc(sizeof(struct composite_alloc_s));
+  alloc = (FAR struct composite_alloc_s*)kmm_malloc(sizeof(struct composite_alloc_s));
   if (!alloc)
     {
       usbtrace(TRACE_CLSERROR(USBCOMPOSITE_TRACEERR_ALLOCDEVSTRUCT), 0);
@@ -851,7 +851,7 @@ FAR void *composite_initialize(void)
   return (FAR void *)alloc;
 
 errout_with_alloc:
-  kfree(alloc);
+  kmm_free(alloc);
   return NULL;
 }
 
@@ -901,7 +901,7 @@ void composite_uninitialize(FAR void *handle)
 
   /* Then free the composite driver state structure itself */
 
-  kfree(priv);
+  kmm_free(priv);
 }
 
 /****************************************************************************

@@ -3457,7 +3457,7 @@ static int sam_epalloc(FAR struct usbhost_driver_s *drvr,
 
   /* Allocate a endpoint information structure */
 
-  epinfo = (struct sam_epinfo_s *)kzalloc(sizeof(struct sam_epinfo_s));
+  epinfo = (struct sam_epinfo_s *)kmm_zalloc(sizeof(struct sam_epinfo_s));
   if (!epinfo)
     {
       usbhost_trace1(EHCI_TRACE1_EPALLOC_FAILED, 0);
@@ -3519,7 +3519,7 @@ static int sam_epfree(FAR struct usbhost_driver_s *drvr, usbhost_ep_t ep)
 
   /* Free the container */
 
-  kfree(epinfo);
+  kmm_free(epinfo);
   return OK;
 }
 
@@ -3530,7 +3530,7 @@ static int sam_epfree(FAR struct usbhost_driver_s *drvr, usbhost_ep_t ep)
  *   Some hardware supports special memory in which request and descriptor data
  *   can be accessed more efficiently.  This method provides a mechanism to
  *   allocate the request/descriptor memory.  If the underlying hardware does
- *   not support such "special" memory, this functions may simply map to kmalloc.
+ *   not support such "special" memory, this functions may simply map to kmm_malloc.
  *
  *   This interface was optimized under a particular assumption.  It was
  *   assumed that the driver maintains a pool of small, pre-allocated buffers
@@ -3563,7 +3563,7 @@ static int sam_alloc(FAR struct usbhost_driver_s *drvr,
 
   /* There is no special requirements for transfer/descriptor buffers. */
 
-  *buffer = (FAR uint8_t *)kmalloc(CONFIG_SAMA5_EHCI_BUFSIZE);
+  *buffer = (FAR uint8_t *)kmm_malloc(CONFIG_SAMA5_EHCI_BUFSIZE);
   if (*buffer)
     {
       *maxlen = CONFIG_SAMA5_EHCI_BUFSIZE;
@@ -3580,7 +3580,7 @@ static int sam_alloc(FAR struct usbhost_driver_s *drvr,
  *   Some hardware supports special memory in which request and descriptor data
  *   can be accessed more efficiently.  This method provides a mechanism to
  *   free that request/descriptor memory.  If the underlying hardware does not
- *   support such "special" memory, this functions may simply map to kfree().
+ *   support such "special" memory, this functions may simply map to kmm_free().
  *
  * Input Parameters:
  *   drvr - The USB host driver instance obtained as a parameter from the call
@@ -3602,7 +3602,7 @@ static int sam_free(FAR struct usbhost_driver_s *drvr, FAR uint8_t *buffer)
 
   /* No special action is require to free the transfer/descriptor buffer memory */
 
-  kfree(buffer);
+  kmm_free(buffer);
   return OK;
 }
 
@@ -3613,7 +3613,7 @@ static int sam_free(FAR struct usbhost_driver_s *drvr, FAR uint8_t *buffer)
  *   Some hardware supports special memory in which larger IO buffers can
  *   be accessed more efficiently.  This method provides a mechanism to allocate
  *   the request/descriptor memory.  If the underlying hardware does not support
- *   such "special" memory, this functions may simply map to kumalloc.
+ *   such "special" memory, this functions may simply map to kumm_malloc.
  *
  *   This interface differs from DRVR_ALLOC in that the buffers are variable-sized.
  *
@@ -3642,7 +3642,7 @@ static int sam_ioalloc(FAR struct usbhost_driver_s *drvr, FAR uint8_t **buffer,
    * accessible (depending on how the class driver implements its buffering).
    */
 
-  *buffer = (FAR uint8_t *)kumalloc(buflen);
+  *buffer = (FAR uint8_t *)kumm_malloc(buflen);
   return *buffer ? OK : -ENOMEM;
 }
 
@@ -3653,7 +3653,7 @@ static int sam_ioalloc(FAR struct usbhost_driver_s *drvr, FAR uint8_t **buffer,
  *   Some hardware supports special memory in which IO data can  be accessed more
  *   efficiently.  This method provides a mechanism to free that IO buffer
  *   memory.  If the underlying hardware does not support such "special" memory,
- *   this functions may simply map to kufree().
+ *   this functions may simply map to kumm_free().
  *
  * Input Parameters:
  *   drvr - The USB host driver instance obtained as a parameter from the call to
@@ -3675,7 +3675,7 @@ static int sam_iofree(FAR struct usbhost_driver_s *drvr, FAR uint8_t *buffer)
 
   /* No special action is require to free the I/O buffer memory */
 
-  kufree(buffer);
+  kumm_free(buffer);
   return OK;
 }
 
@@ -4152,7 +4152,7 @@ FAR struct usbhost_connection_s *sam_ehci_initialize(int controller)
   /* Allocate a pool of free Queue Head (QH) structures */
 
   g_qhpool = (struct sam_qh_s *)
-    kmemalign(32, CONFIG_SAMA5_EHCI_NQHS * sizeof(struct sam_qh_s));
+    kmm_memalign(32, CONFIG_SAMA5_EHCI_NQHS * sizeof(struct sam_qh_s));
   if (!g_qhpool)
     {
       usbhost_trace1(EHCI_TRACE1_QHPOOLALLOC_FAILED, 0);
@@ -4173,11 +4173,11 @@ FAR struct usbhost_connection_s *sam_ehci_initialize(int controller)
   /* Allocate a pool of free  Transfer Descriptor (qTD) structures */
 
   g_qtdpool = (struct sam_qtd_s *)
-    kmemalign(32, CONFIG_SAMA5_EHCI_NQTDS * sizeof(struct sam_qtd_s));
+    kmm_memalign(32, CONFIG_SAMA5_EHCI_NQTDS * sizeof(struct sam_qtd_s));
   if (!g_qtdpool)
     {
       usbhost_trace1(EHCI_TRACE1_QTDPOOLALLOC_FAILED, 0);
-      kfree(g_qhpool);
+      kmm_free(g_qhpool);
       return NULL;
     }
 #endif
@@ -4186,12 +4186,12 @@ FAR struct usbhost_connection_s *sam_ehci_initialize(int controller)
   /* Allocate the periodic framelist  */
 
   g_framelist = (uint32_t *)
-    kmemalign(4096, FRAME_LIST_SIZE * sizeof(uint32_t));
+    kmm_memalign(4096, FRAME_LIST_SIZE * sizeof(uint32_t));
   if (!g_framelist)
     {
       usbhost_trace1(EHCI_TRACE1_PERFLALLOC_FAILED, 0);
-      kfree(g_qhpool);
-      kfree(g_qtdpool);
+      kmm_free(g_qhpool);
+      kmm_free(g_qtdpool);
       return NULL;
     }
 #endif

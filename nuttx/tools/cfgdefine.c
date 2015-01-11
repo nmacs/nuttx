@@ -69,6 +69,8 @@ static const char *dequote_list[] =
   "CONFIG_PASS1_TARGET",               /* Pass1 build target */
   "CONFIG_PASS1_OBJECT",               /* Pass1 build object */
   "CONFIG_DEBUG_OPTLEVEL",             /* Custom debug level */
+  "CONFIG_INIT_SYMTAB",                /* Global symbol table */
+  "CONFIG_INIT_NEXPORTS",              /* Global symbol table size */
 
   /* RGMP */
 
@@ -80,9 +82,14 @@ static const char *dequote_list[] =
   "CONFIG_NXWM_STOP_BITMAP",           /* Name of bitmap image class */
   "CONFIG_NXWM_MINIMIZE_BITMAP",       /* Name of bitmap image class */
   "CONFIG_NXWM_STARTWINDOW_ICON",      /* Name of bitmap image class */
-  "CONFIG_NXWM_NXCONSOLE_ICON",        /* Name of bitmap image class */
+  "CONFIG_NXWM_NXTERM_ICON",           /* Name of bitmap image class */
   "CONFIG_NXWM_CALIBRATION_ICON",      /* Name of bitmap image class */
   "CONFIG_NXWM_HEXCALCULATOR_ICON",    /* Name of bitmap image class */
+
+  /* apps/ definitions */
+
+  "CONFIG_EXAMPLES_HELLO_PROGNAME",    /* Name of installed hello example program */
+  "CONFIG_EXAMPLES_NSH_PROGNAME",      /* Name of installed NSH example program */
 
   NULL                                 /* Marks the end of the list */
 };

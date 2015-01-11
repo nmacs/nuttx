@@ -1,7 +1,7 @@
 /****************************************************************************
  * binfmt/libelf/libelf_bind.c
  *
- *   Copyright (C) 2012 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2012, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -136,6 +136,7 @@ static int elf_relocate(FAR struct elf_loadinfo_s *loadinfo, int relidx,
   FAR Elf32_Shdr *dstsec = &loadinfo->shdr[relsec->sh_info];
   Elf32_Rel       rel;
   Elf32_Sym       sym;
+  FAR Elf32_Sym  *psym;
   uintptr_t       addr;
   int             symidx;
   int             ret;
@@ -148,6 +149,8 @@ static int elf_relocate(FAR struct elf_loadinfo_s *loadinfo, int relidx,
 
   for (i = 0; i < relsec->sh_size / sizeof(Elf32_Rel); i++)
     {
+      psym = &sym;
+
       /* Read the relocation entry into memory */
 
       ret = elf_readrel(loadinfo, relsec, i, &rel);
@@ -179,9 +182,28 @@ static int elf_relocate(FAR struct elf_loadinfo_s *loadinfo, int relidx,
       ret = elf_symvalue(loadinfo, &sym, exports, nexports);
       if (ret < 0)
         {
-          bdbg("Section %d reloc %d: Failed to get value of symbol[%d]: %d\n",
-               relidx, i, symidx, ret);
-          return ret;
+          /* The special error -ESRCH is returned only in one condition:  The
+           * symbol has no name.
+           *
+           * There are a few relocations for a few architectures that do
+           * no depend upon a named symbol.  We don't know if that is the
+           * case here, but we will use a NULL symbol pointer to indicate
+           * that case to up_relocate().  That function can then do what
+           * is best.
+           */
+
+          if (ret == -ESRCH)
+            {
+              bdbg("Section %d reloc %d: Undefined symbol[%d] has no name: %d\n",
+                  relidx, i, symidx, ret);
+              psym = NULL;
+            }
+          else
+            {
+              bdbg("Section %d reloc %d: Failed to get value of symbol[%d]: %d\n",
+                  relidx, i, symidx, ret);
+              return ret;
+            }
         }
 
       /* Calculate the relocation address. */
@@ -195,42 +217,14 @@ static int elf_relocate(FAR struct elf_loadinfo_s *loadinfo, int relidx,
 
       addr = dstsec->sh_addr + rel.r_offset;
 
-      /* If CONFIG_ADDRENV=y, then 'addr' lies in a virtual address space that
-       * may not be in place now.  elf_addrenv_select() will temporarily
-       * instantiate that address space.
-       */
-
-#ifdef CONFIG_ADDRENV
-      ret = elf_addrenv_select(loadinfo);
-      if (ret < 0)
-        {
-          bdbg("ERROR: elf_addrenv_select() failed: %d\n", ret);
-          return ret;
-        }
-#endif
-
       /* Now perform the architecture-specific relocation */
 
-      ret = arch_relocate(&rel, &sym, addr);
+      ret = up_relocate(&rel, psym, addr);
       if (ret < 0)
         {
-#ifdef CONFIG_ADDRENV
-          (void)elf_addrenv_restore(loadinfo);
-#endif
           bdbg("ERROR: Section %d reloc %d: Relocation failed: %d\n", ret);
           return ret;
         }
-
-      /* Restore the original address environment */
-
-#ifdef CONFIG_ADDRENV
-      ret = elf_addrenv_restore(loadinfo);
-      if (ret < 0)
-        {
-          bdbg("ERROR: elf_addrenv_restore() failed: %d\n", ret);
-          return ret;
-        }
-#endif
     }
 
   return OK;
@@ -263,6 +257,9 @@ static int elf_relocateadd(FAR struct elf_loadinfo_s *loadinfo, int relidx,
 int elf_bind(FAR struct elf_loadinfo_s *loadinfo,
              FAR const struct symtab_s *exports, int nexports)
 {
+#ifdef CONFIG_ARCH_ADDRENV
+  int status;
+#endif
   int ret;
   int i;
 
@@ -284,6 +281,20 @@ int elf_bind(FAR struct elf_loadinfo_s *loadinfo,
       bdbg("elf_allocbuffer failed: %d\n", ret);
       return -ENOMEM;
     }
+
+#ifdef CONFIG_ARCH_ADDRENV
+  /* If CONFIG_ARCH_ADDRENV=y, then the loaded ELF lies in a virtual address
+   * space that may not be in place now.  elf_addrenv_select() will
+   * temporarily instantiate that address space.
+   */
+
+  ret = elf_addrenv_select(loadinfo);
+  if (ret < 0)
+    {
+      bdbg("ERROR: elf_addrenv_select() failed: %d\n", ret);
+      return ret;
+    }
+#endif
 
   /* Process relocations in every allocated section */
 
@@ -323,12 +334,41 @@ int elf_bind(FAR struct elf_loadinfo_s *loadinfo,
         }
     }
 
-  /* Flush the instruction cache before starting the newly loaded module */
+#if defined(CONFIG_ARCH_ADDRENV)
+  /* Ensure that the I and D caches are coherent before starting the newly
+   * loaded module by cleaning the D cache (i.e., flushing the D cache
+   * contents to memory and invalidating the I cache).
+   */
 
-#ifdef CONFIG_ELF_ICACHE
-  arch_flushicache((FAR void*)loadinfo->elfalloc, loadinfo->elfsize);
+#if 0 /* REVISIT... has some problems */
+  (void)up_addrenv_coherent(&loadinfo->addrenv);
+#else
+  up_coherent_dcache(loadinfo->textalloc, loadinfo->textsize);
+  up_coherent_dcache(loadinfo->dataalloc, loadinfo->datasize);
+#endif
+
+  /* Restore the original address environment */
+
+  status = elf_addrenv_restore(loadinfo);
+  if (status < 0)
+    {
+      bdbg("ERROR: elf_addrenv_restore() failed: %d\n", status);
+      if (ret == OK)
+        {
+          ret = status;
+        }
+    }
+
+#elif defined(CONFIG_ARCH_HAVE_COHERENT_DCACHE)
+  /* Ensure that the I and D caches are coherent before starting the newly
+   * loaded module by cleaning the D cache (i.e., flushing the D cache
+   * contents to memory and invalidating the I cache).
+   */
+
+  up_coherent_dcache(loadinfo->textalloc, loadinfo->textsize);
+  up_coherent_dcache(loadinfo->dataalloc, loadinfo->datasize);
+
 #endif
 
   return ret;
 }
-

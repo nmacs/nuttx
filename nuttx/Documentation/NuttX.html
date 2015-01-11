@@ -8,7 +8,7 @@
   <tr align="center" bgcolor="#e4e4e4">
     <td>
       <h1><big><font color="#3c34ec"><i>NuttX RTOS</i></font></big></h1>
-      <p>Last Updated: August 15, 2014</p>
+      <p>Last Updated: September 28, 2014</p>
     </td>
   </tr>
 </table>
@@ -346,6 +346,22 @@
   <td>
     <p>
       <li>Optional tasks with address environments (<i>Processes</i>).</li>
+    </p>
+</tr>
+
+<tr>
+  <td><br></td>
+  <td>
+    <p>
+      <li>Memory Configurations:  (1) Flat embedded build, (2) Protected build with MPU, and (3) Kernel build with MMU.</li>
+    </p>
+</tr>
+
+<tr>
+  <td><br></td>
+  <td>
+    <p>
+      <li>Memory Allocators:  (1) standard heap memory allocation, (2) granule allocator, (3) shared memory, and (4) dynamically sized, per-process heaps.</li>
     </p>
 </tr>
 
@@ -734,7 +750,17 @@
   <td>
     <p>
       <li>
-        UDP Network Discover (Contributed by Richard Cochran).
+        PHY Link Status Management.
+      </li>
+    </p>
+  </td>
+</tr>
+<tr>
+  <td><br></td>
+  <td>
+    <p>
+      <li>
+        UDP Network Discovery (Contributed by Richard Cochran).
       </li>
     </p>
   </td>
@@ -1161,11 +1187,11 @@
 <h2>Released Versions</h2>
 <p>
   In addition to the ever-changing GIT repository, there are frozen released versions of NuttX available.
-  The current release is NuttX 7.4.
-  NuttX 7.4 is the 104<sup>th</sup> release of NuttX.
-  It was released on August 15, 2014, and is available for download from the
+  The current release is NuttX 7.5.
+  NuttX 7.5 is the 105<sup>th</sup> release of NuttX.
+  It was released on September 28, 2014, and is available for download from the
   <a href="http://sourceforge.net/projects/nuttx/files/">SourceForge</a> website.
-  Note that the release consists of two tarballs:  <code>nuttx-7.4.tar.gz</code> and <code>apps-7.4.tar.gz</code>.
+  Note that the release consists of two tarballs:  <code>nuttx-7.5.tar.gz</code> and <code>apps-7.5.tar.gz</code>.
   Both may be needed (see the top-level <code>nuttx/README.txt</code> file for build information).
 </p>
 
@@ -1174,7 +1200,7 @@
 <ul>
   <li><b>nuttx</b>.
     <ul><p>
-      Release notes for NuttX 7.4 are available <a href="http://sourceforge.net/projects/nuttx/files/nuttx/nuttx-7.4/">here</a>;
+      Release notes for NuttX 7.5 are available <a href="http://sourceforge.net/projects/nuttx/files/nuttx/nuttx-7.5/">here</a>;
       release notes for all released versions on NuttX are available in the <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/nuttx/ReleaseNotes">SourceForge GIT</a>
       The ChangeLog for all releases of NuttX is available in the ChangeLog file that can viewed in the <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/nuttx/ChangeLog">SourceForge GIT</a>.
       The ChangeLog for the current release is at the bottom of that file.
@@ -1182,7 +1208,7 @@
   </li></ul>
   <li><b>apps</b>.
     <ul><p>
-      Release notes for NuttX 7.4 are available <a href="http://sourceforge.net/projects/nuttx/files/nuttx/nuttx-7.4/">here</a>;
+      Release notes for NuttX 7.5 are available <a href="http://sourceforge.net/projects/nuttx/files/nuttx/nuttx-7.5/">here</a>;
       release notes for all released versions on NuttX are available in the <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/nuttx/ReleaseNotes">SourceForge GIT</a>
       The ChangeLog for the all releases of apps is available in the ChangeLog file that can viewed in the <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/apps/ChangeLog.txt">SourceForge GIT</a>.
       The ChangeLog for the current release is at the bottom of that file.
@@ -1190,7 +1216,7 @@
   </li></ul>
   <li><b>NxWidgets</b>.
     <ul><p>
-      Release notes for NxWidgets 1.11 are available <a href="http://sourceforge.net/projects/nuttx/files/NxWidgets/NxWidgets-1.11/">here</a>;
+      Release notes for NxWidgets 1.13 are available <a href="http://sourceforge.net/projects/nuttx/files/NxWidgets/NxWidgets-1.13/">here</a>;
       release notes for all released versions on NxWidgets are available in the <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/NxWidgets/ReleaseNotes.txt">SourceForge GIT</a>
       The ChangeLog for all releases of NxWidgets is available at the bottom of the ChangeLog file that can viewed in the <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/NxWidgets/ChangeLog.txt">SourceForge GIT</a>.
     </p>
@@ -1237,7 +1263,7 @@
       <li><a href="#armcortexa8">ARM Cortex-A8</a> (1)</li>
       <li><a href="#armcortexm0">ARM Cortex-M0/M0+</a> (3)</li>
       <li><a href="#armcortexm3">ARM Cortex-M3</a> (27)</li>
-      <li><a href="#armcortexm4">ARM Cortex-M4</a> (15)</li>
+      <li><a href="#armcortexm4">ARM Cortex-M4</a> (16)</li>
     </ul>
   <li>Atmel AVR
     <ul>
@@ -1254,7 +1280,7 @@
   </li>
   <li>Intel
     <ul>
-      <li><a href="#80x52">Intel 80x52 Microcontroller</a> (1)</li>
+      <li><a href="#80x52">Intel 80x52 Microcontroller</a> (1) (<i>obsoleted</i>)</li>
       <li><a href="#80x86">Intel 80x86</a> (2)</li>
     </ul>
   </li>
@@ -1330,7 +1356,7 @@
   </li>
   <li>Intel
     <ul>
-      <li><a href="#80x52">Intel 80x52</a></li>
+      <li><a href="#80x52">Intel 80x52</a> (<i>obsoleted</i>)</li>
       <li><a href="#80x86">Intel 80x86</a></li>
     </ul>
   </li>
@@ -1397,6 +1423,7 @@
       <li><a href="#tilms9b96">TI/Stellaris LM3S9B96</a> <small>(ARM Cortex-M3)</small></li>
       <li><a href="#tilm4f120x">TI/Stellaris LM4F120x</a> <small>(ARM Cortex-M4)</small></li>
       <li><a href="#titm4c123x">TI/Tiva TM4C123G</a> <small>(ARM Cortex-M4)</small></li>
+      <li><a href="#ticc3200launchpad">TI/Tiva CC3200 Launchpad</a> <small>(ARM Cortex-M4)</small></li>
     </ul>
   </li>
   <li>ZiLOG
@@ -3025,13 +3052,17 @@ nsh>
       <li>Easy access to most MCU pins.</li>
     </ul>
     <p>
+      Support for the STM3F4DIS-BB base board was added in NuttX-7.5.
+      This includes support for the serial communications via the on-board DB-9 connector, Networking, and the microSD card slot.
+    </p>
+    <p>
       Refer to the <a href="http://www.st.com/internet/evalboard/product/252419.jsp">STMicro web site</a> for further information about this board and to
     </p>
     <ul>
       <p>
         <b>STATUS:</b>
         The basic port for the STM32F4-Discovery was contributed by Mike Smith and was first released in NuttX-6.14.
-        All drivers listed for the STM3240G-EVAL are usable on this plaform as well.
+        All drivers listed for the STM3240G-EVAL are usable on this platform as well.
         Refer to the NuttX board <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/nuttx/configs/stm32f4discovery/README.txt">README</a> file for further information.
       </p>
     </ul>
@@ -3191,12 +3222,35 @@ nsh>
         <b>STATUS:</b>
         This is very much a work in progress.
         As of this writing, full architectural support for the TI Tiva TM4C123G has been implemented and was released in NuttX 7.1.
-        Basic board support is in place for the TM4C123G LaunchPad but is completely untested and possibly imcomplete.
+        Basic board support is in place for the TM4C123G LaunchPad but is completely untested and possibly incomplete.
         This partial logic is also included int he NuttX 7.1 release.
         This basic board supprted includes an (un-verified) configuration for the NuttShell <a href="http://www.nuttx.org/Documentation/NuttShell.html">NSH</a>).
         A fully verified port to the TM4C123G LaunchPad is expected in NuttX-7.2.
         The first fully functional LM4F120 LaunchPad port was released in NuttX-6.27.
         Refer to the TM4C123G LaunchPad board <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/nuttx/configs/tm4c123g-launchpad/README.txt">README</a> file for more detailed information about this port.
+      </p>
+    </ul>
+  </td>
+</tr>
+<tr>
+  <td><br></td>
+  <td><hr></td>
+</tr>
+<tr>
+  <td><br></td>
+  <td>
+    <p>
+      <a name="ticc3200launchpad"><b>TI/Tiva CC3200 Launchpad</b>.</a>
+      TI/Tiva CC3200 Launchpad
+    </p>
+    <ul>
+      <p>
+        <b>STATUS:</b>
+        This is very much a work in progress.
+        The basic port was released in NuttX-7.5.
+        This basic board supprted includes an verified configuration for the NuttShell <a href="http://www.nuttx.org/Documentation/NuttShell.html">NSH</a>).
+        Key wireless networking capability is still missing.
+        Refer to the CC3200 LaunchPad board <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/nuttx/configs/cc3200-launchpad/README.txt">README</a> file for more detailed information about this port.
       </p>
     </ul>
   </td>
@@ -3622,8 +3676,7 @@ Mem:         29232       5920      23312      23312
   <td>
     <p>
       <b>PJRC 87C52 Development Board</b>.
-      This port uses the <a href="http://www.pjrc.com/">PJRC</a> 87C52 development system
-      and the <a href="http://sdcc.sourceforge.net/">SDCC</a> toolchain under Linux or Cygwin.
+      This port uses the <a href="http://www.pjrc.com/">PJRC</a> 87C52 development system and the <a href="http://sdcc.sourceforge.net/">SDCC</a> toolchain under Linux or Cygwin.
     </p>
     <ul>
       <p>
@@ -3633,9 +3686,15 @@ Mem:         29232       5920      23312      23312
         address space during interrupt handling.
         This architecture has not been built in some time will likely have some compilation
         problems because of SDCC compiler differences.
-        Refer to the NuttX board <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/nuttx/configs/pjrc-8051/README.txt">README</a> file for further information.
+        Refer to the NuttX board <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/misc/Obsoleted/configs/pjrc-8051/README.txt">README</a> file for further information.
       </p>
     </ul>
+    <p>
+      <b><i>Obsoleted</i></b>.
+      This architecture has been <i>obsoleted</i>.
+      The code has been moved out of the NuttX source tree but can still be found be found in <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/misc/Obsoleted/">Obsoleted</a> directory.
+      This support was obsoleted because (1) the architecture limitations of the 8051 family make ongoing development of more advanced NuttX features too difficult, and (2) although the basic port was marginally functional, it has never really been demonstrated convincingly in any application.
+    </p>
   </td>
 </tr>
 <tr>
@@ -3957,7 +4016,7 @@ BFD_ASSERT (*plt_offset != (bfd_vma) -1);
     </li>
     <li>
       <p>
-        <b>Toyaga 16z</b>.
+        <b>Toyaga 16z (obsoleted)</b>.
         This port if for the <a href="https://github.com/toyaga/16z">Toyaga 16z</a> board that also use the Zilog ZNEOZ16F2811AL20EG microntroller with the Zilog ZDS-II Windows command line tools.
         The development environment is either Windows native or Cygwin under Windows.
       </p>
@@ -3965,8 +4024,14 @@ BFD_ASSERT (*plt_offset != (bfd_vma) -1);
         <b>STATUS:</b>
         The initial release of support for the 16z board was made available in NuttX version 6.33.
         Both the 16z board and the NuttX port are works in progress and are not ready for usage as of NuttX-7.2.
-        Refer to the NuttX board <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/nuttx/configs/16z/README.txt">README</a> file for further information.
+        Refer to the NuttX board <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/misc/Obsoleted/configs/16z/README.txt">README</a> file for further information.
       </p>
+    <p>
+      <b><i>Obsoleted</i></b>.
+      This architecture has been <i>obsoleted</i>.
+      The code has been moved out of the NuttX source tree but can still be found be found in <a href="http://sourceforge.net/p/nuttx/git/ci/master/tree/misc/Obsoleted/">Obsoleted</a> directory.
+      This support was obsoleted because of technical issues that make NuttX unusable on the board at least in the short term.  This configuration may return to the NuttX source tree at some time in the future.
+    </p>
     </li>
   </ul>
   </td>

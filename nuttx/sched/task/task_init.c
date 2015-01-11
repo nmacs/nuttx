@@ -1,7 +1,7 @@
 /****************************************************************************
  * sched/task/task_init.c
  *
- *   Copyright (C) 2007, 2009, 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007, 2009, 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -112,14 +112,9 @@
  *
  ****************************************************************************/
 
-#ifndef CONFIG_CUSTOM_STACK
 int task_init(FAR struct tcb_s *tcb, const char *name, int priority,
               FAR uint32_t *stack, uint32_t stack_size,
               main_t entry, FAR char * const argv[])
-#else
-int task_init(FAR struct tcb_s *tcb, const char *name, int priority,
-              main_t entry, FAR char * const argv[])
-#endif
 {
   FAR struct task_tcb_s *ttcb = (FAR struct task_tcb_s *)tcb;
   int errcode;
@@ -135,7 +130,7 @@ int task_init(FAR struct tcb_s *tcb, const char *name, int priority,
   /* Create a new task group */
 
 #ifdef HAVE_TASK_GROUP
-  ret = group_allocate(ttcb);
+  ret = group_allocate(ttcb, tcb->flags);
   if (ret < 0)
     {
       errcode = -ret;
@@ -156,9 +151,7 @@ int task_init(FAR struct tcb_s *tcb, const char *name, int priority,
 
   /* Configure the user provided stack region */
 
-#ifndef CONFIG_CUSTOM_STACK
   up_use_stack(tcb, stack, stack_size);
-#endif
 
   /* Initialize the task control block */
 

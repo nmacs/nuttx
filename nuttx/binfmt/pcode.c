@@ -187,7 +187,7 @@ static int pcode_mount_testfs(void)
               "romfs", MS_RDONLY, NULL);
   if (ret < 0)
     {
-      int errval = errno;
+      int errval = get_errno();
       DEBUGASSERT(errval > 0);
 
       bdbg("ERROR: mount(%s,%s,romfs) failed: %d\n",
@@ -218,7 +218,7 @@ static int pcode_mount_testfs(void)
  *
  ****************************************************************************/
 
-#ifndef CONFIG_NUTTX_KERNEL
+#if !defined(CONFIG_BUILD_PROTECTED) && !defined(CONFIG_BUILD_KERNEL)
 static void pcode_onexit(int exitcode, FAR void *arg)
 {
   FAR struct binary_s *binp = (FAR struct binary_s *)arg;
@@ -236,12 +236,13 @@ static void pcode_onexit(int exitcode, FAR void *arg)
  * Description:
  *   This is the proxy program that runs and starts the P-Code interpreter.
  *
- * REVISIT:  There are issues here when CONFIG_NUTTX_KERNEL is selected.  Also
- * This implementation is too highly couple to logic in the apps/ directory.
+ * REVISIT:  There are issues here when CONFIG_BUILD_PROTECTED or
+ * CONFIG_BUILD_KERNEL are selected.  Also this implementation is too highly
+ * couple to logic in the apps/ directory.
  *
  ****************************************************************************/
 
-#ifndef CONFIG_NUTTX_KERNEL
+#if !defined(CONFIG_BUILD_PROTECTED) && !defined(CONFIG_BUILD_KERNEL)
 static int pcode_proxy(int argc, char **argv)
 {
   FAR struct binary_s *binp;
@@ -265,8 +266,8 @@ static int pcode_proxy(int argc, char **argv)
   ret = on_exit(pcode_onexit, binp);
   if (ret < 0)
     {
-      bdbg("ERROR: on_exit failed: %d\n", errno);
-      kfree(fullpath);
+      bdbg("ERROR: on_exit failed: %d\n", get_errno());
+      kmm_free(fullpath);
       return EXIT_FAILURE;
     }
 
@@ -276,7 +277,7 @@ static int pcode_proxy(int argc, char **argv)
 
   /* We no longer need the fullpath */
 
-  kfree(fullpath);
+  kmm_free(fullpath);
 
   /* Check the result of the interpretation */
 
@@ -289,7 +290,7 @@ static int pcode_proxy(int argc, char **argv)
   return EXIT_SUCCESS;
 }
 #else
-#  error Missing logic for the case of CONFIG_NUTTX_KERNEL
+#  error Missing logic for the case of CONFIG_BUILD_PROTECTED/KERNEL
 #endif
 
 /****************************************************************************
@@ -316,7 +317,7 @@ static int pcode_load(struct binary_s *binp)
   fd = open(binp->filename, O_RDONLY);
   if (fd < 0)
     {
-      int errval = errno;
+      int errval = get_errno();
       bdbg("ERROR: Failed to open binary %s: %d\n", binp->filename, errval);
       return -errval;
     }
@@ -335,7 +336,7 @@ static int pcode_load(struct binary_s *binp)
            * simply interrupted by a signal.
            */
 
-          int errval = errno;
+          int errval = get_errno();
           DEBUGASSERT(errval > 0);
 
           if (errval != EINTR)
@@ -371,7 +372,8 @@ static int pcode_load(struct binary_s *binp)
     }
 
   /* Return the load information.
-   * REVISIT:  There are issues here when CONFIG_NUTTX_KERNEL is selected.
+   * REVISIT:  There are issues here when CONFIG_BUILD_PROTECTED or
+   * CONFIG_BUILD_KERNEL are selected.
    */
 
   binp->entrypt   = pcode_proxy;
@@ -383,7 +385,7 @@ static int pcode_load(struct binary_s *binp)
   do
     {
       ret = sem_wait(&g_pcode_handoff.exclsem);
-      DEBUGASSERT(ret == OK || errno == EINTR);
+      DEBUGASSERT(ret == OK || get_errno() == EINTR);
     }
   while (ret < 0);
 
@@ -508,7 +510,7 @@ void pcode_uninitialize(void)
   ret = unregister_binfmt(&g_pcode_binfmt);
   if (ret < 0)
     {
-      int errval = errno;
+      int errval = get_errno();
       DEBUGASSERT(errval > 0);
 
       bdbg("ERROR: unregister_binfmt() failed: %d\n", errval);
@@ -519,7 +521,7 @@ void pcode_uninitialize(void)
   ret = umount(CONFIG_PCODE_TEST_MOUNTPOINT);
   if (ret < 0)
     {
-      int errval = errno;
+      int errval = get_errno();
       DEBUGASSERT(errval > 0);
 
       bdbg("ERROR: umount(%s) failed: %d\n", CONFIG_PCODE_TEST_MOUNTPOINT, errval);

@@ -174,11 +174,11 @@ static uart_dev_t *up_alloc_com(unsigned int base, int irq)
     uart_dev_t *dev;
     struct up_dev_s *priv;
 
-    priv = kzalloc(sizeof(struct up_dev_s));
+    priv = kmm_zalloc(sizeof(struct up_dev_s));
     if (priv == NULL)
         goto err0;
 
-    dev = kzalloc(sizeof(uart_dev_t));
+    dev = kmm_zalloc(sizeof(uart_dev_t));
     if (dev == NULL)
         goto err1;
 
@@ -202,7 +202,7 @@ static uart_dev_t *up_alloc_com(unsigned int base, int irq)
     return dev;
 
  err1:
-    kfree(priv);
+    kmm_free(priv);
  err0:
     return NULL;
 }
@@ -213,8 +213,8 @@ static uart_dev_t *up_alloc_com(unsigned int base, int irq)
 
 static inline void up_free_com(uart_dev_t *com)
 {
-    kfree(com->priv);
-    kfree(com);
+    kmm_free(com->priv);
+    kmm_free(com);
 }
 
 /****************************************************************************

@@ -139,7 +139,7 @@ FAR void *rammap(int fd, size_t length, off_t offset)
 
   /* Allocate a region of memory of the specified size */
 
-  alloc = (FAR uint8_t *)kumalloc(sizeof(struct fs_rammap_s) + length);
+  alloc = (FAR uint8_t *)kumm_malloc(sizeof(struct fs_rammap_s) + length);
   if (!alloc)
     {
       fdbg("Region allocation failed, length: %d\n", (int)length);
@@ -232,13 +232,13 @@ FAR void *rammap(int fd, size_t length, off_t offset)
   return map->addr;
 
 errout_with_region:
-  kufree(alloc);
+  kumm_free(alloc);
 errout:
   set_errno(err);
   return MAP_FAILED;
 
 errout_with_errno:
-  kufree(alloc);
+  kumm_free(alloc);
   return MAP_FAILED;
 }
 

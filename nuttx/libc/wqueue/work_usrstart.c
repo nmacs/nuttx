@@ -46,7 +46,7 @@
 
 #include <nuttx/wqueue.h>
 
-#if defined(CONFIG_NUTTX_KERNEL) && !defined(__KERNEL__) && \
+#if defined(CONFIG_BUILD_PROTECTED) && !defined(__KERNEL__) && \
     defined(CONFIG_SCHED_WORKQUEUE) && defined(CONFIG_SCHED_USRWORK)
 
 /****************************************************************************
@@ -93,7 +93,7 @@ int work_usrstart(void)
 
   svdbg("Starting user-mode worker thread\n");
 
-  g_usrwork[USRWORK].pid = TASK_CREATE("usrwork",
+  g_usrwork[USRWORK].pid = task_create("usrwork",
                                        CONFIG_SCHED_USRWORKPRIORITY,
                                        CONFIG_SCHED_USRWORKSTACKSIZE,
                                        (main_t)work_usrthread,
@@ -112,4 +112,4 @@ int work_usrstart(void)
   return g_usrwork[USRWORK].pid;
 }
 
-#endif /* CONFIG_NUTTX_KERNEL && !__KERNEL__ CONFIG_SCHED_WORKQUEUE && CONFIG_SCHED_USRWORK */
+#endif /* CONFIG_BUILD_PROTECTED && !__KERNEL__ CONFIG_SCHED_WORKQUEUE && CONFIG_SCHED_USRWORK */

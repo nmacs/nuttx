@@ -1,7 +1,7 @@
 ############################################################################
 # examples/elf/tests/helloxx/Makefile
 #
-#   Copyright (C) 2012 Gregory Nutt. All rights reserved.
+#   Copyright (C) 2012, 2014 Gregory Nutt. All rights reserved.
 #   Author: Gregory Nutt <gnutt@nuttx.org>
 #
 # Redistribution and use in source and binary forms, with or without
@@ -35,6 +35,34 @@
 
 -include $(TOPDIR)/Make.defs
 
+ifeq ($(WINTOOL),y)
+NUTTXLIB = "${shell cygpath -w $(TOPDIR)$(DELIM)lib}"
+else
+NUTTXLIB = "$(TOPDIR)$(DELIM)lib"
+endif
+
+ifeq ($(CONFIG_EXAMPLES_ELF_SYSCALL),y)
+LDELFFLAGS += -Bstatic
+LDLIBPATH += -L $(NUTTXLIB)
+else
+ifeq ($(CONFIG_EXAMPLES_ELF_LIBC),y)
+LDELFFLAGS += -Bstatic
+LDLIBPATH +=  -L $(NUTTXLIB)
+endif
+endif
+
+ifeq ($(CONFIG_EXAMPLES_ELF_LIBC),y)
+ifeq ($(CONFIG_BUILD_PROTECTED),y)
+LDLIBS += -luc
+else
+LDLIBS += -lc
+endif
+endif
+
+ifeq ($(CONFIG_EXAMPLES_ELF_SYSCALL),y)
+LDLIBS += -lproxies
+endif
+
 BIN1 = hello++1
 BIN2 = hello++2
 ifeq ($(CONFIG_BINFMT_CONSTRUCTORS),y)
@@ -44,36 +72,36 @@ endif
 ALL_BIN = $(BIN1) $(BIN2) $(BIN3) $(BIN4)
 
 SRCS1 = $(BIN1).c
-OBJS1 = $(SRCS1:.c=.o)
+OBJS1 = $(SRCS1:.c=$(OBJEXT))
 
 SRCS2 = $(BIN2).c
-OBJS2 = $(SRCS2:.c=.o)
+OBJS2 = $(SRCS2:.c=$(OBJEXT))
 
 ifeq ($(CONFIG_BINFMT_CONSTRUCTORS),y)
 SRCS3 = $(BIN3).c
-OBJS3 = $(SRCS3:.c=.o)
+OBJS3 = $(SRCS3:.c=$(OBJEXT))
 endif
 
 #SRCS4 = $(BIN4).c
-#OBJS4 = $(SRCS4:.c=.o)
+#OBJS4 = $(SRCS4:.c=$(OBJEXT))
 
 SRCS = $(SRCS1) $(SRCS2) $(SRCS3) $(SRCS4)
 OBJS = $(OBJS1) $(OBJS2) $(OBJS3) $(OBJS4)
 
-LIBSTDC_STUBS_DIR	= $(TOPDIR)/libxx
-LIBSTDC_STUBS_LIB	= $(LIBSTDC_STUBS_DIR)/liblibxx.a
+LDLIBSTDC_STUBS_DIR	= $(TOPDIR)/libxx
+LDLIBSTDC_STUBS_LIB	= $(LDLIBSTDC_STUBS_DIR)/liblibxx.a
 
 all: $(BIN1) $(BIN2) $(BIN3) $(BIN4)
 
-$(OBJS): %.o: %.cpp
+$(OBJS): %$(OBJEXT): %.cpp
 	@echo "CC: $<"
 	$(Q) $(CXX) -c $(CXXELFFLAGS) $< -o $@
 
 # This contains libstdc++ stubs to that you can build C++ code
 # without actually having libstdc++
 
-$(LIBSTDC_STUBS_LIB):
-	$(Q) $(MAKE) -C $(LIBSTDC_STUBS_DIR) TOPDIR=$(TOPDIR)
+$(LDLIBSTDC_STUBS_LIB):
+	$(Q) $(MAKE) -C $(LDLIBSTDC_STUBS_DIR) TOPDIR=$(TOPDIR)
 
 # BIN1 and BIN2 link just like C code because they contain no
 # static constructors.  BIN1 is equivalent to a C hello world;
@@ -82,18 +110,18 @@ $(LIBSTDC_STUBS_LIB):
 
 $(BIN1): $(OBJS1)
 	@echo "LD: $<"
-	$(Q) $(LD) $(LDELFFLAGS) -o $@ $^
+	$(Q) $(LD) $(LDELFFLAGS) $(LDLIBPATH) -o $@ $(ARCHCRT0OBJ) $^ $(LDLIBS)
 
 $(BIN2): $(OBJS2)
 	@echo "LD: $<"
-	$(Q) $(LD) $(LDELFFLAGS) -o $@ $^
+	$(Q) $(LD) $(LDELFFLAGS) $(LDLIBPATH) -o $@ $(ARCHCRT0OBJ) $^ $(LDLIBS)
 
 # BIN3 is equivalent to BIN2 except that is uses static initializers
 
 ifeq ($(CONFIG_BINFMT_CONSTRUCTORS),y)
 $(BIN3): $(OBJS3)
 	@echo "LD: $<"
-	$(Q) $(LD) $(LDELFFLAGS) -o $@ $^
+	$(Q) $(LD) $(LDELFFLAGS) $(LDLIBPATH) -o $@ $(ARCHCRT0OBJ) $^ $(LDLIBS)
 endif
 
 # BIN4 is similar to BIN3 except that it uses the streams code from libstdc++
@@ -102,7 +130,7 @@ endif
 #
 #$(BIN4): $(OBJS4)
 #	@echo "LD: $<"
-#	$(Q) $(LD) $(LDELFFLAGS) -o $@ $^
+#	$(Q) $(LD) $(LDELFFLAGS) $(LDLIBPATH) -o $@ $(ARCHCRT0OBJ) $^ $(LDLIBS)
 
 clean:
 	$(call DELFILE, $(BIN1))

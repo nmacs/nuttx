@@ -67,7 +67,7 @@
 #  define RTT_PRES      1
 #endif
 
-#define RTT_FCLK        (BOARD_SLCK_FREQUENCY/RTT_PRES)
+#define RTT_FCLK        (BOARD_SCLK_FREQUENCY/RTT_PRES)
 #define RTT_MAXTIMEOUT  ((1000000ULL * (0x100000000ULL)) / RTT_FCLK)
 
 /* Configuration ************************************************************/
@@ -440,7 +440,9 @@ static int sam34_stop(FAR struct timer_lowerhalf_s *lower)
     }
 
 #if !(defined(CONFIG_RTC_HIRES) && defined (CONFIG_SAM34_RTC))
+#if defined(RTT_MR_RTTDIS)
   sam34_putreg(RTT_MR_RTTDIS, SAM_RTT_MR);    /* Disable RTT */
+#endif
   sam_rtt_disableclk();                       /* Disable peripheral clock */
 #endif
 

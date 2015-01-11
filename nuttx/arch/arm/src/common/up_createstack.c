@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/common/up_createstack.c
  *
- *   Copyright (C) 2007-2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,6 +54,13 @@
 /****************************************************************************
  * Pre-processor Macros
  ****************************************************************************/
+/* Configuration */
+
+#undef HAVE_KERNEL_HEAP
+#if (defined(CONFIG_BUILD_PROTECTED) || defined(CONFIG_BUILD_KERNEL)) && \
+     defined(CONFIG_MM_KERNEL_HEAP)
+#  define HAVE_KERNEL_HEAP 1
+#endif
 
 /* ARM requires at least a 4-byte stack alignment.  For use with EABI and
  * floating point, the stack must be aligned to 8-byte addresses.
@@ -120,10 +127,11 @@
  *     however, there are certain contexts where the TCB may not be fully
  *     initialized when up_create_stack is called.
  *
- *     If CONFIG_NUTTX_KERNEL is defined, then this thread type may affect
- *     how the stack is allocated.  For example, kernel thread stacks should
- *     be allocated from protected kernel memory.  Stacks for user tasks and
- *     threads must come from memory that is accessible to user code.
+ *     If either CONFIG_BUILD_PROTECTED or CONFIG_BUILD_KERNEL are defined,
+ *     then this thread type may affect how the stack is allocated.  For
+ *     example, kernel thread stacks should be allocated from protected
+ *     kernel memory.  Stacks for user tasks and threads must come from
+ *     memory that is accessible to user code.
  *
  ****************************************************************************/
 
@@ -149,15 +157,15 @@ int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
        * then create a zeroed stack to make stack dumps easier to trace.
        */
 
-#if defined(CONFIG_NUTTX_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
+#ifdef HAVE_KERNEL_HEAP
       /* Use the kernel allocator if this is a kernel thread */
 
       if (ttype == TCB_FLAG_TTYPE_KERNEL)
         {
 #if defined(CONFIG_DEBUG) && !defined(CONFIG_DEBUG_STACK)
-          tcb->stack_alloc_ptr = (uint32_t *)kzalloc(stack_size);
+          tcb->stack_alloc_ptr = (uint32_t *)kmm_zalloc(stack_size);
 #else
-          tcb->stack_alloc_ptr = (uint32_t *)kmalloc(stack_size);
+          tcb->stack_alloc_ptr = (uint32_t *)kmm_malloc(stack_size);
 #endif
         }
       else
@@ -166,9 +174,9 @@ int up_create_stack(FAR struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
           /* Use the user-space allocator if this is a task or pthread */
 
 #if defined(CONFIG_DEBUG) && !defined(CONFIG_DEBUG_STACK)
-          tcb->stack_alloc_ptr = (uint32_t *)kuzalloc(stack_size);
+          tcb->stack_alloc_ptr = (uint32_t *)kumm_zalloc(stack_size);
 #else
-          tcb->stack_alloc_ptr = (uint32_t *)kumalloc(stack_size);
+          tcb->stack_alloc_ptr = (uint32_t *)kumm_malloc(stack_size);
 #endif
         }
 

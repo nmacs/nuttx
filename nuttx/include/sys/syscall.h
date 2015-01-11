@@ -47,9 +47,7 @@
 #  include <stdint.h>
 #endif
 
-/* The content of this file is only meaningful for the case of a kernel build. */
-
-#ifdef CONFIG_NUTTX_KERNEL
+#ifdef CONFIG_LIB_SYSCALL
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -91,11 +89,28 @@
 #define SYS_sem_unlink                 (CONFIG_SYS_RESERVED+19)
 #define SYS_sem_wait                   (CONFIG_SYS_RESERVED+20)
 #define SYS_set_errno                  (CONFIG_SYS_RESERVED+21)
-#define SYS_task_create                (CONFIG_SYS_RESERVED+22)
-#define SYS_task_delete                (CONFIG_SYS_RESERVED+23)
-#define SYS_task_restart               (CONFIG_SYS_RESERVED+24)
-#define SYS_up_assert                  (CONFIG_SYS_RESERVED+25)
-#define __SYS_vfork                    (CONFIG_SYS_RESERVED+26)
+
+/* Task creation APIs based on global entry points cannot be use with
+ * address environments.
+ */
+
+#ifndef CONFIG_BUILD_KERNEL
+#  define SYS_task_create              (CONFIG_SYS_RESERVED+22)
+#  define __SYS_task_delete            (CONFIG_SYS_RESERVED+23)
+
+/* pgalloc() is only available with address environments with the page
+ * allocator selected.  MMU support from the CPU is also required.
+ */
+
+#else
+#  define SYS_pgalloc                  (CONFIG_SYS_RESERVED+22)
+#  define __SYS_task_delete            (CONFIG_SYS_RESERVED+23)
+#endif
+
+#  define SYS_task_delete              __SYS_task_delete
+#  define SYS_task_restart             (__SYS_task_delete+1)
+#  define SYS_up_assert                (__SYS_task_delete+2)
+#  define __SYS_vfork                  (__SYS_task_delete+3)
 
 /* The following can be individually enabled */
 
@@ -125,29 +140,28 @@
 #  ifdef CONFIG_SCHED_HAVE_PARENT
 #    define SYS_wait                   (__SYS_waitpid+1)
 #    define SYS_waitid                 (__SYS_waitpid+2)
-#    define __SYS_posixspawn           (__SYS_waitpid+3)
+#    define __SYS_posix_spawn          (__SYS_waitpid+3)
 #  else
-#    define __SYS_posixspawn           (__SYS_waitpid+1)
+#    define __SYS_posix_spawn          (__SYS_waitpid+1)
 #endif
 #else
-#  define __SYS_posixspawn             __SYS_waitpid
+#  define __SYS_posix_spawn            __SYS_waitpid
 #endif
 
 /* The following can only be defined if we are configured to execute
  * programs from a file system.
  */
 
-#if defined(CONFIG_BINFMT_DISABLE) && defined(CONFIG_LIBC_EXECFUNCS)
+#if !defined(CONFIG_BINFMT_DISABLE) && defined(CONFIG_LIBC_EXECFUNCS)
 #  ifdef CONFIG_BINFMT_EXEPATH
-#    define SYS_posixspawnp            __SYS_posixspawn
+#    define SYS_posix_spawnp           __SYS_posix_spawn
 #  else
-#    define SYS_posixspawn             __SYS_posixspawn
+#    define SYS_posix_spawn            __SYS_posix_spawn
 #  endif
-#  define SYS_execv                    (__SYS_posixspawn+1)
-#  define SYS_execl                    (__SYS_posixspawn+2)
-#  define __SYS_signals                (__SYS_posixspawn+3)
+#  define SYS_execv                    (__SYS_posix_spawn+1)
+#  define __SYS_signals                (__SYS_posix_spawn+2)
 #else
-#  define __SYS_signals                __SYS_posixspawn
+#  define __SYS_signals                __SYS_posix_spawn
 #endif
 
 /* The following are only defined is signals are supported in the NuttX
@@ -261,13 +275,25 @@
 #    define SYS_rmdir                  (__SYS_mountpoint+4)
 #    define SYS_umount                 (__SYS_mountpoint+5)
 #    define SYS_unlink                 (__SYS_mountpoint+6)
-#    define __SYS_pthread              (__SYS_mountpoint+7)
+#    define __SYS_shm                  (__SYS_mountpoint+7)
 #  else
-#    define __SYS_pthread              __SYS_mountpoint
+#    define __SYS_shm                  __SYS_mountpoint
 #  endif
 
 #else
-#  define __SYS_pthread                __SYS_filedesc
+#  define __SYS_shm                    __SYS_filedesc
+#endif
+
+/* Shared memory interfaces */
+
+#ifdef CONFIG_MM_SHM
+#    define SYS_shmget                 (__SYS_shm+0)
+#    define SYS_shmat                  (__SYS_shm+1)
+#    define SYS_shmctl                 (__SYS_shm+2)
+#    define SYS_shmdt                  (__SYS_shm+3)
+#    define __SYS_pthread              (__SYS_shm+4)
+#else
+#  define __SYS_pthread                __SYS_shm
 #endif
 
 /* The following are defined if pthreads are enabled */
@@ -433,6 +459,6 @@ EXTERN const uint8_t g_funcnparms[SYS_nsyscalls];
 #endif
 
 #endif /* __ASSEMBLY__ */
-#endif /* CONFIG_NUTTX_KERNEL */
+#endif /* CONFIG_LIB_SYSCALL */
 #endif /* __INCLUDE_SYS_SYSCALL_H */
 

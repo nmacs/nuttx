@@ -44,6 +44,7 @@
 #include <nuttx/compiler.h>
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include <arch/irq.h>
 #include <nuttx/irq.h>
@@ -68,6 +69,8 @@
 #define HAVE_WM8904      1
 #define HAVE_AUDIO_NULL  1
 #define HAVE_PMIC        1
+#define HAVE_ELF         1
+#define HAVE_ROMFS       1
 
 /* HSMCI */
 /* Can't support MMC/SD if the card interface(s) are not enable */
@@ -396,6 +399,10 @@
 #endif
 
 #ifdef HAVE_WM8904
+#  ifdef CONFIG_SAMA5D4_MB_REVC
+#    warning WM8904 should not be used with the Rev C. board
+#  endif
+
 #  ifndef CONFIG_SAMA5_TWI0
 #    warning CONFIG_SAMA5_TWI0 is required for audio support
 #    undef HAVE_WM8904
@@ -453,6 +460,22 @@
 
 #ifndef CONFIG_EXPERIMENTAL
 #  undef HAVE_PMIC /* REVISIT: Disable anyway because it does not yet work */
+#endif
+
+/* ELF */
+
+#if defined(CONFIG_BINFMT_DISABLE) || !defined(CONFIG_ELF)
+#  undef HAVE_ELF
+#endif
+
+/* ROMFS */
+
+#ifndef CONFIG_FS_ROMFS
+#  undef HAVE_ROMFS
+#endif
+
+#ifndef CONFIG_SAMA5D4EK_ROMFS_MOUNT
+#  undef HAVE_ROMFS
 #endif
 
 /* LEDs *****************************************************************************/
@@ -540,7 +563,7 @@
 #define MXT_I2C_ADDRESS  0x4c
 
 /* HSMCI Card Slots *****************************************************************/
-/* The SAMA4D4-EK provides a two SD memory card slots:  (1) a full size SD
+/* The SAMA5D4-EK provides a two SD memory card slots:  (1) a full size SD
  * card slot (J10), and (2) a microSD memory card slot (J11).
  *
  * The full size SD card slot connects via HSMCI0.  The card detect discrete
@@ -597,7 +620,7 @@
                       PIO_PORT_PIOE | PIO_PIN15)
 
 /* USB Ports ************************************************************************/
-/* The SAMA4D4-EK features three USB communication ports:
+/* The SAMA5D4-EK features three USB communication ports:
  *
  *   * Port A Host High Speed (EHCI) and Full Speed (OHCI) multiplexed with
  *     USB Device High Speed Micro AB connector, J1
@@ -685,7 +708,7 @@
 
 /* Ethernet */
 
-#ifdef CONFIG_SAMA4_EMACB
+#ifdef CONFIG_SAMA5_EMACB
 /* ETH0/1: Ethernet 10/100 (EMAC) Ports
  *
  * Networking support via the can be added to NSH by selecting the following
@@ -744,18 +767,21 @@
  * enabled via LCD_ETH1_CONFIG when an LCD is detected:
  *
  * - LCD_ETH1_CONFIG = 0: LCD 5v disable
- * - LCD_ETH1_CONFIG = 1 & LCD_DETECT# =0: LCD 5v enable
+ * - LCD_ETH1_CONFIG = 1 & LCD_DETECT# =0: LCD 5v enable.
+ *
+ * The sense of KSZ8081 interrupt is configurable but is, by default, active
+ * low.
  */
 
-#ifdef CONFIG_SAMA4_EMAC0
+#ifdef CONFIG_SAMA5_EMAC0
 #  define PIO_INT_ETH0 (PIO_INPUT | PIO_CFG_PULLUP | PIO_CFG_DEGLITCH | \
-                        PIO_INT_BOTHEDGES | PIO_PORT_PIOE | PIO_PIN1)
+                        PIO_INT_FALLING | PIO_PORT_PIOE | PIO_PIN1)
 #  define IRQ_INT_ETH0 SAM_IRQ_PE1
 #endif
 
-#ifdef CONFIG_SAMA4_EMAC1
+#ifdef CONFIG_SAMA5_EMAC1
 #  define PIO_INT_ETH1 (PIO_INPUT | PIO_CFG_PULLUP | PIO_CFG_DEGLITCH | \
-                        PIO_INT_BOTHEDGES | PIO_PORT_PIOE | PIO_PIN2)
+                        PIO_INT_FALLING | PIO_PORT_PIOE | PIO_PIN2)
 #  define IRQ_INT_ETH1 SAM_IRQ_PE2
 #endif
 #endif
@@ -844,7 +870,7 @@
  * Name: sam_spiinitialize
  *
  * Description:
- *   Called to configure SPI chip select PIO pins for the SAMA4D4-EK board.
+ *   Called to configure SPI chip select PIO pins for the SAMA5D4-EK board.
  *
  ************************************************************************************/
 
@@ -858,7 +884,7 @@ void weak_function sam_spiinitialize(void);
  * Description:
  *   Configures DDR2 (MT47H128M16RT 128MB or, optionally,  MT47H64M16HR)
  *
- *   Per the SAMA4D4-EK User guide: "Two SDRAM/DDR2 used as main system memory.
+ *   Per the SAMA5D4-EK User guide: "Two SDRAM/DDR2 used as main system memory.
  *   MT47H128M16 - 2 Gb - 16 Meg x 16 x 8 banks, the board provides up to 2 Gb on-
  *   board, soldered DDR2 SDRAM. The memory bus is 32 bits wide and operates with
  *   up to 166 MHz."
@@ -870,7 +896,7 @@ void weak_function sam_spiinitialize(void);
  *     Column address A[9:0] (1K)
  *     Bank address BA[2:0] a(24,25) (8)
  *
- *  This logic was taken from Atmel sample code for the SAMA4D4-EK.
+ *  This logic was taken from Atmel sample code for the SAMA5D4-EK.
  *
  *  Input Parameters:
  *     devtype - Either DDRAM_MT47H128M16RT or DDRAM_MT47H64M16HR
@@ -887,6 +913,16 @@ void sam_sdram_config(void);
 #else
 #  define board_sdram_config(t)
 #endif
+
+/****************************************************************************
+ * Name: sam_bringup
+ *
+ * Description:
+ *   Bring up board features
+ *
+ ****************************************************************************/
+
+int sam_bringup(void);
 
 /****************************************************************************
  * Name: sam_nand_automount
@@ -999,7 +1035,7 @@ bool sam_writeprotected(int slotno);
  *
  * Description:
  *   Called from sam_usbinitialize very early in inialization to setup USB-related
- *   PIO pins for the SAMA4D4-EK board.
+ *   PIO pins for the SAMA5D4-EK board.
  *
  ************************************************************************************/
 

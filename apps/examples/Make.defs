@@ -130,6 +130,10 @@ ifeq ($(CONFIG_EXAMPLES_MTDPART),y)
 CONFIGURED_APPS += examples/mtdpart
 endif
 
+ifeq ($(CONFIG_EXAMPLES_MTDRWB),y)
+CONFIGURED_APPS += examples/mtdrwb
+endif
+
 ifeq ($(CONFIG_EXAMPLES_NETPKT),y)
 CONFIGURED_APPS += examples/netpkt
 endif
@@ -154,8 +158,8 @@ ifeq ($(CONFIG_EXAMPLES_NX),y)
 CONFIGURED_APPS += examples/nx
 endif
 
-ifeq ($(CONFIG_EXAMPLES_NXCONSOLE),y)
-CONFIGURED_APPS += examples/nxconsole
+ifeq ($(CONFIG_EXAMPLES_NXTERM),y)
+CONFIGURED_APPS += examples/nxterm
 endif
 
 ifeq ($(CONFIG_EXAMPLES_NXFFS),y)

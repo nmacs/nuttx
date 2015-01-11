@@ -84,7 +84,7 @@ int elf_allocbuffer(FAR struct elf_loadinfo_s *loadinfo)
     {
       /* No.. allocate one now */
 
-      loadinfo->iobuffer = (FAR uint8_t *)kmalloc(CONFIG_ELF_BUFFERSIZE);
+      loadinfo->iobuffer = (FAR uint8_t *)kmm_malloc(CONFIG_ELF_BUFFERSIZE);
       if (!loadinfo->iobuffer)
         {
           bdbg("Failed to allocate an I/O buffer\n");
@@ -120,7 +120,7 @@ int elf_reallocbuffer(FAR struct elf_loadinfo_s *loadinfo, size_t increment)
 
   /* And perform the reallocation */
 
-   buffer = krealloc((FAR void *)loadinfo->iobuffer, newsize);
+   buffer = kmm_realloc((FAR void *)loadinfo->iobuffer, newsize);
    if (!buffer)
     {
       bdbg("Failed to reallocate the I/O buffer\n");

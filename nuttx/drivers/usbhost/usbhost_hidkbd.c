@@ -664,7 +664,7 @@ static inline FAR struct usbhost_state_s *usbhost_allocclass(void)
   FAR struct usbhost_state_s *priv;
 
   DEBUGASSERT(!up_interrupt_context());
-  priv = (FAR struct usbhost_state_s *)kmalloc(sizeof(struct usbhost_state_s));
+  priv = (FAR struct usbhost_state_s *)kmm_malloc(sizeof(struct usbhost_state_s));
   uvdbg("Allocated: %p\n", priv);;
   return priv;
 }
@@ -690,7 +690,7 @@ static inline void usbhost_freeclass(FAR struct usbhost_state_s *class)
   /* Free the class instance. */
 
   uvdbg("Freeing: %p\n", class);;
-  kfree(class);
+  kmm_free(class);
 }
 
 /****************************************************************************
@@ -1563,7 +1563,7 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv)
    * memory resources, primarily for the dedicated stack (CONFIG_HIDKBD_STACKSIZE).
    */
 
-  uvdbg("user_start: Start poll task\n");
+  uvdbg("Start poll task\n");
 
   /* The inputs to a task started by task_create() are very awkard for this
    * purpose.  They are really designed for command line tasks (argc/argv). So
@@ -1577,14 +1577,9 @@ static inline int usbhost_devinit(FAR struct usbhost_state_s *priv)
   usbhost_takesem(&g_exclsem);
   g_priv = priv;
 
-#ifndef CONFIG_CUSTOM_STACK
   priv->pollpid = task_create("kbdpoll", CONFIG_HIDKBD_DEFPRIO,
                               CONFIG_HIDKBD_STACKSIZE,
                               (main_t)usbhost_kbdpoll, (FAR char * const *)NULL);
-#else
-  priv->pollpid = task_create("kbdpoll", CONFIG_HIDKBD_DEFPRIO,
-                              (main_t)usbhost_kbdpoll, (FAR char * const *)NULL);
-#endif
   if (priv->pollpid == ERROR)
     {
       /* Failed to started the poll thread... probably due to memory resources */

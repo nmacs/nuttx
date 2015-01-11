@@ -31,6 +31,7 @@ Contents
   - UARTs
   - Timer Inputs/Outputs
   - FPU
+  - STM32F4DIS-BB
   - FSMC SRAM
   - SSD1289
   - UG-2864AMBAG01 / UG-2864HSWEG01
@@ -356,8 +357,13 @@ USART6
 Default USART/UART Configuration
 --------------------------------
 
-USART2 is enabled in all configurations (see */defconfig).  RX and TX are
+USART2 is enabled in most configurations (see */defconfig).  RX and TX are
 configured on pins PA3 and PA2, respectively (see include/board.h).
+
+These pins selections, however, conflict with Ethernet pin usage on the
+STM32F4DIS-BB base board.  The STM32F4DIS-BB base board provides RS-232
+drivers and a DB9 connector for USART6.  USART6 is the preferred serial
+console for use with the STM32F4DIS-BB.
 
 Timer Inputs/Outputs
 ====================
@@ -495,6 +501,53 @@ in order to successfully build NuttX using the Atollic toolchain WITH FPU suppor
 See the section above on Toolchains, NOTE 2, for explanations for some of
 the configuration settings.  Some of the usual settings are just not supported
 by the "Lite" version of the Atollic toolchain.
+
+STM32F4DIS-BB
+=============
+
+On-board PIO usage:
+
+  ---------- ------------- ------------------------------
+  PIO        SIGNAL        FUNCTION
+  ---------- ------------- ------------------------------
+  PB11       TXEN          LAN8720
+  PB12       TXD0
+  PB13       TXD1
+  PC4        RXD0/MODE0
+  PC5        RXD1/MODE1
+  PA7        RXDR/PHYAD0
+  PA2        MDIO
+  PC1        MDC
+  PA1        NINT/REFCLK0
+  PE2        NRST
+  ---------- ------------- ------------------------------
+  PC6        D2            DCMI
+  PC7        D3
+  PE0        D4
+  PE1        D5
+  PE4        D6
+  PB6        D7
+  PE5        D8
+  PE6        D9
+  PA6        PCLK
+  PA4        HS
+  PB7        VS
+  PD6        PWR_EN
+  PD12       RST
+  PB9        SDA
+  PB8        SCL
+  ---------- ------------- ------------------------------
+  USART6_TX  T1IN          SP3232EEY-L
+  USART6_RX  T2OUT
+  ---------- ------------- ------------------------------
+  PB15       NCD           MicroSD
+  PC9        DAT1
+  PC8        DAT0
+  PC12       CLK
+  PD2        CMD
+  PC11       CD/DAT3
+  PC10       DAT2
+  ---------- ------------- ------------------------------
 
 FSMC SRAM
 =========
@@ -1189,6 +1242,52 @@ Where <subdir> is one of the following:
        Then use the combined.hex file with the STM32 ST-Link tool.  If
        you do this a lot, you will probably want to invest a little time
        to develop a tool to automate these steps.
+
+  netnsh:
+  ------
+    This is a special version of the NuttShell (nsh) configuration that is
+    tailored to work with the STM32F4DIS-BB base board.  This version
+    derives from nsh configuration so all of the notes apply there except as
+    noted below.
+
+    NOTES:
+
+    1. This example uses USART6 for the serial console.  The STM32F4DIS-BB
+       provides RS-232 drivers for USART6 and allows access via the DB9
+       connector on the base board.  USART6 is, therefore, the more
+       convenient UART to use for the serial console.
+
+    2. Networking is enabled.  The STM32F4DIS-BB has an SMC LAN2870 PHY
+       and RJ5 network connector.  Support is enabled for ICMP, TCP/IP,
+       UDP, and ARP.
+
+    3. SD card support is enabled.  The STM32F4DIS-BB has an on-board
+       microSD slot that should be automatically registered as the block
+       device /dev/mmcsd0 when an SD card is present.  The SD card can
+       then be mounted by the NSH command:
+
+       nsh> mount -t /dev/mmcsd0 /mnt/sdcard
+
+    4. CCM memory is not included in the heap in this configuration.  That
+       is because the SD card uses DMA and if DMA memory is allocated from
+       the CCM memory, the DMA will failure.  This is an STM32 hardware
+       limitation.
+
+       If you want to get the CCM memory back in the heap, then you can
+
+         a) Disable microSD support (and DMAC2 which is then no longer
+            needed).  If you reduce the clocking by a huge amount, it might
+            be possible to use microSD without DMA.  This, however, may
+            not be possible.
+         b) Develop a strategy to manage CCM memory and DMA memory.  Look
+            at this discussion on the NuttX Wiki:
+            http://www.nuttx.org/doku.php?id=wiki:howtos:stm32-ccm-alloc
+
+       To put the CCM memory back into the heap you would need to change
+       the following in the NuttX configuration:
+
+         CONFIG_STM32_CCMEXCLUDE=n  : Don't exclude CCM memory from the heap
+         CONFIG_MM_REGIONS=2        : With CCM, there will be two memory regions
 
   nsh:
   ---

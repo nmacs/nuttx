@@ -676,11 +676,11 @@ FAR struct mtd_dev_s *at25_initialize(FAR struct spi_dev_s *dev)
    * to be extended to handle multiple FLASH parts on the same SPI bus.
    */
 
-  priv = (FAR struct at25_dev_s *)kzalloc(sizeof(struct at25_dev_s));
+  priv = (FAR struct at25_dev_s *)kmm_zalloc(sizeof(struct at25_dev_s));
   if (priv)
     {
       /* Initialize the allocated structure (unsupported methods were
-       * nullified by kzalloc).
+       * nullified by kmm_zalloc).
        */
 
       priv->mtd.erase  = at25_erase;
@@ -702,7 +702,7 @@ FAR struct mtd_dev_s *at25_initialize(FAR struct spi_dev_s *dev)
           /* Unrecognized! Discard all of that work we just did and return NULL */
 
           fdbg("ERROR: Unrecognized\n");
-          kfree(priv);
+          kmm_free(priv);
           priv = NULL;
         }
       else

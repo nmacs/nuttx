@@ -1,7 +1,7 @@
 /****************************************************************************
  * fs/fs_poll.c
  *
- *   Copyright (C) 2008-2009, 2012-2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2008-2009, 2012-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,14 +42,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <poll.h>
-#include <wdog.h>
 #include <errno.h>
 #include <assert.h>
 #include <debug.h>
 
-#include <nuttx/fs/fs.h>
 #include <nuttx/sched.h>
 #include <nuttx/clock.h>
+#include <nuttx/fs/fs.h>
+
+#include <arch/irq.h>
 
 #include "fs_internal.h"
 
@@ -242,22 +243,6 @@ static inline int poll_teardown(FAR struct pollfd *fds, nfds_t nfds, int *count)
 #endif
 
 /****************************************************************************
- * Name: poll_timeout
- *
- * Description:
- *   The wdog expired before any other events were received.
- *
- ****************************************************************************/
-
-static void poll_timeout(int argc, uint32_t isem, ...)
-{
-  /* Wake up the poller */
-
-  FAR sem_t *sem = (FAR sem_t *)isem;
-  poll_semgive(sem);
-}
-
-/****************************************************************************
  * Public Functions
  ****************************************************************************/
 
@@ -278,13 +263,13 @@ static void poll_timeout(int argc, uint32_t isem, ...)
  *     timeout.
  *
  * Return:
- *   On success, the number of structures that have nonzero revents fields.
+ *   On success, the number of structures that have non-zero revents fields.
  *   A value of 0 indicates that the call timed out and no file descriptors
  *   were ready.  On error, -1 is returned, and errno is set appropriately:
  *
- *   EBADF - An invalid file descriptor was given in one of the sets.
+ *   EBADF  - An invalid file descriptor was given in one of the sets.
  *   EFAULT - The fds address is invalid
- *   EINTR - A signal occurred before any requested event.
+ *   EINTR  - A signal occurred before any requested event.
  *   EINVAL - The nfds value exceeds a system limit.
  *   ENOMEM - There was no space to allocate internal data structures.
  *   ENOSYS - One or more of the drivers supporting the file descriptor
@@ -294,7 +279,8 @@ static void poll_timeout(int argc, uint32_t isem, ...)
 
 int poll(FAR struct pollfd *fds, nfds_t nfds, int timeout)
 {
-  WDOG_ID wdog;
+  struct timespec abstime;
+  irqstate_t flags;
   sem_t sem;
   int count = 0;
   int ret;
@@ -303,17 +289,43 @@ int poll(FAR struct pollfd *fds, nfds_t nfds, int timeout)
   ret = poll_setup(fds, nfds, &sem);
   if (ret >= 0)
     {
-      if (timeout >= 0)
+      if (timeout == 0)
         {
-          /* Wait for the poll event with a timeout.  Note that the
-           * millisecond timeout has to be converted to system clock
-           * ticks for wd_start
+          /* Poll returns immediately whether we have a poll event or not. */
+        }
+      else if (timeout > 0)
+        {
+          time_t   sec;
+          uint32_t nsec;
+
+          /* Either wait for either a poll event(s) to occur or for the
+           * specified timeout to elapse with no event.
+           *
+           * NOTE: If a poll event is pending (i.e., the semaphore has already
+           * been incremented), sem_timedwait() will not wait, but will return
+           * immediately.
            */
 
-          wdog = wd_create();
-          wd_start(wdog,  MSEC2TICK(timeout), poll_timeout, 1, (uint32_t)&sem);
-          poll_semtake(&sem);
-          wd_delete(wdog);
+           sec  = timeout / MSEC_PER_SEC;
+           nsec = (timeout - MSEC_PER_SEC * sec) * NSEC_PER_MSEC;
+
+           /* Make sure that the following are atomic by disabling interrupts.
+            * Interrupts will be re-enabled while we are waiting.
+            */
+
+           flags = irqsave();
+           (void)clock_gettime(CLOCK_REALTIME, &abstime);
+
+           abstime.tv_sec  += sec;
+           abstime.tv_nsec += nsec;
+           if (abstime.tv_nsec > NSEC_PER_SEC)
+             {
+               abstime.tv_sec++;
+               abstime.tv_nsec -= NSEC_PER_SEC;
+             }
+
+           (void)sem_timedwait(&sem, &abstime);
+           irqrestore(flags);
         }
       else
         {
@@ -322,7 +334,9 @@ int poll(FAR struct pollfd *fds, nfds_t nfds, int timeout)
           poll_semtake(&sem);
         }
 
-      /* Teardown the poll operation and get the count of events */
+      /* Teardown the poll operation and get the count of events.  Zero will be
+       * returned in the case of a timeout.
+       */
 
       ret = poll_teardown(fds, nfds, &count);
     }

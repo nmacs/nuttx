@@ -461,6 +461,7 @@ bool CMediaPlayer::getMediaFile(const NXWidgets::CListBoxDataItem *item)
         {
           int errcode = errno;
           dbg("ERROR: Could not stat file %s: %d\n", filePath, errcode);
+          UNUSED(errcode);
 
           // Make sure there is no previous file information
 
@@ -1906,7 +1907,7 @@ CMediaPlayerFactory::CMediaPlayerFactory(CTaskbar *taskbar)
 IApplication *CMediaPlayerFactory::create(void)
 {
   // Call CTaskBar::openFullScreenWindow to create a application window for
-  // the NxConsole application
+  // the NxTerm application
 
   CApplicationWindow *window = m_taskbar->openApplicationWindow();
   if (!window)

@@ -1950,7 +1950,7 @@ static FAR struct usbdev_req_s *lpc31_epallocreq(FAR struct usbdev_ep_s *ep)
 #endif
   usbtrace(TRACE_EPALLOCREQ, ((FAR struct lpc31_ep_s *)ep)->epphy);
 
-  privreq = (FAR struct lpc31_req_s *)kmalloc(sizeof(struct lpc31_req_s));
+  privreq = (FAR struct lpc31_req_s *)kmm_malloc(sizeof(struct lpc31_req_s));
   if (!privreq)
     {
       usbtrace(TRACE_DEVERROR(LPC31_TRACEERR_ALLOCFAIL), 0);
@@ -1982,7 +1982,7 @@ static void lpc31_epfreereq(FAR struct usbdev_ep_s *ep, FAR struct usbdev_req_s 
 #endif
 
   usbtrace(TRACE_EPFREEREQ, ((FAR struct lpc31_ep_s *)ep)->epphy);
-  kfree(privreq);
+  kmm_free(privreq);
 }
 
 /*******************************************************************************
@@ -2001,7 +2001,7 @@ static void *lpc31_epallocbuffer(FAR struct usbdev_ep_s *ep, unsigned bytes)
 #ifdef CONFIG_USBDEV_DMAMEMORY
   return usbdev_dma_alloc(bytes);
 #else
-  return kmalloc(bytes);
+  return kmm_malloc(bytes);
 #endif
 }
 #endif
@@ -2022,7 +2022,7 @@ static void lpc31_epfreebuffer(FAR struct usbdev_ep_s *ep, FAR void *buf)
 #ifdef CONFIG_USBDEV_DMAMEMORY
   usbdev_dma_free(buf);
 #else
-  kfree(buf);
+  kmm_free(buf);
 #endif
 }
 #endif

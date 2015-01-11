@@ -306,7 +306,7 @@ static int fat_open(FAR struct file *filep, const char *relpath,
    * file.
    */
 
-  ff = (struct fat_file_s *)kzalloc(sizeof(struct fat_file_s));
+  ff = (struct fat_file_s *)kmm_zalloc(sizeof(struct fat_file_s));
   if (!ff)
     {
       ret = -ENOMEM;
@@ -363,7 +363,7 @@ static int fat_open(FAR struct file *filep, const char *relpath,
       off_t offset = fat_seek(filep, ff->ff_size, SEEK_SET);
       if (offset < 0)
         {
-          kfree(ff);
+          kmm_free(ff);
           return (int)offset;
         }
     }
@@ -375,7 +375,7 @@ static int fat_open(FAR struct file *filep, const char *relpath,
    */
 
 errout_with_struct:
-  kfree(ff);
+  kmm_free(ff);
 
 errout_with_semaphore:
   fat_semgive(fs);
@@ -425,7 +425,7 @@ static int fat_close(FAR struct file *filep)
 
   /* Then free the file structure itself. */
 
-  kfree(ff);
+  kmm_free(ff);
   filep->f_priv = NULL;
   return ret;
 }
@@ -1016,9 +1016,9 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
 
   if (position > ff->ff_size && (ff->ff_oflags & O_WROK) == 0)
     {
-        /* Otherwise, the position is limited to the file size */
+      /* Otherwise, the position is limited to the file size */
 
-        position = ff->ff_size;
+      position = ff->ff_size;
     }
 
   /* Set file position to the beginning of the file (first cluster,
@@ -1159,8 +1159,8 @@ static off_t fat_seek(FAR struct file *filep, off_t offset, int whence)
 
   if ((ff->ff_oflags & O_WROK) != 0 &&  filep->f_pos > ff->ff_size)
     {
-        ff->ff_size    = filep->f_pos;
-        ff->ff_bflags |= FFBUFF_MODIFIED;
+      ff->ff_size    = filep->f_pos;
+      ff->ff_bflags |= FFBUFF_MODIFIED;
     }
 
   fat_semgive(fs);
@@ -1350,7 +1350,7 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
    * dup'ed file.
    */
 
-  newff = (struct fat_file_s *)kmalloc(sizeof(struct fat_file_s));
+  newff = (struct fat_file_s *)kmm_malloc(sizeof(struct fat_file_s));
   if (!newff)
     {
       ret = -ENOMEM;
@@ -1417,7 +1417,7 @@ static int fat_dup(FAR const struct file *oldp, FAR struct file *newp)
    */
 
 errout_with_struct:
-  kfree(newff);
+  kmm_free(newff);
 
 errout_with_semaphore:
   fat_semgive(fs);
@@ -1756,7 +1756,7 @@ static int fat_bind(FAR struct inode *blkdriver, const void *data,
 
   /* Create an instance of the mountpt state structure */
 
-  fs = (struct fat_mountpt_s *)kzalloc(sizeof(struct fat_mountpt_s));
+  fs = (struct fat_mountpt_s *)kmm_zalloc(sizeof(struct fat_mountpt_s));
   if (!fs)
     {
       return -ENOMEM;
@@ -1778,7 +1778,7 @@ static int fat_bind(FAR struct inode *blkdriver, const void *data,
   if (ret != 0)
     {
       sem_destroy(&fs->fs_sem);
-      kfree(fs);
+      kmm_free(fs);
       return ret;
     }
 
@@ -1849,7 +1849,7 @@ static int fat_unbind(void *handle, FAR struct inode **blkdriver)
           fat_io_free(fs->fs_buffer, fs->fs_hwsectorsize);
         }
 
-      kfree(fs);
+      kmm_free(fs);
     }
 
   fat_semgive(fs);

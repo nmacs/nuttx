@@ -1825,7 +1825,7 @@ struct audio_lowerhalf_s *vs1053_initialize(FAR struct spi_dev_s *spi,
 
   /* Allocate a VS1053 device structure */
 
-  dev = (struct vs1053_struct_s *)kmalloc(sizeof(struct vs1053_struct_s));
+  dev = (struct vs1053_struct_s *)kmm_malloc(sizeof(struct vs1053_struct_s));
   if (dev)
     {
       /* Initialize the VS1053 device structure */
@@ -1890,7 +1890,7 @@ struct audio_lowerhalf_s *vs1053_initialize(FAR struct spi_dev_s *spi,
       if (id != VS1053_VER_VS1053)
         {
           auddbg("Unexpected VER bits: 0x%0X\n", id);
-          kfree(dev);
+          kmm_free(dev);
           return NULL;
         }
       else

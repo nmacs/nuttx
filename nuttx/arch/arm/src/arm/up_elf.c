@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/arm/up_elf.c
  *
- *   Copyright (C) 2012 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2012, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -65,7 +65,7 @@
  ****************************************************************************/
 
 /****************************************************************************
- * Name: arch_checkarch
+ * Name: up_checkarch
  *
  * Description:
  *   Given the ELF header in 'hdr', verify that the ELF file is appropriate
@@ -80,7 +80,7 @@
  *
  ****************************************************************************/
 
-bool arch_checkarch(FAR const Elf32_Ehdr *ehdr)
+bool up_checkarch(FAR const Elf32_Ehdr *ehdr)
 {
   /* Make sure it's an ARM executable */
 
@@ -123,7 +123,7 @@ bool arch_checkarch(FAR const Elf32_Ehdr *ehdr)
 }
 
 /****************************************************************************
- * Name: arch_relocate and arch_relocateadd
+ * Name: up_relocate and up_relocateadd
  *
  * Description:
  *   Perform on architecture-specific ELF relocation.  Every architecture
@@ -132,6 +132,10 @@ bool arch_checkarch(FAR const Elf32_Ehdr *ehdr)
  * Input Parameters:
  *   rel - The relocation type
  *   sym - The ELF symbol structure containing the fully resolved value.
+ *         There are a few relocation types for a few architectures that do
+ *         not require symbol information.  For those, this value will be
+ *         NULL.  Implementations of these functions must be able to handle
+ *         that case.
  *   addr - The address that requires the relocation.
  *
  * Returned Value:
@@ -140,12 +144,23 @@ bool arch_checkarch(FAR const Elf32_Ehdr *ehdr)
  *
  ****************************************************************************/
 
-int arch_relocate(FAR const Elf32_Rel *rel, FAR const Elf32_Sym *sym,
-                  uintptr_t addr)
+int up_relocate(FAR const Elf32_Rel *rel, FAR const Elf32_Sym *sym,
+                uintptr_t addr)
 {
   int32_t offset;
+  unsigned int relotype;
 
-  switch (ELF32_R_TYPE(rel->r_info))
+  /* All relocations depend upon having valid symbol information */
+
+  relotype = ELF32_R_TYPE(rel->r_info);
+  if (sym == NULL && relotype != R_ARM_NONE)
+    {
+      return -EINVAL;
+    }
+
+  /* Handle the relocation by relocation type */
+
+  switch (relotype)
     {
     case R_ARM_NONE:
       {
@@ -248,10 +263,9 @@ int arch_relocate(FAR const Elf32_Rel *rel, FAR const Elf32_Sym *sym,
   return OK;
 }
 
-int arch_relocateadd(FAR const Elf32_Rela *rel, FAR const Elf32_Sym *sym,
-                     uintptr_t addr)
+int up_relocateadd(FAR const Elf32_Rela *rel, FAR const Elf32_Sym *sym,
+                   uintptr_t addr)
 {
   bdbg("RELA relocation not supported\n");
   return -ENOSYS;
 }
-

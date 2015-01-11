@@ -41,8 +41,9 @@
 
 #include <stdbool.h>
 #include <assert.h>
-#include <wdog.h>
+
 #include <nuttx/arch.h>
+#include <nuttx/wdog.h>
 
 #include "sched/sched.h"
 #include "wdog/wdog.h"
@@ -79,7 +80,7 @@
  *   timers may be cancelled from the interrupt level.
  *
  * Parameters:
- *   wdid - ID of the watchdog to cancel.
+ *   wdog - ID of the watchdog to cancel.
  *
  * Return Value:
  *   OK or ERROR
@@ -88,22 +89,24 @@
  *
  ****************************************************************************/
 
-int wd_cancel(WDOG_ID wdid)
+int wd_cancel(WDOG_ID wdog)
 {
-  wdog_t    *curr;
-  wdog_t    *prev;
-  irqstate_t saved_state;
-  int        ret = ERROR;
+  FAR struct wdog_s *curr;
+  FAR struct wdog_s *prev;
+  irqstate_t state;
+  int ret = ERROR;
 
   /* Prohibit timer interactions with the timer queue until the
    * cancellation is complete
    */
 
-  saved_state = irqsave();
+  state = irqsave();
 
-  /* Make sure that the watchdog is initialized (non-NULL) and is still active */
+  /* Make sure that the watchdog is initialized (non-NULL) and is still
+   * active.
+   */
 
-  if (wdid && wdid->active)
+  if (wdog && WDOG_ISACTIVE(wdog))
     {
       /* Search the g_wdactivelist for the target FCB.  We can't use sq_rem
        * to do this because there are additional operations that need to be
@@ -111,9 +114,9 @@ int wd_cancel(WDOG_ID wdid)
        */
 
       prev = NULL;
-      curr = (wdog_t*)g_wdactivelist.head;
+      curr = (FAR struct wdog_s *)g_wdactivelist.head;
 
-      while ((curr) && (curr != wdid))
+      while ((curr) && (curr != wdog))
         {
           prev = curr;
           curr = curr->next;
@@ -157,14 +160,14 @@ int wd_cancel(WDOG_ID wdid)
 
       /* Mark the watchdog inactive */
 
-      wdid->next   = NULL;
-      wdid->active = false;
+      wdog->next = NULL;
+      WDOG_CLRACTIVE(wdog);
 
       /* Return success */
 
       ret = OK;
     }
 
-  irqrestore(saved_state);
+  irqrestore(state);
   return ret;
 }

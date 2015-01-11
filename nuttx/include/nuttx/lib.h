@@ -2,7 +2,7 @@
  * include/nuttx/lib.h
  * Non-standard, internal APIs available in lib/.
  *
- *   Copyright (C) 2007-2009, 2012-2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007-2009, 2012-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -56,7 +56,8 @@
 
 #ifdef __cplusplus
 #define EXTERN extern "C"
-extern "C" {
+extern "C"
+{
 #else
 #define EXTERN extern
 #endif
@@ -64,13 +65,16 @@ extern "C" {
 /****************************************************************************
  * Public Function Prototypes
  ****************************************************************************/
+/* Hook for library initialization.  No is needed now, however */
 
-/* Functions contained in lib_init.c ****************************************/
+#define lib_initialize()
 
-void weak_function lib_initialize(void);
+/* Functions contained in lib_streams.c *************************************/
+
 #if CONFIG_NFILE_STREAMS > 0
-void lib_streaminit(FAR struct streamlist *list);
-void lib_releaselist(FAR struct streamlist *list);
+struct task_group_s;
+void lib_stream_initialize(FAR struct task_group_s *group);
+void lib_stream_release(FAR struct task_group_s *group);
 #endif
 
 #undef EXTERN

@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/stm32/stm32_eth.c
  *
- *   Copyright (C) 2011-2012 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2011-2012, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,14 +45,14 @@
 #include <time.h>
 #include <string.h>
 #include <debug.h>
-#include <wdog.h>
 #include <queue.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
 
-#include <nuttx/irq.h>
 #include <nuttx/arch.h>
+#include <nuttx/irq.h>
+#include <nuttx/wdog.h>
 #include <nuttx/net/mii.h>
 
 #include <nuttx/net/arp.h>
@@ -658,6 +658,9 @@ static int  stm32_txavail(struct net_driver_s *dev);
 static int  stm32_addmac(struct net_driver_s *dev, FAR const uint8_t *mac);
 static int  stm32_rmmac(struct net_driver_s *dev, FAR const uint8_t *mac);
 #endif
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+static int  stm32_ioctl(struct net_driver_s *dev, int cmd, long arg);
+#endif
 
 /* Descriptor Initialization */
 
@@ -666,8 +669,8 @@ static void stm32_rxdescinit(FAR struct stm32_ethmac_s *priv);
 
 /* PHY Initialization */
 
-#ifdef CONFIG_NETDEV_PHY_IOCTL
-static int  stm32_ioctl(int cmd, struct mii_ioctl_data *req);
+#if defined(CONFIG_NETDEV_PHY_IOCTL) && defined(CONFIG_ARCH_PHY_INTERRUPT)
+static int  stm32_phyintenable(FAR struct stm32_ethmac_s *priv);
 #endif
 static int  stm32_phyread(uint16_t phydevaddr, uint16_t phyregaddr, uint16_t *value);
 static int  stm32_phywrite(uint16_t phydevaddr, uint16_t phyregaddr, uint16_t value);
@@ -2498,8 +2501,9 @@ static void stm32_rxdescinit(FAR struct stm32_ethmac_s *priv)
  *  its input.
  *
  * Parameters:
+ *   dev - Ethernet device structure
  *   cmd - SIOCxMIIxxx command code
- *   req - request structure also used to return values
+ *   arg - Request structure also used to return values
  *
  * Returned Value: Negated errno on failure.
  *
@@ -2508,33 +2512,88 @@ static void stm32_rxdescinit(FAR struct stm32_ethmac_s *priv)
  ****************************************************************************/
 
 #ifdef CONFIG_NETDEV_PHY_IOCTL
-static int stm32_ioctl(int cmd, struct mii_ioctl_data *req)
+static int stm32_ioctl(struct net_driver_s *dev, int cmd, long arg)
 {
-  int ret = -ENOTTY;
+#ifdef CONFIG_ARCH_PHY_INTERRUPT
+  FAR struct stm32_ethmac_s *priv = (FAR struct stm32_ethmac_s *)dev->d_private;
+#endif
+  int ret;
 
   switch (cmd)
   {
+#ifdef CONFIG_ARCH_PHY_INTERRUPT
+  case SIOCMIINOTIFY: /* Set up for PHY event notifications */
+    {
+      struct mii_iotcl_notify_s *req = (struct mii_iotcl_notify_s *)((uintptr_t)arg);
+
+      ret = phy_notify_subscribe(dev->d_ifname, req->pid, req->signo, req->arg);
+      if (ret == OK)
+        {
+          /* Enable PHY link up/down interrupts */
+
+          ret = stm32_phyintenable(priv);
+        }
+    }
+    break;
+#endif
+
   case SIOCGMIIPHY: /* Get MII PHY address */
-    req->phy_id = CONFIG_STM32_PHYADDR;
-    ret = OK;
+    {
+      struct mii_ioctl_data_s *req = (struct mii_ioctl_data_s *)((uintptr_t)arg);
+      req->phy_id = CONFIG_STM32_PHYADDR;
+      ret = OK;
+    }
     break;
 
   case SIOCGMIIREG: /* Get register from MII PHY */
-    ret = stm32_phyread(req->phy_id, req->reg_num, &req->val_out);
+    {
+      struct mii_ioctl_data_s *req = (struct mii_ioctl_data_s *)((uintptr_t)arg);
+      ret = stm32_phyread(req->phy_id, req->reg_num, &req->val_out);
+    }
     break;
 
   case SIOCSMIIREG: /* Set register in MII PHY */
-    ret = stm32_phywrite(req->phy_id, req->reg_num, req->val_in);
+    {
+      struct mii_ioctl_data_s *req = (struct mii_ioctl_data_s *)((uintptr_t)arg);
+      ret = stm32_phywrite(req->phy_id, req->reg_num, req->val_in);
+    }
     break;
 
   default:
-    ret = -EINVAL;
+    ret = -ENOTTY;
     break;
   }
 
   return ret;
 }
 #endif /* CONFIG_NETDEV_PHY_IOCTL */
+
+/****************************************************************************
+ * Function: stm32_phyintenable
+ *
+ * Description:
+ *  Enable link up/down PHY interrupts.  The interrupt protocol is like this:
+ *
+ *  - Interrupt status is cleared when the interrupt is enabled.
+ *  - Interrupt occurs.  Interrupt is disabled (at the processor level) when
+ *    is received.
+ *  - Interrupt status is cleared when the interrupt is re-enabled.
+ *
+ * Parameters:
+ *   priv - A reference to the private driver state structure
+ *
+ * Returned Value:
+ *   OK on success; Negated errno (-ETIMEDOUT) on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_NETDEV_PHY_IOCTL) && defined(CONFIG_ARCH_PHY_INTERRUPT)
+static int stm32_phyintenable(struct stm32_ethmac_s *priv)
+{
+#warning Missing logic
+  return -ENOSYS;
+}
+#endif
 
 /****************************************************************************
  * Function: stm32_phyread

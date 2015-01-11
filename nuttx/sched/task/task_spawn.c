@@ -49,6 +49,8 @@
 #include "task/spawn.h"
 #include "task/task.h"
 
+#ifndef CONFIG_BUILD_KERNEL
+
 /****************************************************************************
  * Pre-processor Definitions
  ****************************************************************************/
@@ -149,11 +151,11 @@ static int task_spawn_exec(FAR pid_t *pidp, FAR const char *name,
 
   /* Start the task */
 
-  pid = TASK_CREATE(name, priority, stacksize, entry, argv);
+  pid = task_create(name, priority, stacksize, entry, argv);
   if (pid < 0)
     {
-      ret = errno;
-      sdbg("ERROR: TASK_CREATE failed: %d\n", ret);
+      ret = get_errno();
+      sdbg("ERROR: task_create failed: %d\n", ret);
       goto errout;
     }
 
@@ -395,7 +397,7 @@ int task_spawn(FAR pid_t *pid, FAR const char *name, main_t entry,
   ret = sched_getparam(0, &param);
   if (ret < 0)
     {
-      int errcode = errno;
+      int errcode = get_errno();
 
       sdbg("ERROR: sched_getparam failed: %d\n", errcode);
       spawn_semgive(&g_spawn_parmsem);
@@ -416,7 +418,7 @@ int task_spawn(FAR pid_t *pid, FAR const char *name, main_t entry,
    * task.
    */
 
-  proxy = TASK_CREATE("task_spawn_proxy", param.sched_priority,
+  proxy = task_create("task_spawn_proxy", param.sched_priority,
                       CONFIG_POSIX_SPAWN_PROXY_STACKSIZE,
                       (main_t)task_spawn_proxy,
                       (FAR char * const*)NULL);
@@ -452,3 +454,5 @@ errout_with_lock:
   spawn_semgive(&g_spawn_parmsem);
   return ret;
 }
+
+#endif /* CONFIG_BUILD_KERNEL */

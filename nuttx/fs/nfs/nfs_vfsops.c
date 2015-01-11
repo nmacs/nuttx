@@ -570,7 +570,7 @@ static int nfs_open(FAR struct file *filep, FAR const char *relpath,
 
   /* Pre-allocate the file private data to describe the opened file. */
 
-  np = (struct nfsnode *)kzalloc(sizeof(struct nfsnode));
+  np = (struct nfsnode *)kmm_zalloc(sizeof(struct nfsnode));
   if (!np)
     {
       fdbg("ERROR: Failed to allocate private data\n");
@@ -656,7 +656,7 @@ static int nfs_open(FAR struct file *filep, FAR const char *relpath,
 errout_with_semaphore:
   if (np)
     {
-      kfree(np);
+      kmm_free(np);
     }
 
   nfs_semgive(nmp);
@@ -745,7 +745,7 @@ static int nfs_close(FAR struct file *filep)
 
               /* Then deallocate the file structure and return success */
 
-              kfree(np);
+              kmm_free(np);
               ret = OK;
               break;
             }
@@ -1722,7 +1722,7 @@ static int nfs_bind(FAR struct inode *blkdriver, FAR const void *data,
 
   /* Create an instance of the mountpt state structure */
 
-  nmp = (FAR struct nfsmount *)kzalloc(SIZEOF_nfsmount(buflen));
+  nmp = (FAR struct nfsmount *)kmm_zalloc(SIZEOF_nfsmount(buflen));
   if (!nmp)
     {
       fdbg("ERROR: Failed to allocate mountpoint structure\n");
@@ -1772,7 +1772,7 @@ static int nfs_bind(FAR struct inode *blkdriver, FAR const void *data,
 
       /* Create an instance of the rpc state structure */
 
-      rpc = (struct rpcclnt *)kzalloc(sizeof(struct rpcclnt));
+      rpc = (struct rpcclnt *)kmm_zalloc(sizeof(struct rpcclnt));
       if (!rpc)
         {
           fdbg("ERROR: Failed to allocate rpc structure\n");
@@ -1840,15 +1840,15 @@ bad:
       sem_destroy(&nmp->nm_sem);
       if (nmp->nm_so)
         {
-          kfree(nmp->nm_so);
+          kmm_free(nmp->nm_so);
         }
 
       if (nmp->nm_rpcclnt)
         {
-          kfree(nmp->nm_rpcclnt);
+          kmm_free(nmp->nm_rpcclnt);
         }
 
-      kfree(nmp);
+      kmm_free(nmp);
     }
 
   return error;
@@ -1905,9 +1905,9 @@ int nfs_unbind(FAR void *handle, FAR struct inode **blkdriver)
   /* And free any allocated resources */
 
   sem_destroy(&nmp->nm_sem);
-  kfree(nmp->nm_so);
-  kfree(nmp->nm_rpcclnt);
-  kfree(nmp);
+  kmm_free(nmp->nm_so);
+  kmm_free(nmp->nm_rpcclnt);
+  kmm_free(nmp);
 
   return -error;
 

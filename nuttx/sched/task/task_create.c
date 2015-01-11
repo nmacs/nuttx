@@ -1,7 +1,7 @@
 /****************************************************************************
  * sched/task/task_create.c
  *
- *   Copyright (C) 2007-2010, 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007-2010, 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,7 +53,7 @@
 #include "task/task.h"
 
 /****************************************************************************
- * Definitions
+ * Preprocessor Definitions
  ****************************************************************************/
 
 /****************************************************************************
@@ -78,7 +78,7 @@
  * Description:
  *   This function creates and activates a new thread of the specified type
  *   with a specified priority and returns its system-assigned ID.  It is the
- *   internal, commn implementation of task_create() and kernel_thread().
+ *   internal, common implementation of task_create() and kernel_thread().
  *   See comments with task_create() for further information.
  *
  * Input Parameters:
@@ -100,13 +100,8 @@
  *
  ****************************************************************************/
 
-#ifndef CONFIG_CUSTOM_STACK
 static int thread_create(FAR const char *name, uint8_t ttype, int priority,
                          int stack_size, main_t entry, FAR char * const argv[])
-#else
-static int thread_create(FAR const char *name, uint8_t ttype, int priority,
-                         main_t entry, FAR char * const argv[])
-#endif
 {
   FAR struct task_tcb_s *tcb;
   pid_t pid;
@@ -115,7 +110,7 @@ static int thread_create(FAR const char *name, uint8_t ttype, int priority,
 
   /* Allocate a TCB for the new task. */
 
-  tcb = (FAR struct task_tcb_s *)kzalloc(sizeof(struct task_tcb_s));
+  tcb = (FAR struct task_tcb_s *)kmm_zalloc(sizeof(struct task_tcb_s));
   if (!tcb)
     {
       sdbg("ERROR: Failed to allocate TCB\n");
@@ -123,10 +118,12 @@ static int thread_create(FAR const char *name, uint8_t ttype, int priority,
       goto errout;
     }
 
-  /* Allocate a new task group */
+  /* Allocate a new task group with privileges appropriate for the parent
+   * thread type.
+   */
 
 #ifdef HAVE_TASK_GROUP
-  ret = group_allocate(tcb);
+  ret = group_allocate(tcb, ttype);
   if (ret < 0)
     {
       errcode = -ret;
@@ -147,14 +144,12 @@ static int thread_create(FAR const char *name, uint8_t ttype, int priority,
 
   /* Allocate the stack for the TCB */
 
-#ifndef CONFIG_CUSTOM_STACK
   ret = up_create_stack((FAR struct tcb_s *)tcb, stack_size, ttype);
   if (ret < OK)
     {
       errcode = -ret;
       goto errout_with_tcb;
     }
-#endif
 
   /* Initialize the task control block */
 
@@ -245,20 +240,13 @@ errout:
  *
  ****************************************************************************/
 
-#ifndef CONFIG_CUSTOM_STACK
+#ifndef CONFIG_BUILD_KERNEL
 int task_create(FAR const char *name, int priority,
                 int stack_size, main_t entry, FAR char * const argv[])
-#else
-int task_create(FAR const char *name, int priority,
-                main_t entry, FAR char * const argv[])
-#endif
 {
-#ifndef CONFIG_CUSTOM_STACK
   return thread_create(name, TCB_FLAG_TTYPE_TASK, priority, stack_size, entry, argv);
-#else
-  return thread_create(name, TCB_FLAG_TTYPE_TASK, priority, entry, argv);
-#endif
 }
+#endif
 
 /****************************************************************************
  * Name: kernel_thread
@@ -276,18 +264,8 @@ int task_create(FAR const char *name, int priority,
  *
  ****************************************************************************/
 
-#ifndef CONFIG_CUSTOM_STACK
 int kernel_thread(FAR const char *name, int priority,
                   int stack_size, main_t entry, FAR char * const argv[])
-#else
-int kernel_thread(FAR const char *name, int priority,
-                  main_t entry, FAR char * const argv[])
-#endif
 {
-#ifndef CONFIG_CUSTOM_STACK
   return thread_create(name, TCB_FLAG_TTYPE_KERNEL, priority, stack_size, entry, argv);
-#else
-  return thread_create(name, TCB_FLAG_TTYPE_KERNEL, priority, entry, argv);
-#endif
 }
-

@@ -46,11 +46,11 @@
 #include <sys/mount.h>
 
 #include <stdbool.h>
-#include <wdog.h>
 #include <errno.h>
 #include <assert.h>
 #include <debug.h>
 
+#include <nuttx/wdog.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/wqueue.h>
 #include <nuttx/fs/automount.h>
@@ -546,7 +546,7 @@ FAR void *automount_initialize(FAR const struct automount_lower_s *lower)
   /* Allocate an auto-mounter state structure */
 
   priv = (FAR struct automounter_state_s *)
-    kzalloc(sizeof(struct automounter_state_s));
+    kmm_zalloc(sizeof(struct automounter_state_s));
 
   if (!priv)
     {
@@ -633,5 +633,5 @@ void automount_uninitialize(FAR void *handle)
 
   /* And free the state structure */
 
-  kfree(priv);
+  kmm_free(priv);
 }

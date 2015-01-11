@@ -1,7 +1,7 @@
 /****************************************************************************
  * include/nuttx/binfmt/elf.h
  *
- *   Copyright (C) 2012 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2012, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -95,8 +95,8 @@ struct elf_loadinfo_s
   /* elfalloc is the base address of the memory that is allocated to hold the
    * ELF program image.
    *
-   * If CONFIG_ADDRENV=n, elfalloc will be allocated using kmalloc() (or
-   * kzalloc()).  If CONFIG_ADDRENV-y, then elfalloc will be allocated using
+   * If CONFIG_ARCH_ADDRENV=n, elfalloc will be allocated using kmm_malloc() (or
+   * kmm_zalloc()).  If CONFIG_ARCH_ADDRENV-y, then elfalloc will be allocated using
    * up_addrenv_create().  In either case, there will be a unique instance
    * of elfalloc (and stack) for each instance of a process.
    *
@@ -104,8 +104,10 @@ struct elf_loadinfo_s
    * the ELF module has been loaded.
    */
 
-  uintptr_t         elfalloc;    /* Memory allocated when ELF file was loaded */
-  size_t            elfsize;     /* Size of the ELF memory allocation */
+  uintptr_t         textalloc;   /* .text memory allocated when ELF file was loaded */
+  uintptr_t         dataalloc;   /* .bss/.data memory allocated when ELF file was loaded */
+  size_t            textsize;    /* Size of the ELF .text memory allocation */
+  size_t            datasize;    /* Size of the ELF .bss/.data memory allocation */
   off_t             filelen;     /* Length of the entire ELF file */
   Elf32_Ehdr        ehdr;        /* Buffered ELF file header */
   FAR Elf32_Shdr    *shdr;       /* Buffered ELF section headers */
@@ -127,12 +129,12 @@ struct elf_loadinfo_s
    * addrenv - This is the handle created by up_addrenv_create() that can be
    *   used to manage the tasks address space.
    * oldenv  - This is a value returned by up_addrenv_select() that must be
-   *   used to restore the current hardware address environment.
+   *   used to restore the current address environment.
    */
 
-#ifdef CONFIG_ADDRENV
-  task_addrenv_t addrenv;  /* Task address environment */
-  hw_addrenv_t   oldenv;   /* Saved hardware address environment */
+#ifdef CONFIG_ARCH_ADDRENV
+  group_addrenv_t    addrenv;    /* Task group address environment */
+  save_addrenv_t     oldenv;     /* Saved address environment */
 #endif
 
   uint16_t           symtabidx;  /* Symbol table section index */
@@ -148,7 +150,8 @@ struct elf_loadinfo_s
 #undef EXTERN
 #if defined(__cplusplus)
 #define EXTERN extern "C"
-extern "C" {
+extern "C"
+{
 #else
 #define EXTERN extern
 #endif
@@ -269,10 +272,11 @@ int elf_initialize(void);
 void elf_uninitialize(void);
 
 /****************************************************************************
- * These are APIs must be provided by architecture-specific logic:
+ * These are APIs must be provided by architecture-specific logic.
+ * (These really belong in include/nuttx/arch.h):
  ****************************************************************************/
 /****************************************************************************
- * Name: arch_checkarch
+ * Name: up_checkarch
  *
  * Description:
  *   Given the ELF header in 'hdr', verify that the ELF file is appropriate
@@ -287,10 +291,10 @@ void elf_uninitialize(void);
  *
  ****************************************************************************/
 
-bool arch_checkarch(FAR const Elf32_Ehdr *hdr);
+bool up_checkarch(FAR const Elf32_Ehdr *hdr);
 
 /****************************************************************************
- * Name: arch_relocate and arch_relocateadd
+ * Name: up_relocate and up_relocateadd
  *
  * Description:
  *   Perform on architecture-specific ELF relocation.  Every architecture
@@ -299,6 +303,10 @@ bool arch_checkarch(FAR const Elf32_Ehdr *hdr);
  * Input Parameters:
  *   rel - The relocation type
  *   sym - The ELF symbol structure containing the fully resolved value.
+ *         There are a few relocation types for a few architectures that do
+ *         not require symbol information.  For those, this value will be
+ *         NULL.  Implementations of these functions must be able to handle
+ *         that case.
  *   addr - The address that requires the relocation.
  *
  * Returned Value:
@@ -307,28 +315,31 @@ bool arch_checkarch(FAR const Elf32_Ehdr *hdr);
  *
  ****************************************************************************/
 
-int arch_relocate(FAR const Elf32_Rel *rel, FAR const Elf32_Sym *sym,
-                  uintptr_t addr);
-int arch_relocateadd(FAR const Elf32_Rela *rel,
-                     FAR const Elf32_Sym *sym, uintptr_t addr);
+int up_relocate(FAR const Elf32_Rel *rel, FAR const Elf32_Sym *sym,
+                uintptr_t addr);
+int up_relocateadd(FAR const Elf32_Rela *rel,
+                   FAR const Elf32_Sym *sym, uintptr_t addr);
 
 /****************************************************************************
- * Name: arch_flushicache
+ * Name: up_coherent_dcache
  *
  * Description:
- *   Flush the instruction cache.
+ *   Ensure that the I and D caches are coherent within specified region
+ *   by cleaning the D cache (i.e., flushing the D cache contents to memory
+ *   and invalidating the I cache. This is typically used when code has been
+ *   written to a memory region, and will be executed.
  *
  * Input Parameters:
- *   addr - Start address to flush
- *   len  - Number of bytes to flush
+ *   addr - virtual start address of region
+ *   len  - Size of the address region in bytes
  *
  * Returned Value:
- *   True if the architecture supports this ELF file.
+ *   None
  *
  ****************************************************************************/
 
-#ifdef CONFIG_ELF_ICACHE
-bool arch_flushicache(FAR void *addr, size_t len);
+#ifdef CONFIG_ARCH_HAVE_COHERENT_DCACHE
+void up_coherent_dcache(uintptr_t addr, size_t len);
 #endif
 
 #undef EXTERN

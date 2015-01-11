@@ -103,7 +103,7 @@ static inline void sched_kucleanup(void)
         {
           /* Return the memory to the user heap */
 
-          kufree(address);
+          kumm_free(address);
         }
     }
 }
@@ -122,7 +122,8 @@ static inline void sched_kucleanup(void)
  *
  ****************************************************************************/
 
-#if defined(CONFIG_NUTTX_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
+#if (defined(CONFIG_BUILD_PROTECTED) || defined(CONFIG_BUILD_KERNEL)) && \
+     defined(CONFIG_MM_KERNEL_HEAP)
 static inline void sched_kcleanup(void)
 {
    irqstate_t flags;
@@ -150,7 +151,7 @@ static inline void sched_kcleanup(void)
         {
           /* Return the memory to the kernel heap */
 
-          kfree(address);
+          kmm_free(address);
         }
     }
 }

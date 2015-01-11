@@ -217,7 +217,7 @@ bool CNxServer::connect(void)
   // Start the server task
 
   gvdbg("CNxServer::connect: Starting server task\n");
-  pid_t serverId = TASK_CREATE("NX Server", CONFIG_NXWIDGETS_SERVERPRIO,
+  pid_t serverId = task_create("NX Server", CONFIG_NXWIDGETS_SERVERPRIO,
                                CONFIG_NXWIDGETS_SERVERSTACK, server,
                                (FAR char * const *)0);
   if (serverId < 0)
@@ -393,7 +393,7 @@ int CNxServer::server(int argc, char *argv[])
   ret = up_fbinitialize();
   if (ret < 0)
     {
-      gdbg("nxcon_server: up_fbinitialize failed: %d\n", -ret);
+      gdbg("nxterm_server: up_fbinitialize failed: %d\n", -ret);
       return EXIT_FAILURE;
     }
 

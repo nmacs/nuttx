@@ -1,7 +1,7 @@
 /************************************************************************
  * sched/clock/clock_settime.c
  *
- *   Copyright (C) 2007, 2009, 2011 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007, 2009, 2011, 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -90,6 +90,7 @@
 
 int clock_settime(clockid_t clock_id, FAR const struct timespec *tp)
 {
+  struct timespec bias;
   irqstate_t flags;
   int ret = OK;
 
@@ -100,11 +101,7 @@ int clock_settime(clockid_t clock_id, FAR const struct timespec *tp)
    * time clock.
    */
 
-#ifdef CONFIG_RTC
-  if (clock_id == CLOCK_REALTIME || clock_id == CLOCK_ACTIVETIME)
-#else
   if (clock_id == CLOCK_REALTIME)
-#endif
     {
       /* Interrupts are disabled here so that the in-memory time
        * representation and the RTC setting will be as close as
@@ -118,25 +115,41 @@ int clock_settime(clockid_t clock_id, FAR const struct timespec *tp)
       g_basetime.tv_sec  = tp->tv_sec;
       g_basetime.tv_nsec = tp->tv_nsec;
 
-      /* Get the elapsed time since power up (in milliseconds) biased
-       * as appropriate.
+      /* Get the elapsed time since power up (in milliseconds).  This is a
+       * bias value that we need to use to correct the base time.
        */
 
-      g_tickbias = clock_systimer();
+      (void)clock_systimespec(&bias);
+
+      /* Subtract that bias from the basetime so that when the system
+       * timer is again added to the base time, the result is the current
+       * time relative to basetime.
+       */
+
+      if (g_basetime.tv_nsec < bias.tv_nsec)
+        {
+          g_basetime.tv_nsec += NSEC_PER_SEC;
+          g_basetime.tv_sec--;
+        }
+
+      /* Result could be negative seconds */
+
+      g_basetime.tv_nsec -= bias.tv_nsec;
+      g_basetime.tv_sec  -= bias.tv_sec;
 
       /* Setup the RTC (lo- or high-res) */
 
 #ifdef CONFIG_RTC
-      if (g_rtc_enabled && clock_id != CLOCK_ACTIVETIME)
+      if (g_rtc_enabled)
         {
           up_rtc_settime(tp);
         }
 #endif
       irqrestore(flags);
 
-      sdbg("basetime=(%d,%d) tickbias=%d\n",
-          (int)g_basetime.tv_sec, (int)g_basetime.tv_nsec,
-          (int)g_tickbias);
+      sdbg("basetime=(%ld,%lu) bias=(%ld,%lu)\n",
+          (long)g_basetime.tv_sec, (unsigned long)g_basetime.tv_nsec,
+          (long)bias.tv_sec, (unsigned long)bias.tv_nsec);
     }
   else
     {

@@ -43,7 +43,7 @@
 
 #include <nuttx/config.h>
 
-#include <nuttx/mm.h>
+#include <nuttx/mm/mm.h>
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -66,10 +66,10 @@
 #endif
 
 /* In order to use the CCM heap, it had to have been excluded from the main
- * heap and support for multiple heaps must have been enabled.
+ * heap.
  */
 
-#if !defined(CONFIG_STM32_CCMEXCLUDE) || !defined(CONFIG_MM_MULTIHEAP)
+#ifndef CONFIG_STM32_CCMEXCLUDE
 #  undef HAVE_CCM_HEAP
 #endif
 

@@ -43,7 +43,9 @@
 #include <spawn.h>
 #include <debug.h>
 
+#include <nuttx/kthread.h>
 #include <nuttx/binfmt/binfmt.h>
+#include <nuttx/binfmt/symtab.h>
 
 #include "sched/sched.h"
 #include "group/group.h"
@@ -132,7 +134,7 @@ static int posix_spawn_exec(FAR pid_t *pidp, FAR const char *path,
   pid = exec(path, (FAR char * const *)argv, symtab, nsymbols);
   if (pid < 0)
     {
-      ret = errno;
+      ret = get_errno();
       sdbg("ERROR: exec failed: %d\n", ret);
       goto errout;
     }
@@ -403,7 +405,7 @@ int posix_spawn(FAR pid_t *pid, FAR const char *path,
   ret = sched_getparam(0, &param);
   if (ret < 0)
     {
-      int errcode = errno;
+      int errcode = get_errno();
 
       sdbg("ERROR: sched_getparam failed: %d\n", errcode);
       spawn_semgive(&g_spawn_parmsem);
@@ -424,10 +426,10 @@ int posix_spawn(FAR pid_t *pid, FAR const char *path,
    * task.
    */
 
-  proxy = TASK_CREATE("posix_spawn_proxy", param.sched_priority,
-                      CONFIG_POSIX_SPAWN_PROXY_STACKSIZE,
-                      (main_t)posix_spawn_proxy,
-                      (FAR char * const *)NULL);
+  proxy = kernel_thread("posix_spawn_proxy", param.sched_priority,
+                        CONFIG_POSIX_SPAWN_PROXY_STACKSIZE,
+                        (main_t)posix_spawn_proxy,
+                        (FAR char * const *)NULL);
   if (proxy < 0)
     {
       ret = get_errno();

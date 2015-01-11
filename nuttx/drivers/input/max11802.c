@@ -1,7 +1,7 @@
 /****************************************************************************
  * drivers/input/max11802.c
  *
- *   Copyright (C) 2011-2012 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2011-2012, 2014 Gregory Nutt. All rights reserved.
  *   Authors: Gregory Nutt <gnutt@nuttx.org>
  *            Petteri Aimonen <jpa@nx.mail.kapsi.fi>
  *
@@ -53,16 +53,16 @@
 #include <fcntl.h>
 #include <semaphore.h>
 #include <poll.h>
-#include <wdog.h>
 #include <errno.h>
 #include <assert.h>
 #include <debug.h>
 
-#include <nuttx/kmalloc.h>
 #include <nuttx/arch.h>
+#include <nuttx/wdog.h>
+#include <nuttx/kmalloc.h>
+#include <nuttx/wqueue.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/spi/spi.h>
-#include <nuttx/wqueue.h>
 
 #include <nuttx/input/touchscreen.h>
 #include <nuttx/input/max11802.h>
@@ -1193,10 +1193,10 @@ int max11802_register(FAR struct spi_dev_s *spi,
 #ifndef CONFIG_MAX11802_MULTIPLE
   priv = &g_max11802;
 #else
-  priv = (FAR struct max11802_dev_s *)kmalloc(sizeof(struct max11802_dev_s));
+  priv = (FAR struct max11802_dev_s *)kmm_malloc(sizeof(struct max11802_dev_s));
   if (!priv)
     {
-      idbg("kmalloc(%d) failed\n", sizeof(struct max11802_dev_s));
+      idbg("kmm_malloc(%d) failed\n", sizeof(struct max11802_dev_s));
       return -ENOMEM;
     }
 #endif
@@ -1315,7 +1315,7 @@ int max11802_register(FAR struct spi_dev_s *spi,
 errout_with_priv:
   sem_destroy(&priv->devsem);
 #ifdef CONFIG_MAX11802_MULTIPLE
-  kfree(priv);
+  kmm_free(priv);
 #endif
   return ret;
 }

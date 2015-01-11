@@ -46,8 +46,8 @@
 
 #include <nuttx/kmalloc.h>
 
-#include "group/group.h"
 #include "environ/environ.h"
+#include "group/group.h"
 
 #ifdef HAVE_TASK_GROUP
 
@@ -67,16 +67,17 @@
  *****************************************************************************/
 /* This is counter that is used to generate unique task group IDs */
 
-#ifdef HAVE_GROUP_MEMBERS
+#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
 static gid_t g_gidcounter;
 #endif
 
 /*****************************************************************************
  * Public Data
  *****************************************************************************/
+
+#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
 /* This is the head of a list of all group members */
 
-#ifdef HAVE_GROUP_MEMBERS
 FAR struct task_group_s *g_grouphead;
 #endif
 
@@ -102,8 +103,8 @@ FAR struct task_group_s *g_grouphead;
  *
  *****************************************************************************/
 
-#ifdef HAVE_GROUP_MEMBERS
-void group_assigngid(FAR struct task_group_s *group)
+#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
+static void group_assigngid(FAR struct task_group_s *group)
 {
   irqstate_t flags;
   gid_t gid;
@@ -116,7 +117,7 @@ void group_assigngid(FAR struct task_group_s *group)
 
   for (;;)
     {
-      /* Increment the ID counter.  This is global data so be extra paraoid. */
+      /* Increment the ID counter.  This is global data so be extra paranoid. */
 
       flags = irqsave();
       gid = ++g_gidcounter;
@@ -156,14 +157,15 @@ void group_assigngid(FAR struct task_group_s *group)
  * Description:
  *   Create and a new task group structure for the specified TCB. This
  *   function is called as part of the task creation sequence.  The structure
- *   allocated and zered, but otherwise uninitialized.  The full creation
+ *   allocated and zeroed, but otherwise uninitialized.  The full creation
  *   of the group of a two step process:  (1) First, this function allocates
  *   group structure early in the task creation sequence in order to provide a
  *   group container, then (2) group_initialize() is called to set up the
  *   group membership.
  *
  * Parameters:
- *   tcb - The tcb in need of the task group.
+ *   tcb   - The tcb in need of the task group.
+ *   ttype - Type of the thread that is the parent of the group
  *
  * Return Value:
  *   0 (OK) on success; a negated errno value on failure.
@@ -174,7 +176,7 @@ void group_assigngid(FAR struct task_group_s *group)
  *
  *****************************************************************************/
 
-int group_allocate(FAR struct task_tcb_s *tcb)
+int group_allocate(FAR struct task_tcb_s *tcb, uint8_t ttype)
 {
   FAR struct task_group_s *group;
   int ret;
@@ -183,14 +185,22 @@ int group_allocate(FAR struct task_tcb_s *tcb)
 
   /* Allocate the group structure and assign it to the TCB */
 
-  group = (FAR struct task_group_s *)kzalloc(sizeof(struct task_group_s));
+  group = (FAR struct task_group_s *)kmm_zalloc(sizeof(struct task_group_s));
   if (!group)
     {
       return -ENOMEM;
     }
 
-#if CONFIG_NFILE_STREAMS > 0 && defined(CONFIG_NUTTX_KERNEL) && \
-    defined(CONFIG_MM_KERNEL_HEAP)
+#if CONFIG_NFILE_STREAMS > 0 && (defined(CONFIG_BUILD_PROTECTED) || \
+    defined(CONFIG_BUILD_KERNEL)) && defined(CONFIG_MM_KERNEL_HEAP)
+  /* If this group is being created for a privileged thread, then all elements
+   * of the group must be created for privileged access.
+   */
+
+  if ((ttype & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_KERNEL)
+    {
+      group->tg_flags |= GROUP_FLAG_PRIVILEGED;
+    }
 
   /* In a flat, single-heap build.  The stream list is allocated with the
    * group structure.  But in a kernel build with a kernel allocator, it
@@ -198,11 +208,11 @@ int group_allocate(FAR struct task_tcb_s *tcb)
    */
 
   group->tg_streamlist = (FAR struct streamlist *)
-    kuzalloc(sizeof(struct streamlist));
+    group_zalloc(group, sizeof(struct streamlist));
 
   if (!group->tg_streamlist)
     {
-      kfree(group);
+      kmm_free(group);
       return -ENOMEM;
     }
 
@@ -212,24 +222,24 @@ int group_allocate(FAR struct task_tcb_s *tcb)
 
   tcb->cmn.group = group;
 
+#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
   /* Assign the group a unique ID.  If g_gidcounter were to wrap before we
    * finish with task creation, that would be a problem.
    */
 
-#ifdef HAVE_GROUP_MEMBERS
   group_assigngid(group);
 #endif
 
-  /* Duplicate the parent tasks envionment */
+  /* Duplicate the parent tasks environment */
 
   ret = env_dup(group);
   if (ret < 0)
     {
-#if CONFIG_NFILE_STREAMS > 0 && defined(CONFIG_NUTTX_KERNEL) && \
-    defined(CONFIG_MM_KERNEL_HEAP)
-      kufree(group->tg_streamlist);
+#if CONFIG_NFILE_STREAMS > 0 && (defined(CONFIG_BUILD_PROTECTED) || \
+    defined(CONFIG_BUILD_KERNEL)) && defined(CONFIG_MM_KERNEL_HEAP)
+      group_free(group, group->tg_streamlist);
 #endif
-      kfree(group);
+      kmm_free(group);
       tcb->cmn.group = NULL;
       return ret;
     }
@@ -267,7 +277,7 @@ int group_allocate(FAR struct task_tcb_s *tcb)
 int group_initialize(FAR struct task_tcb_s *tcb)
 {
   FAR struct task_group_s *group;
-#ifdef HAVE_GROUP_MEMBERS
+#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
   irqstate_t flags;
 #endif
 
@@ -277,10 +287,10 @@ int group_initialize(FAR struct task_tcb_s *tcb)
 #ifdef HAVE_GROUP_MEMBERS
   /* Allocate space to hold GROUP_INITIAL_MEMBERS members of the group */
 
-  group->tg_members = (FAR pid_t *)kmalloc(GROUP_INITIAL_MEMBERS*sizeof(pid_t));
+  group->tg_members = (FAR pid_t *)kmm_malloc(GROUP_INITIAL_MEMBERS*sizeof(pid_t));
   if (!group->tg_members)
     {
-      kfree(group);
+      kmm_free(group);
       return -ENOMEM;
     }
 
@@ -294,6 +304,9 @@ int group_initialize(FAR struct task_tcb_s *tcb)
 
   group->tg_mxmembers  = GROUP_INITIAL_MEMBERS; /* Number of members in allocation */
 
+#endif
+
+#if defined(HAVE_GROUP_MEMBERS) || defined(CONFIG_ARCH_ADDRENV)
   /* Add the initialized entry to the list of groups */
 
   flags = irqsave();

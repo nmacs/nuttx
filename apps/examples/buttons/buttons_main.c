@@ -37,7 +37,8 @@
  * NOTE: This test exercises internal button driver interfaces.  As such, it
  * it relies on internal OS interfaces that are not normally available to a
  * user-space program.  As a result, this example cannot be used if a
- * NuttX is built as a protected, supervisor kernel (CONFIG_NUTTX_KERNEL).
+ * NuttX is built as a protected, supervisor kernel (CONFIG_BUILD_PROTECTED or
+ * CONFIG_BUILD_KERNEL).
  ****************************************************************************/
 
 /****************************************************************************
@@ -393,7 +394,11 @@ static int button7_handler(int irq, FAR void *context)
  * buttons_main
  ****************************************************************************/
 
+#ifdef CONFIG_BUILD_KERNEL
+int main(int argc, FAR char *argv[])
+#else
 int buttons_main(int argc, char *argv[])
+#endif
 {
   uint8_t newset;
   irqstate_t flags;

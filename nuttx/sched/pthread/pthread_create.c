@@ -1,7 +1,7 @@
 /****************************************************************************
  * sched/pthread/pthread_create.c
  *
- *   Copyright (C) 2007-2009, 2011, 2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2007-2009, 2011, 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -68,10 +68,13 @@
 /****************************************************************************
  * Global Variables
  ****************************************************************************/
+/* Default pthread attributes (see include/nuttx/pthread.h).  When configured
+ * to build separate kernel- and user-address spaces, this global is
+ * duplicated in each address spaced.  This copy can only be shared within
+ * the kernel address space.
+ */
 
-/* Default pthread attributes */
-
-pthread_attr_t g_default_pthread_attr = PTHREAD_ATTR_INITIALIZER;
+const pthread_attr_t g_default_pthread_attr = PTHREAD_ATTR_INITIALIZER;
 
 /****************************************************************************
  * Private Variables
@@ -190,7 +193,7 @@ static void pthread_start(void)
    * to switch to user-mode before calling into the pthread.
    */
 
-#ifdef CONFIG_NUTTX_KERNEL
+#if defined(CONFIG_BUILD_PROTECTED) || defined(CONFIG_BUILD_KERNEL)
   up_pthread_start(ptcb->cmn.entry.pthread, ptcb->arg);
   exit_status = NULL;
 #else
@@ -225,7 +228,7 @@ static void pthread_start(void)
  *
  ****************************************************************************/
 
-int pthread_create(FAR pthread_t *thread, FAR pthread_attr_t *attr,
+int pthread_create(FAR pthread_t *thread, FAR const pthread_attr_t *attr,
                    pthread_startroutine_t start_routine, pthread_addr_t arg)
 {
   FAR struct pthread_tcb_s *ptcb;
@@ -247,18 +250,18 @@ int pthread_create(FAR pthread_t *thread, FAR pthread_attr_t *attr,
 
   /* Allocate a TCB for the new task. */
 
-  ptcb = (FAR struct pthread_tcb_s *)kzalloc(sizeof(struct pthread_tcb_s));
+  ptcb = (FAR struct pthread_tcb_s *)kmm_zalloc(sizeof(struct pthread_tcb_s));
   if (!ptcb)
     {
       sdbg("ERROR: Failed to allocate TCB\n");
       return ENOMEM;
     }
 
+#ifdef HAVE_TASK_GROUP
   /* Bind the parent's group to the new TCB (we have not yet joined the
    * group).
    */
 
-#ifdef HAVE_TASK_GROUP
   ret = group_bind(ptcb);
   if (ret < 0)
     {
@@ -267,14 +270,11 @@ int pthread_create(FAR pthread_t *thread, FAR pthread_attr_t *attr,
     }
 #endif
 
-  /* Share the address environment of the parent task.  NOTE:  Only tasks
-   * created throught the nuttx/binfmt loaders may have an address
-   * environment.
-   */
+#ifdef CONFIG_ARCH_ADDRENV
+  /* Share the address environment of the parent task group. */
 
-#ifdef CONFIG_ADDRENV
-  ret = up_addrenv_share((FAR const struct tcb_s *)g_readytorun.head,
-                         (FAR struct tcb_s *)ptcb);
+  ret = up_addrenv_attach(ptcb->cmn.group,
+                          (FAR struct tcb_s *)g_readytorun.head);
   if (ret < 0)
     {
       errcode = -ret;
@@ -284,7 +284,7 @@ int pthread_create(FAR pthread_t *thread, FAR pthread_attr_t *attr,
 
   /* Allocate a detachable structure to support pthread_join logic */
 
-  pjoin = (FAR struct join_s*)kzalloc(sizeof(struct join_s));
+  pjoin = (FAR struct join_s*)kmm_zalloc(sizeof(struct join_s));
   if (!pjoin)
     {
       sdbg("ERROR: Failed to allocate join\n");
@@ -323,9 +323,9 @@ int pthread_create(FAR pthread_t *thread, FAR pthread_attr_t *attr,
           priority = SCHED_FIFO;
         }
 
+#if CONFIG_RR_INTERVAL > 0
       /* Get the scheduler policy for this thread */
 
-#if CONFIG_RR_INTERVAL > 0
       policy = sched_getscheduler(0);
       if (policy == ERROR)
         {
@@ -358,9 +358,9 @@ int pthread_create(FAR pthread_t *thread, FAR pthread_attr_t *attr,
 
   pthread_argsetup(ptcb, arg);
 
+#ifdef HAVE_TASK_GROUP
   /* Join the parent's task group */
 
-#ifdef HAVE_TASK_GROUP
   ret = group_join(ptcb);
   if (ret < 0)
     {
@@ -373,11 +373,11 @@ int pthread_create(FAR pthread_t *thread, FAR pthread_attr_t *attr,
 
   ptcb->joininfo = (FAR void *)pjoin;
 
+#if CONFIG_RR_INTERVAL > 0
   /* If round robin scheduling is selected, set the appropriate flag
    * in the TCB.
    */
 
-#if CONFIG_RR_INTERVAL > 0
   if (policy == SCHED_RR)
     {
       ptcb->cmn.flags    |= TCB_FLAG_ROUND_ROBIN;

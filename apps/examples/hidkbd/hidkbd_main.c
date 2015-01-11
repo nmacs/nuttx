@@ -276,7 +276,11 @@ static int hidkbd_waiter(int argc, char *argv[])
  * Name: hidkbd_main
  ****************************************************************************/
 
+#ifdef CONFIG_BUILD_KERNEL
+int main(int argc, FAR char *argv[])
+#else
 int hidkbd_main(int argc, char *argv[])
+#endif
 {
   char buffer[256];
   pid_t pid;
@@ -306,14 +310,9 @@ int hidkbd_main(int argc, char *argv[])
 
       printf("hidkbd_main: Start hidkbd_waiter\n");
 
-#ifndef CONFIG_CUSTOM_STACK
       pid = task_create("usbhost", CONFIG_EXAMPLES_HIDKBD_DEFPRIO,
                         CONFIG_EXAMPLES_HIDKBD_STACKSIZE,
                         (main_t)hidkbd_waiter, (FAR char * const *)NULL);
-#else
-      pid = task_create("usbhost", CONFIG_EXAMPLES_HIDKBD_DEFPRIO,
-                        (main_t)hidkbd_waiter, (FAR char * const *)NULL);
-#endif
       UNUSED(pid);
 
       /* Now just sleep.  Eventually logic here will open the kbd device and

@@ -404,7 +404,7 @@ static inline int nxffs_wropen(FAR struct nxffs_volume_s *volume,
   if (ret != OK)
     {
       fdbg("ERROR: sem_wait failed: %d\n", ret);
-      ret = -errno;
+      ret = -get_errno();
       goto errout;
     }
 
@@ -417,7 +417,7 @@ static inline int nxffs_wropen(FAR struct nxffs_volume_s *volume,
   if (ret != OK)
     {
       fdbg("ERROR: sem_wait failed: %d\n", ret);
-      ret = -errno;
+      ret = -get_errno();
       goto errout_with_wrsem;
     }
 
@@ -514,7 +514,7 @@ static inline int nxffs_wropen(FAR struct nxffs_volume_s *volume,
   wrfile = &g_wrfile;
   memset(wrfile, 0, sizeof(struct nxffs_wrfile_s));
 #else
-  wrfile = (FAR struct nxffs_wrfile_s *)kzalloc(sizeof(struct nxffs_wrfile_s));
+  wrfile = (FAR struct nxffs_wrfile_s *)kmm_zalloc(sizeof(struct nxffs_wrfile_s));
   if (!wrfile)
     {
       ret = -ENOMEM;
@@ -678,10 +678,10 @@ static inline int nxffs_wropen(FAR struct nxffs_volume_s *volume,
   return OK;
 
 errout_with_name:
-  kfree(wrfile->ofile.entry.name);
+  kmm_free(wrfile->ofile.entry.name);
 errout_with_ofile:
 #ifndef CONFIG_NXFFS_PREALLOCATED
-  kfree(wrfile);
+  kmm_free(wrfile);
 #endif
 
 errout_with_exclsem:
@@ -715,7 +715,7 @@ static inline int nxffs_rdopen(FAR struct nxffs_volume_s *volume,
   if (ret != OK)
     {
       fdbg("ERROR: sem_wait failed: %d\n", ret);
-      ret = -errno;
+      ret = -get_errno();
       goto errout;
     }
 
@@ -750,7 +750,7 @@ static inline int nxffs_rdopen(FAR struct nxffs_volume_s *volume,
     {
       /* Not already open.. create a new open structure */
 
-      ofile = (FAR struct nxffs_ofile_s *)kzalloc(sizeof(struct nxffs_ofile_s));
+      ofile = (FAR struct nxffs_ofile_s *)kmm_zalloc(sizeof(struct nxffs_ofile_s));
       if (!ofile)
         {
           fdbg("ERROR: ofile allocation failed\n");
@@ -785,7 +785,7 @@ static inline int nxffs_rdopen(FAR struct nxffs_volume_s *volume,
   return OK;
 
 errout_with_ofile:
-  kfree(ofile);
+  kmm_free(ofile);
 errout_with_exclsem:
   sem_post(&volume->exclsem);
 errout:
@@ -856,7 +856,7 @@ static inline void nxffs_freeofile(FAR struct nxffs_volume_s *volume,
   if ((FAR struct nxffs_wrfile_s*)ofile != &g_wrfile)
 #endif
     {
-      kfree(ofile);
+      kmm_free(ofile);
     }
 }
 
@@ -1160,7 +1160,7 @@ int nxffs_close(FAR struct file *filep)
   ret = sem_wait(&volume->exclsem);
   if (ret != OK)
     {
-      ret = -errno;
+      ret = -get_errno();
       fdbg("ERROR: sem_wait failed: %d\n", ret);
       goto errout;
     }

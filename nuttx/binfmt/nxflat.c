@@ -199,18 +199,18 @@ static int nxflat_loadbinary(struct binary_s *binp)
    * a memory leak?
    */
 
-#ifdef CONFIG_ADDRENV
+#ifdef CONFIG_ARCH_ADDRENV
 #  warning "REVISIT"
 #else
   binp->alloc[0]  = (void*)loadinfo.dspace;
 #endif
 
-#ifdef CONFIG_ADDRENV
-  /* Save the address environment.  This will be needed when the module is
-   * executed for the up_addrenv_assign() call.
+#ifdef CONFIG_ARCH_ADDRENV
+  /* Save the address environment in the binfmt structure.  This will be
+   * needed when the module is executed.
    */
 
-  binp->addrenv   = loadinfo.addrenv;
+  up_addrenv_clone(&loadinfo.addrenv, &binp->addrenv);
 #endif
 
   nxflat_dumpbuffer("Entry code", (FAR const uint8_t*)binp->entrypt,

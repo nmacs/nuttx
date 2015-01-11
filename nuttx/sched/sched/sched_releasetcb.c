@@ -111,19 +111,16 @@ static void sched_releasepid(pid_t pid)
 int sched_releasetcb(FAR struct tcb_s *tcb, uint8_t ttype)
 {
   int ret = OK;
-#if defined(CONFIG_CUSTOM_STACK) || !defined(CONFIG_NUTTX_KERNEL)
-  int i;
-#endif
 
   if (tcb)
     {
-      /* Relase any timers that the task might hold.  We do this
+#ifndef CONFIG_DISABLE_POSIX_TIMERS
+      /* Release any timers that the task might hold.  We do this
        * before release the PID because it may still be trying to
        * deliver signals (although interrupts are should be
        * disabled here).
        */
 
-#ifndef CONFIG_DISABLE_POSIX_TIMERS
 #ifdef CONFIG_HAVE_WEAKFUNCTIONS
      if (timer_deleteall != NULL)
 #endif
@@ -145,16 +142,29 @@ int sched_releasetcb(FAR struct tcb_s *tcb, uint8_t ttype)
 
       /* Delete the thread's stack if one has been allocated */
 
-#ifndef CONFIG_CUSTOM_STACK
       if (tcb->stack_alloc_ptr)
         {
-          up_release_stack(tcb, ttype);
-        }
-#endif
+#ifdef CONFIG_BUILD_KERNEL
+          /* If the exiting thread is not a kernel thread, then it has an
+           * address environment.  Don't bother to release the stack memory
+           * in this case... There is no point since the memory lies in the
+           * user memory region that will be destroyed anyway (and the
+           * address environment has probably already been destroyed at
+           * this point.. so we would crash if we even tried it).  But if
+           * this is a privileged group, when we still have to release the
+           * memory using the kernel allocator.
+           */
 
-      /* Delete the tasks's allocated DSpace region (external modules only) */
+          if ((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_KERNEL)
+#endif
+            {
+              up_release_stack(tcb, ttype);
+            }
+        }
 
 #ifdef CONFIG_PIC
+      /* Delete the task's allocated DSpace region (external modules only) */
+
       if (tcb->dspace)
         {
           if (tcb->dspace->crefs <= 1)
@@ -168,39 +178,24 @@ int sched_releasetcb(FAR struct tcb_s *tcb, uint8_t ttype)
         }
 #endif
 
-#if defined(CONFIG_CUSTOM_STACK) || !defined(CONFIG_NUTTX_KERNEL)
-      /* Release command line arguments that were allocated for task
-       * start/re-start.
-       *
-       * NOTE: In the kernel mode build, the arguments were saved on
-       * the task's stack and will be cleaned up when the stack memory
-       * is released.  Nothing need be done here in that case.
-       */
+#if defined(CONFIG_ARCH_ADDRENV) && defined(CONFIG_ARCH_KERNEL_STACK)
+      /* Release the kernel stack */
 
-#ifndef CONFIG_DISABLE_PTHREAD
-      if (ttype != TCB_FLAG_TTYPE_PTHREAD)
+      (void)up_addrenv_kstackfree(tcb);
 #endif
-        {
-          FAR struct task_tcb_s *ttcb = (FAR struct task_tcb_s *)tcb;
-          for (i = 1; i < CONFIG_MAX_TASK_ARGS+1 && ttcb->argv[i]; i++)
-            {
-              sched_kfree((FAR void*)ttcb->argv[i]);
-            }
-        }
 
-#endif /* CONFIG_CUSTOM_STACK || !CONFIG_NUTTX_KERNEL */
-
+#ifdef CONFIG_ARCH_ADDRENV
       /* Release this thread's reference to the address environment */
 
-#ifdef CONFIG_ADDRENV
-      ret = up_addrenv_release(tcb);
+      ret = up_addrenv_detach(tcb->group, tcb);
 #endif
-
-      /* Leave the group (if we did not already leady in task_exithook.c) */
 
 #ifdef HAVE_TASK_GROUP
+      /* Leave the group (if we did not already leave in task_exithook.c) */
+
       group_leave(tcb);
 #endif
+
       /* And, finally, release the TCB itself */
 
       sched_kfree(tcb);

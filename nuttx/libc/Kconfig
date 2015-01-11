@@ -107,6 +107,16 @@ config LIBC_EXECFUNCS
 
 if LIBC_EXECFUNCS
 
+config EXECFUNCS_HAVE_SYMTAB
+	bool "Have symbol table"
+	default n if BUILD_KERNEL
+	default y if !BUILD_KERNEL
+	---help---
+		If you have a system symbol table, then you must select this
+		option in order to use it.  Symbol tables are required in most
+		cases in order to like executable programs to the base code.
+
+if EXECFUNCS_HAVE_SYMTAB
 config EXECFUNCS_SYMTAB
 	string "Symbol table used by exec[l|v]"
 	default "g_symtab"
@@ -129,6 +139,7 @@ config EXECFUNCS_NSYMBOLS
 		symbols in that table.  This selection provides the number of
 		symbols in the symbol table.
 
+endif # EXECFUNCS_HAVE_SYMTAB
 endif # LIBC_EXECFUNCS
 
 config POSIX_SPAWN_PROXY_STACKSIZE
@@ -143,6 +154,7 @@ config POSIX_SPAWN_PROXY_STACKSIZE
 config TASK_SPAWN_DEFAULT_STACKSIZE
 	int "Default task_spawn Stack Size"
 	default 2048
+	depends on !ARCH_ADDRENV
 	---help---
 		The actual size to use for the child task's stack can be set with
 		task_spawnattr_setstacksize().  This value specifies the default
@@ -460,7 +472,7 @@ config SCHED_LPWORKSTACKSIZE
 endif # SCHED_LPWORK
 endif # SCHED_HPWORK
 
-if NUTTX_KERNEL
+if BUILD_PROTECTED
 
 config SCHED_USRWORK
 	bool "User mode worker thread"
@@ -490,7 +502,7 @@ config SCHED_LPWORKSTACKSIZE
 		The stack size allocated for the lower priority worker thread.  Default: 2K.
 
 endif # SCHED_USRWORK
-endif # NUTTX_KERNEL
+endif # BUILD_PROTECTED
 endif # SCHED_WORKQUEUE
 
 config LIB_KBDCODEC

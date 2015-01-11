@@ -74,7 +74,8 @@ Contents
   - Creating and Using DRAMBOOT
   - Creating and Using AT25BOOT
   - Running NuttX from SDRAM
-  - PIO Usage
+  - SAMA4D44-MB RevC PIO Usage
+  - Board Revisions
   - Buttons and LEDs
   - Serial Console
   - Networking
@@ -853,8 +854,9 @@ Running NuttX from SDRAM
   STATUS:
     2014-3-30:  These instructions were adapted from the Linux4SAM website
                 but have not yet been used.
-PIO Usage
-=========
+
+SAMA4D44-MB RevC PIO Usage
+==========================
 
   Rev. B. 0111A
   ------------------------------ ------------------- -------------------------
@@ -1020,6 +1022,68 @@ PIO Usage
   PE31/ADTRG                     USBA_VBUS_PE31      USBA_VBUS_PE31
   ------------------------------ ------------------- -------------------------
 
+Board Revisions
+===============
+
+  PIO Usage
+  ---------
+  Most of this work was developed on a SAMA5D4-MB Rev C. board.  Here is a
+  pin-for-pin comparison between the Rev C and Rev E boards.  This is a
+  comparison of signal naming only; some differences are simply due to
+  differences in naming and any functional differences with no signal name
+  change would no be noted.
+
+    ---------- --------------------- ---------------------
+    PINS       SAMA5D44-MB Rev C.    SAMA5D44-MB Rev E.
+    ---------- --------------------- ---------------------
+    PA0-PA31:  Identical
+    ---------- --------------------- ---------------------
+    PB0-PB13:  Identical
+    PB14       ZIG_SPI2_NPCS1        XPRO_SPI2_NPCS1
+    PB15-PB31: Identical
+    ---------- --------------------- ---------------------
+    PC0-PC1:   Identical
+    PC2        A-SPCK/ISI_D10/PWMH3  SPCK/ISI_D10/PWMH3
+    PC3        A-NCPS0/ISI_D11/PWML3 NCPS0/ISI_D11/PWML3
+    PC4-PC31:  Identical
+    ---------- --------------------- ---------------------
+    PD0-PD9:   Identical
+    PD10       ZIG_CTS0              XPRO_CTS0
+    PD11       ZIG_SPI2_MISO_RTS0    XPRO_MISO_RTS0
+    PD12       ZIG_RXD0              XPRO_RXD0
+    PD13       ZIG_SPI2_MOSI_TXD0    XPRO_MOSI_TXD0
+    PD14       ZIG_CTS1              XPRO_CTS1
+    PD15       ZIG_SPI2_SPCK_RTS1    XPRO_SPCK_RTS1
+    PD16       ZIG_RXD1_PD16         XPRO_RXD1_PD16
+    PD17       ZIG_SPI2_NPCS0_TXD    XPRO_NPCS0_TXD1
+    PD18       SENSE0                NC
+    PD19       SENSE1                NC
+    PD20       SENSE2                NC
+    PD21       SENSE3                NC
+    PD22       NSENSE4C              NC
+    PD23-PD27: Identical
+    PD28       PD28                  SCK0
+    PD29       SENSE_DISCH           SCK1
+    PD30-PD31: Identical
+    ---------- --------------------- ---------------------
+    PE0-PE13:  Identical
+    PE14       MCI1_CD               EXP
+    PE15-PE30: Identical
+    PE31       USBA_VBUS_PE31        USBA_VBUS/ADTRG
+    ---------- --------------------- ---------------------
+
+  Jumpers
+  -------
+    ---------- --------------------- ---------------------
+    Jumpers    SAMA5D44-MB Rev C.    SAMA5D44-MB Rev E.
+    ---------- --------------------- ---------------------
+    JP2-J3     Identical function
+    JP4        Force power on        Not present on Rev E.
+               function selection
+    JP5-J22    Identical function
+    JP23       AUDIO_TWD0_PA30       Not present on Rev E.
+    JP24       Not present on Rev. C For CTS,RTS usage
+
 Buttons and LEDs
 ================
 
@@ -1118,8 +1182,8 @@ Serial Console
   provide the serial output over a USB virtual COM port.  In other other
   jumper position, UART3 will connect the RS-232 port labelled DBGU (J24).
 
-  I personally prefer the RS-2323 port because my terminal software does not
-  lose the USB Virtual COM everytime I reset or power-cycle the board.
+  I personally prefer the RS-232 port because my terminal software does not
+  lose the USB Virtual COM every time I reset or power-cycle the board.
 
   USART4 TTL-Level
   ------------------------------ ------------------- -------------------------
@@ -1385,22 +1449,76 @@ Networking
 
   This delay will be especially long if the board is not connected to
   a network.  On the order of a minute!  You will probably think that
-  NuttX has crashed!
+  NuttX has crashed!  And then, when it finally does come up, the
+  network will not be available.
 
+  Network Initialization Thread
+  -----------------------------
   There is a configuration option enabled by CONFIG_NSH_NETINIT_THREAD
   that will do the NSH network bring-up asynchronously in parallel on
   a separate thread.  This eliminates the (visible) networking delay
-  altogether.  This current implementation, however, has some limitations:
+  altogether.  This networking initialization feature by itself has
+  some limitations:
 
     - If no network is connected, the network bring-up will fail and
       the network initialization thread will simply exit.  There are no
       retries and no mechanism to know if the network initialization was
-      successful (it could perform a network Ioctl to see if the link is
-      up and it now, keep trying, but it does not do that now).
+      successful.
 
-    - Furthermore, there is currently no support for detecting loss of
-      network connection and recovery of the connection (similarly, this
-      thread could poll periodically for network status, but does not).
+    - Furthermore, there is no support for detecting loss of the network
+      connection and recovery of networking when the connection is restored.
+
+  Both of these shortcomings can be eliminated by enabling the network
+  monitor:
+
+  Network Monitor
+  ---------------
+  By default the network initialization thread will bring-up the network
+  then exit, freeing all of the resources that it required.  This is a
+  good behavior for systems with limited memory.
+
+  If the CONFIG_NSH_NETINIT_MONITOR option is selected, however, then the
+  network initialization thread will persist forever; it will monitor the
+  network status.  In the event that the network goes down (for example, if
+  a cable is removed), then the thread will monitor the link status and
+  attempt to bring the network back up.  In this case the resources
+  required for network initialization are never released.
+
+  Pre-requisites:
+
+    - CONFIG_NSH_NETINIT_THREAD as described above.
+
+    - CONFIG_NETDEV_PHY_IOCTL. Enable PHY IOCTL commands in the Ethernet
+      device driver. Special IOCTL commands must be provided by the Ethernet
+      driver to support certain PHY operations that will be needed for link
+      management. There operations are not complex and are implemented for
+      the Atmel SAMA5 family.
+
+    - CONFIG_ARCH_PHY_INTERRUPT. This is not a user selectable option.
+      Rather, it is set when you select a board that supports PHY interrupts.
+      In most architectures, the PHY interrupt is not associated with the
+      Ethernet driver at all. Rather, the PHY interrupt is provided via some
+      board-specific GPIO and the board-specific logic must provide support
+      for that GPIO interrupt. To do this, the board logic must do two things:
+      (1) It must provide the function arch_phy_irq() as described and
+      prototyped in the nuttx/include/nuttx/arch.h, and (2) it must select
+      CONFIG_ARCH_PHY_INTERRUPT in the board configuration file to advertise
+      that it supports arch_phy_irq().  This logic can be found at
+      nuttx/configs/sama5d4-ek/src/sam_ethernet.c.
+
+    - And a few other things: UDP support is required (CONFIG_NET_UDP) and
+      signals must not be disabled (CONFIG_DISABLE_SIGNALS).
+
+  Given those prerequisites, the newtork monitor can be selected with these additional settings.
+
+    Networking Support -> Networking Device Support
+      CONFIG_NETDEV_PHY_IOCTL=y             : Enable PHY ioctl support
+
+    Application Configuration -> NSH Library -> Networking Configuration
+      CONFIG_NSH_NETINIT_THREAD             : Enable the network initialization thread
+      CONFIG_NSH_NETINIT_MONITOR=y          : Enable the network monitor
+      CONFIG_NSH_NETINIT_RETRYMSEC=2000     : Configure the network monitor as you like
+      CONFIG_NSH_NETINIT_SIGNO=18
 
 AT25 Serial FLASH
 =================
@@ -1513,7 +1631,7 @@ HSMCI Card Slots
   ------------------------------ ------------------- -------------------------
   SAMA5D4 PIO                    SIGNAL              USAGE
   ------------------------------ ------------------- -------------------------
-  PE14/A14/TCLK1/PWMH3           MCI1_CD_PE14        MCI1_CD               ???
+  PE14/A14/TCLK1/PWMH3           MCI1_CD_PE14        MCI1_CD        Rev C. ???
   PE15/A15/SCK3/TIOA0            MCI1_PWR_PE15       MCI1_PWR
   PE18/A18/TIOA5/MCI1_CK         PE18                MCI1_CK, EXP
   PE19/A19/TIOB5/MCI1_CDA        PE19                MCI1_CDA, EXP
@@ -1557,7 +1675,8 @@ HSMCI Card Slots
       CONFIG_SCHED_WORKQUEUE=y              : Driver needs work queue support
 
     Application Configuration -> NSH Library
-      CONFIG_NSH_ARCHINIT=y                 : NSH board-initialization
+      CONFIG_NSH_ARCHINIT=y                 : NSH board-initialization, OR
+      CONFIG_BOARD_INITIALIZE=y
 
     Using the SD card
     -----------------
@@ -2771,7 +2890,7 @@ Audio Support
   ---- ------------------ ---------------- ------------- ---------------------------------------
   PIO  USAGE              BOARD SIGNAL     WM8904 PIN    NOTE
   ---- ------------------ ---------------- ------------- ---------------------------------------
-  PA30 TWD0               AUDIO_TWD0_PA30  3  SDA        Pulled up, See J23 note below
+  PA30 TWD0               AUDIO_TWD0_PA30  3  SDA        Pulled up, See JP23 note below
   PA31 TWCK0              AUDIO_TWCK0_PA31 2  SCLK       Pulled up
   PB10 AUDIO_PCK2/EXP     AUDIO_PCK2_PB10  28 MCLK
   PB27 AUDIO/HDMI_TK0/EXP AUDIO_TK0_PB27   29 BCLK/GPIO4 Note TK0 and RK0 are mutually exclusive
@@ -2782,7 +2901,7 @@ Audio Support
   PB28 AUDIO/HDMI_TD0/EXP AUDIO_TD0_PB28   32 ACDAT
   PE4  AUDIO_IRQ          AUDIO_IRQ_PE4    1  IRQ/GPIO1  Audio interrupt
   ---- ------------------ ---------------- ------------- ---------------------------------------
-  Note that jumper J23 must be closed to connect AUDIO_TWD0_PA30
+  Note that jumper JP23 must be closed to connect AUDIO_TWD0_PA30 (Rev C. only)
 
   WM8904 Configuration
   --------------------
@@ -2792,12 +2911,13 @@ Audio Support
       CONFIG_SAMA5_SSCO=y                   : Enable SSC0 driver support
 
     System Type -> SSC0 Configuration
+      CONFIG_SAMA5D4_MB_REVE=y              : No WM8904 for Rev C version of the board
       CONFIG_SAMA5_SSC_MAXINFLIGHT=16
       CONFIG_SAMA5_SSC0_DATALEN=16
 
     Device Drivers -> I2C Driver Support
       CONFIG_I2C=y                          : Enable I2C support
-      CONFIG_I2C_EXCHANGE=y                 : Support the exchange method
+      CONFIG_I2C_TRANSFER=y                 : Support the transfer method
       CONFIG_I2C_RESET=n                    : (Maybe y, if you have bus problems)
 
     System Type -> SSC Configuration
@@ -2813,7 +2933,7 @@ Audio Support
       CONFIG_SAMA5_SSC0_TX_STTDLY=1         : Start delay
       CONFIG_SAMA5_SSC0_TX_TKOUTPUT_NONE=y  : No output
 
-    Audio
+    Audio Support
       CONFIG_AUDIO=y                        : Audio support needed
       CONFIG_AUDIO_FORMAT_PCM=y             : Only PCM files are supported
       CONFIG_AUDIO_NUM_BUFFERS=8            : Number of audio buffers
@@ -3471,6 +3591,10 @@ Configurations
     dramboot: This is a little program to help debug of code in DRAM.  See
       the description below and the section above entitled "Creating and
       Using DRAMBOOT" for more information
+    elf:  Demonstrates execution of ELF file from a file system.
+    knsh: An NSH configuration used to test the SAMA5D kernel build
+      configuration.  Uses a tiny NSH configuration that runs at
+      start time from a mounted file system.
     nsh:  This is an NuttShell (NSH) configuration that supports extensive
       functionality as possible (unlike the minimal ramtest configuration).
       See the detailed description below for a summary of the feature
@@ -3598,6 +3722,280 @@ Configurations
     with my AT25BOOT (see above).  I currently work around these issues by
     putting DRAMBOOT on a microSD card (as boot.bin).  The RomBOOT loader does
     boot that image without issue.
+
+  elf:
+
+    Demonstrates execution of ELF file from a file system using
+    apps/examples/elf.  This is a very simple configuration so there is not
+    really much that needs to be said.
+
+    NOTES:
+
+    1. This configuration uses the the USART3 for the serial console
+       which is available at the "DBGU" RS-232 connector (J24).  That
+       is easily changed by reconfiguring to (1) enable a different
+       serial peripheral, and (2) selecting that serial peripheral as
+       the console device.
+
+    2. By default, this configuration is set up to build on Windows
+       under either a Cygwin or MSYS environment using a recent, Windows-
+       native, generic ARM EABI GCC toolchain (such as the CodeSourcery
+       toolchain).  Both the build environment and the toolchain
+       selection can easily be changed by reconfiguring:
+
+       CONFIG_HOST_WINDOWS=y                   : Windows operating system
+       CONFIG_WINDOWS_CYGWIN=y                 : POSIX environment under windows
+       CONFIG_ARMV7A_TOOLCHAIN_CODESOURCERYW=y : CodeSourcery for Windows
+
+       If you are running on Linux, make *certain* that you have
+       CONFIG_HOST_LINUX=y *before* the first make or you will create a
+       corrupt configuration that may not be easy to recover from. See
+       the warning in the section "Information Common to All Configurations"
+       for further information.
+
+    3. This configuration currently has Cortex-A address environments selected.
+       With this option, the MMU is used to create a custom address environment
+       for each ELF program (effectively making them processes).  This option
+       can be disabled in which case the ELF programs will simply execute out
+       normal memory allocated from the heap.  To disable this feature:
+
+      System Type -> Architecture Options
+        CONFIG_ARCH_ADDRENV=n                  : Disable address environment support
+
+      System Type -> Heap Configuration
+        CONFIG_SAMA5_DDRCS_RESERVE=n           : Don't reserve any page cache memory
+        CONFIG_SAMA5_DDRCS_PGHEAP=n            : Don't try to set up the page allocator
+
+      Memory Management
+        CONFIG_GRAN=n                          : Disable the granule allocator
+        CONFIG_MM_PGALLOC=n                    : Disable the page allocator
+
+    4. A system call interface is enabled and the ELF test programs interface with the base RTOS code system calls.  This eliminates the need for symbol tables to link with the base RTOS (symbol tables are still used, however, to interface with the common C library instaniation).  Relevant configuration settings:
+
+      RTOS Features -> System call support
+        CONFIG_LIB_SYSCALL=y                   : Enable system call support
+        CONFIG_SYS_NNEST=2                     : Max number of nested system calls
+        CONFIG_SYS_RESERVED=1                  : SYStem call 0 is reserved on this platform
+
+      Application Configurations -> Examples -> ELF Loader Example
+        CONFIG_EXAMPLES_ELF_SYSCALL=y          : Link apps with the SYStem call library
+
+    STATUS:
+      2014-8-24: This configuration works with the address environment
+                 and system call options disabled.
+      2014-8-28: Now this option works well well with address environments
+                 enabled.  There is a potential issue with the use of
+                 task_create() as it is used in the ELF test, but the code
+                 seems to survive it. See:
+
+                 http://www.nuttx.org/doku.php?id=wiki:nxinternal:memconfigs#task_create
+
+      2014-8-29: System call interface verified.
+      2014-9-16: Reverified after fixing changes for the knsh configuration
+                 that broke this on.  All seems to be well now.
+
+  knsh:
+    An NSH configuration used to test the SAMA5D kenel build configuration.
+    More to come... this is still a work in progress as of this writing.
+
+    NOTES:
+
+    1. This configuration uses the the USART3 for the serial console
+       which is available at the "DBGU" RS-232 connector (J24).  That
+       is easily changed by reconfiguring to (1) enable a different
+       serial peripheral, and (2) selecting that serial peripheral as
+       the console device.
+
+    2. By default, this configuration is set up to build on Windows
+       under either a Cygwin or MSYS environment using a recent, Windows-
+       native, generic ARM EABI GCC toolchain (such as the CodeSourcery
+       toolchain).  Both the build environment and the toolchain
+       selection can easily be changed by reconfiguring:
+
+       CONFIG_HOST_WINDOWS=y                   : Windows operating system
+       CONFIG_WINDOWS_CYGWIN=y                 : POSIX environment under windows
+       CONFIG_ARMV7A_TOOLCHAIN_CODESOURCERYW=y : CodeSourcery for Windows
+
+       If you are running on Linux, make *certain* that you have
+       CONFIG_HOST_LINUX=y *before* the first make or you will create a
+       corrupt configuration that may not be easy to recover from. See
+       the warning in the section "Information Common to All Configurations"
+       for further information.
+
+    3. Some key setup configuration values for this configuration:
+
+       Build Setup -> Build Configuration -> Memory Organization
+         CONFIG_BUILD_KERNEL=y                  : Kernel build enabled
+
+       RTOS Features -> Tasks and Scheduling
+         CONFIG_INIT_FILEPATH=y                 : Start-up is via an ELF file
+         CONFIG_USER_INITPATH="/bin/init"       : The location of the startup
+         CONFIG_SCHED_HAVE_PARENT=y             : Needed to handle task exit
+
+       RTOS Features -> System call support
+         CONFIG_SYS_RESERVED=5                  : More reserved SYSCALLs
+
+       RTOS Features -> RTOS hooks
+         CONFIG_SCHED_ONEXIT=y                 : Needed to handle task exit
+         CONFIG_SCHED_ONEXIT_MAX=2
+
+       Memory Management
+        CONFIG_MM_KERNEL_HEAP=y                : Enable a kernel heap
+        CONFIG_MM_KERNEL_HEAPSIZE=8192         : (temporary.. will change)
+
+    4. By default, this configuration is setup to boot from an SD card.
+       Unfortunately, there some issues when using the SD card that prevent
+       this from working properly (see STATUS below).  And alternative is to
+       use a built-in ROMFS file system that does not suffer from the
+       (assumed) HSMCI bug.
+
+       So why isn't this the default configuration?  Because it does not
+       build out-of-the-box.  You have to take special steps in the build
+       process as described below.
+
+       Assuming that you will want to reconfigure to use the ROMFS (rather than debugging HSCMI), you will need to disable all of these settings:
+
+       System Type->ATSAMA5 Peripheral Support
+         CONFIG_SAMA5_HSMCI0=n           : Disable HSMCI0 support
+         CONFIG_SAMA5_XDMAC0=n           : XDMAC0 is no longer needed
+
+       System Type
+         CONFIG_SAMA5_PIO_IRQ=n          : PIO interrupts are no longer needed
+
+       Device Drivers -> MMC/SD Driver Support
+         CONFIG_MMCSD=n                  : Disable MMC/SD support
+
+       File System
+         CONFIG_FS_FAT=n                 : FAT file system no longer needed
+
+       Board Selection
+         CONFIG_SAMA5D4EK_HSMCI0_MOUNT=y : Don't mount HSMCI0 at boot
+
+       And then enable these features in order to use the ROMFS boot file
+       system:
+
+       File System
+         CONFIG_FS_ROMFS=y               : Enable the ROMFS file system
+
+       Board Selection
+         CONFIG_SAMA5D4EK_ROMFS_MOUNT=y  : Mount the ROMFS file system at boot
+         CONFIG_SAMA5D4EK_ROMFS_MOUNT_MOUNTPOINT="/bin"
+         CONFIG_SAMA5D4EK_ROMFS_ROMDISK_DEVNAME="/dev/ram0"
+         CONFIG_SAMA5D4EK_ROMFS_ROMDISK_MINOR=0
+         CONFIG_SAMA5D4EK_ROMFS_ROMDISK_SECTSIZE=512
+
+       Then you will need to follow some special build instructions below
+       in order to build and install the ROMFS file system image.
+
+       UPDATE: The ROMFS configuration is pre-configured in the the
+       file nuttx/configs/sama5d4-ek/knsh/defconfig.ROMFS
+
+    5. Board initialization is performed performed before the application
+       is started:
+
+       RTOS Features -> RTOS Hooks
+         CONFIG_BOARD_INITITIALIZE=y
+
+       In the special ROMFS boot configuration, you need to do nothing
+       additional: The board initialization will mount the ROMFS file
+       system at boot time.
+
+       In the default configuration, however, the board initialization
+       will instead mount the FAT filesystem on an SD card inserted in
+       the HSMCI0 slot (full size).  The SAMA4D4-EK provides two SD
+       memory card slots:  (1) a full size SD card slot (J10), and (2) a
+       microSD memory card slot (J11).  The full size SD card slot connects
+       via HSMCI0; the microSD connects vi HSMCI1.  See the relevant
+       configuration settings above in the paragraph entitled "HSMCI Card
+       Slots" above.
+
+       The SD card is mounted at /bin by this board initialization logic.
+       NuttX will boot from the SD card so there are some special operational
+       requirements to use this configuration:
+
+       a. The SD card must contain a NuttX executable called 'init'
+       b. The SD card must be in the HSCMCI slot when NuttX boots and must
+          not be removed while NuttX is running.
+
+       The NuttX automounter is *not* enabled.  It cannot be used it would
+       mount the boot file system with a delay.  In this configuration.  The
+       file system must be mounted immediately at boot up.  To accomplish
+       this, the board logic supports these special configurations:
+
+       Board Selection ->
+         CONFIG_SAMA5D4EK_HSMCI0_AMOUNT=y
+         CONFIG_SAMA5D4EK_HSMCI0_MOUNT_BLKDEV="/dev/mmcsd0"
+         CONFIG_SAMA5D4EK_HSMCI0_MOUNT_FSTYPE="vfat"
+         CONFIG_SAMA5D4EK_HSMCI0_MOUNT_MOUNTPOINT="/bin"
+
+    6a. General build directions (boot from SD card):
+
+        $ cd nuttx/tools                    : Go to the tools sub-directory
+        $ ./configure.sh sama5d4-ek/kernel  : Establish this configuration
+        $ cd ..                             : Back to the NuttX build directory
+                                            : Edit setenv.sh to use the correct path
+        $ . ./setenv.sh                     : Set up the PATH variable
+        $ make                              : Build the kerne with a dummy ROMFS image
+                                            : This should create the nuttx ELF
+        $ make export                       : Create the kernel export package
+                                            : You should have a file like
+                                            : nuttx-export-*.zip
+        $ cd apps/                          : Go to the apps/ directory
+        $ tools/mkimport.sh -x <zip-file>   : Use the full path to nuttx-export-*.zip
+        $ make import                       : This will build the file system.
+
+      You will then need to copy the files from apps/bin to an SD card to
+      create the the bootable SD card.
+
+    6b. General build directions (boot from ROMFS image):
+
+        $ cd nuttx/tools                    : Go to the tools sub-directory
+        $ ./configure.sh sama5d4-ek/kernel  : Establish this configuration
+        $ cd ..                             : Back to the NuttX build directory
+                                            : Edit setenv.sh to use the correct path
+        $ . ./setenv.sh                     : Set up the PATH variable
+        $ touch configs/sama5d4-ek/include/boot_romfsimg.h
+        $ make                              : Build the kernel with a dummy ROMFS image
+                                            : This should create the nuttx ELF
+        $ make export                       : Create the kernel export package
+                                            : You should have a file like
+                                            : nuttx-export-*.zip
+        $ cd apps/                          : Go to the apps/ directory
+        $ tools/mkimport.sh -x <zip-file>   : Use the full path to nuttx-export-*.zip
+        $ make import                       : This will build the file system
+        $ tools/mkromfsimg.sh               : Create the real ROMFS image
+        $ mv boot_romfsimg.h ../nuttx/configs/sama5d4-ek/include/boot_romfsimg.h
+        $ cd nuttx/                         : Rebuild the system with the correct
+        $ make clean_context all            : ROMFS file system
+
+    STATUS:
+
+    2014-9-4: The kernel works up to the point where the nsh 'init'
+       is started from the file system then fails.  This is good,
+       however, because I do not yet have the file system in place yet.
+
+    2014-9-8: I am seeing HSMCI read() failures while loading the ELF image
+       from the SD card.  This seems odd since I have never seen other read()
+       failures with HSMCI (and, hence, this may be some issue unique to this
+       configuration).  In any a event, this has stopped testing for the
+       moment.
+
+       Also, the mount() in configs/sama5d4x-ek/src/sam_bringup.c will fail
+       unless you add a delay between the HSMCI initialization and the mount.
+       No idea why (and there they is now delay in the baseline code... one
+       has to be added).
+
+       Update: I don't believe that this HSMCI error occurs if file system
+       debug output is enabled.
+
+    2014-9-11: Everything seems to be working quite nicely witn the ROMFS
+       file system.  A considerable amount of testing has been done and
+       there are no known defects as of this writing.
+
+    2014-9-16: After some substantial effort, I think I may have resolved
+       the last of the mainstream bugs that prevented from executing other
+       user processes from a user processes.  Long story but I am glad to
+       haave that done.
 
   nsh:
 
@@ -3925,17 +4323,19 @@ Configurations
        The configuration option CONFIG_NSH_NETINIT_THREAD is enabled so
        that NSH network bring-up asynchronously and in parallel on a
        separate thread.  This eliminates the (visible) networking bring-up
-       delay.  This current implementation, however, has some limitations:
+       delay.    This networking initialization feature by itself has
+       some limitations:
 
-        - If no network is connected, the network bring-up will fail and
-          the network initialization thread will simply exit.  There are no
-          retries and no mechanism to know if the network initialization was
-          successful (it could perform a network Ioctl to see if the link is
-          up and it now, keep trying, but it does not do that now).
+         - If no network is connected, the network bring-up will fail and
+           the network initialization thread will simply exit.  There are no
+           retries and no mechanism to know if the network initialization was
+           successful.
 
-        - Furthermore, there is currently no support for detecting loss of
-          network connection and recovery of the connection (similarly, this
-          thread could poll periodically for network status, but does not).
+         - Furthermore, there is no support for detecting loss of the network
+           connection and recovery of networking when the connection is restored.
+
+       Both of these shortcomings can be eliminated by enabling the network
+       monitor as described above in the "Network Monitor" paragraph.
 
    14. I2C Tool. This configuration enables TWI0 (only) as an I2C master
        device.  This configuration also supports the I2C tool at
@@ -4023,12 +4423,15 @@ Configurations
 
    19. NxPlayer
 
-       This configuration has the command line NxPlayer enabled.
+       This configuration has the command line NxPlayer enabled.  Support
+       for the WM8904 CODEC is built in.
 
-       At present, the the WM8904 driver is not included in the
-       configuration.  Instead the "NULL" audio device in built in to
-       support higher level testing (there are also some unresolved I2C
-       communication issues the the current WM8904 driver).
+         NOTE:  The WM8904 driver should not be included in the
+         configuration if you are using the Rev C version of the board
+         (there were some I2C communication issues for the WM8904 interface
+         on Rev C of the board):
+
+           CONFIG_SYSTEM_NXPLAYER=n
 
        This configuration depends on media files in the default mountpoint
        at /mnt/sdard.  You will need to mount the media before running
@@ -4057,6 +4460,9 @@ Configurations
               nxplayer> device pcm0
               nxplayer> play <filename>
 
+       STATUS:  Not yet functional.  See the To-Do list at the bottom of this
+       README file.
+
    20. The SAMA5D4-EK includes for an AT25 serial DataFlash.  That support is
        NOT enabled in this configuration.  Support for that serial FLASH could
        be enabled by modifying the NuttX configuration as described above in
@@ -4068,6 +4474,16 @@ Configurations
 
    STATUS:
        See the To-Do list below
+
+   2014-8-30: Retesting today I am seeing a strange behavior:  Serial
+       output is coming out in chunks with delays between the chunks.  It
+       appears that something is not good in the serial port configuration.
+       I see no such chunky behavior in, for example, graphics output.
+   2014-9-17: I do not see that chunked output behavior.  However, I do
+       notice that the serial output is sluggish if there is not network
+       cable connected.  When the network connected the serial output is
+       responsive:  Something must be keeping the system too busy when
+       there is not network (probably the network monitor).
 
   nxwm:
 
@@ -4102,7 +4518,7 @@ Configurations
 
        - It boots into a graphic, window manage environment instead of
          the serial console command line.
-       - The console command line is still available within NxConsole
+       - The console command line is still available within NxTerm
          windows.
        - Obviously, the nx and touchscreen built in applications cannot
          be supported.
@@ -4168,11 +4584,11 @@ Configurations
 
        Access to the NSH console is available in two ways:
 
-       a. The NxWM provides a graphics-based terminals (called NxConsoles);
-          The console command line is still available within NxConsole
+       a. The NxWM provides a graphics-based terminals (called NxTerms);
+          The console command line is still available within NxTerm
           windows once NxWM is up and running.  The console input (stdin) is
           provided via a USB HID keyboard, but console output will go to the
-          NxConsole terminal.  See below for more information about the USB
+          NxTerm terminal.  See below for more information about the USB
           HID keyboard input,
 
 |      b. Telnet NSH sessions are still supported and this is, in general,
@@ -4180,7 +4596,7 @@ Configurations
 
        As with the NSH configuration, debug output will still go to the
        circular RAMLOG buffer but cannot be accessed from a serial console.
-       Instead, you will need use the dmesg command from an NxConsole or
+       Instead, you will need use the dmesg command from an NxTerm or
        from a Telnet session to see the debug output
 
     5. USB HID Keyboard Input
@@ -4195,19 +4611,19 @@ Configurations
 
        The USB keyboard is configured to replace the NSH stdin device some
        that NSH will take input from the USB keyboard.  This has to be
-       done a little differently for the case of NxWM::CNxConsoles than
+       done a little differently for the case of NxWM::CNxTerms than
        in the standard NSH configuration.  Here the relevant configuration
        options are:
 
          CONFIG_NXWM_KEYBOARD_USBHOST=y
          CONFIG_NXWM_KEYBOARD_DEVPATH="/dev/kbda"
 
-       NSH will then automatically start when the NxConsole is started:
+       NSH will then automatically start when the NxTerm is started:
 
          NuttShell (NSH) NuttX-7.3
          nsh>
 
-       When the NxConsole comes up, it will attempt to use /dev/kbda device
+       When the NxTerm comes up, it will attempt to use /dev/kbda device
        for input.  Obviously, you cannot enter text if there is no keyboard
        but otherwise you will not see any indication whether a keyboard is
        connected or not.
@@ -4226,14 +4642,16 @@ Configurations
 
     6. Media Player
 
-       This configuration has the media player application enabled.  That
-       player is still a work in progress and is only partially integrated
-       with the NxPlayer as of this writing.
+       This configuration has the media player application enabled. Support
+       for the WM8904 CODEC is built in.
 
-       At present, the the WM8904 driver is not included in the
-       configuration.  Instead the "NULL" audio device in built in to
-       support higher level testing (there are also some unresolved I2C
-       communication issues the the current WM8904 driver).
+         NOTE:  The WM8904 driver should not be included in the
+         configuration if you are using the Rev C version of the board
+         (there were some I2C communication issues for the WM8904 interface
+         on Rev C of the board).  You may either (1) Disable audio support
+         and disable the Media Player GUI, or (2) configure the "NULL" audio
+         device so that the GUI will function correctly (with no sound,
+         of course).
 
        This configuration depends on media files in the default mountpoint
        at /mnt/sdard (configurable).  If you see the message "Media volume
@@ -4273,6 +4691,12 @@ Configurations
          c. Then if you close the old media player window and bring up a
             new one, you should see the .WAV files on the SD card in the lis
             box.
+
+         STATUS:  Despite the comments above, WM8904 support has *NOT* yet
+         been enabled in this configuration.  This is because it is not yet
+         working in the nxwm configuration.  See the To-Do list at the
+         bottom of this README file.  The current nxwm configuration is still
+         set up for the Rev C board using the "NULL" audio device.
 
        Things still to do:
 
@@ -4401,6 +4825,40 @@ To-Do List
    BOARD_MCK_FREQUENCY definition in more complex ways and will require some
    minor redesign and re-testing before they can be available.
 
-5) Board-related I2C issues have prevented integration of the WM8904 audio
-   decoder.  So the NxPlayer and NxWM Media Player demo cannot produce
-   sounds.
+5) The WM8904 is not usable on the Rev C version of the board due to some I2C
+   related issues.  These issues seem to be resolved on the Rev E version of
+   the board.  However, the WM8904 is still not function:
+
+   a) With a logic analyzer I can see that the I2C writes to the WM8904
+      device look good.  This is the same setup that was used in the working
+      SAMA5D3x-EK nxplayer configuration and so should be correct (you
+      cannot even get this far on the Rev C board).
+   b) I2C readback of the WM8904 registers (via CONFIG_WM8904_REGDUMP) does
+      not, however, show proper registers contents.  Groups of extra bits
+      (apparently 0x01fd) appear to be set in many registers on reading.
+      This is assumed to be some interference from some other device on the
+      I2C bus rather that errors in writing.  This assumption is credible
+      since the bad bits appear immediately after resetting the WM8904 and
+      before anything has been written to it.
+   c) Also with the logic analyzer, I can that the 12MHz MCLK input is
+      being provided to the WM8904.
+   d) However, no bit clock (BLCK) is being generated by the WM8904.  This
+      should appear on both AUDIO_TK0_PB27 and AUDIO_RK0_PB28, but I do not
+      see a clock on these pins.
+   e) With no BCLK, I would expect the SSC0 DMA transfers to hang... they do
+      not.  No errors of any kind are detected by the firmware; it believes
+      that it is successfully playing .WAV files.  This leads to believe
+      that there may be some schematic error.
+   e) There is, of course, no audio output.
+
+   You can replace the WM8904 with the "NULL" audio driver by:
+
+      CONFIG_AUDIO_WM8904=n                         : Disable the WM8904
+      CONFIG_SAMA5_SSC0=n                           : Disable SSC0
+
+      CONFIG_AUDIO_NULL=y                           : Enable the NULL audio device
+      CONFIG_AUDIO_NULL_BUFFER_SIZE=8192
+      CONFIG_AUDIO_NULL_MSG_PRIO=1
+      CONFIG_AUDIO_NULL_NUM_BUFFERS=4
+      CONFIG_AUDIO_NULL_WORKER_STACKSIZE=768
+      CONFIG_AUDIO_NUM_BUFFERS=2

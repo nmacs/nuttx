@@ -2103,21 +2103,24 @@ static int stm32_i2c_process(FAR struct i2c_dev_s *dev, FAR struct i2c_msg_s *ms
   struct stm32_i2c_inst_s     *inst = (struct stm32_i2c_inst_s *)dev;
   FAR struct stm32_i2c_priv_s *priv = inst->priv;
   uint32_t    status = 0;
+#ifdef I2C1_FSMC_CONFLICT
   uint32_t    ahbenr;
+#endif
   int         errval = 0;
 
   ASSERT(count);
 
+#ifdef I2C1_FSMC_CONFLICT
   /* Disable FSMC that shares a pin with I2C1 (LBAR) */
 
   ahbenr = stm32_i2c_disablefsmc(priv);
 
+#else
   /* Wait for any STOP in progress.  NOTE:  If we have to disable the FSMC
    * then we cannot do this at the top of the loop, unfortunately.  The STOP
    * will not complete normally if the FSMC is enabled.
    */
 
-#ifndef I2C1_FSMC_CONFLICT
   stm32_i2c_sem_waitstop(priv);
 #endif
 
@@ -2283,18 +2286,18 @@ static int stm32_i2c_process(FAR struct i2c_dev_s *dev, FAR struct i2c_msg_s *ms
 
   stm32_i2c_tracedump(priv);
 
+#ifdef I2C1_FSMC_CONFLICT
   /* Wait for any STOP in progress.  NOTE:  If we have to disable the FSMC
    * then we cannot do this at the top of the loop, unfortunately.  The STOP
    * will not complete normally if the FSMC is enabled.
    */
 
-#ifdef I2C1_FSMC_CONFLICT
   stm32_i2c_sem_waitstop(priv);
-#endif
 
   /* Re-enable the FSMC */
 
   stm32_i2c_enablefsmc(ahbenr);
+#endif
   stm32_i2c_sem_post(dev);
 
   return -errval;
@@ -2450,7 +2453,7 @@ FAR struct i2c_dev_s *up_i2cinitialize(int port)
 
   /* Allocate instance */
 
-  if (!(inst = kmalloc(sizeof(struct stm32_i2c_inst_s))))
+  if (!(inst = kmm_malloc(sizeof(struct stm32_i2c_inst_s))))
     {
       return NULL;
     }
@@ -2505,7 +2508,7 @@ int up_i2cuninitialize(FAR struct i2c_dev_s * dev)
   if (--((struct stm32_i2c_inst_s *)dev)->priv->refs)
     {
       irqrestore(irqs);
-      kfree(dev);
+      kmm_free(dev);
       return OK;
     }
 
@@ -2519,7 +2522,7 @@ int up_i2cuninitialize(FAR struct i2c_dev_s * dev)
 
   stm32_i2c_sem_destroy((struct i2c_dev_s *)dev);
 
-  kfree(dev);
+  kmm_free(dev);
   return OK;
 }
 

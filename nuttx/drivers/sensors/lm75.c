@@ -514,7 +514,7 @@ int lm75_register(FAR const char *devpath, FAR struct i2c_dev_s *i2c, uint8_t ad
 
   /* Initialize the LM-75 device structure */
 
-  priv = (FAR struct lm75_dev_s *)kmalloc(sizeof(struct lm75_dev_s));
+  priv = (FAR struct lm75_dev_s *)kmm_malloc(sizeof(struct lm75_dev_s));
   if (!priv)
     {
       lm75dbg("Failed to allocate instance\n");
@@ -531,7 +531,7 @@ int lm75_register(FAR const char *devpath, FAR struct i2c_dev_s *i2c, uint8_t ad
   if (ret < 0)
     {
       lm75dbg("Failed to register driver: %d\n", ret);
-      kfree(priv);
+      kmm_free(priv);
     }
 
   return ret;

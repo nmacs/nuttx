@@ -53,18 +53,19 @@
 #include <time.h>
 #include <string.h>
 #include <debug.h>
-#include <wdog.h>
 #include <queue.h>
 #include <errno.h>
 
 #include <arpa/inet.h>
 
-#include <nuttx/irq.h>
 #include <nuttx/arch.h>
+#include <nuttx/irq.h>
+#include <nuttx/wdog.h>
 #include <nuttx/kmalloc.h>
 #include <nuttx/net/gmii.h>
 #include <nuttx/net/arp.h>
 #include <nuttx/net/netdev.h>
+#include <nuttx/net/phy.h>
 
 #include "up_arch.h"
 #include "up_internal.h"
@@ -107,8 +108,8 @@
 /* PHY definitions */
 
 #ifdef SAMA5_GMAC_PHY_KSZ90x1
-#  define GMII_OUI_MSB       0x0022
-#  define GMII_OUI_LSB       GMII_PHYID2_OUI(5)
+#  define GMII_OUI_MSB  0x0022
+#  define GMII_OUI_LSB  GMII_PHYID2_OUI(5)
 #else
 #  error Unknown PHY
 #endif
@@ -300,6 +301,9 @@ static int  sam_txavail(struct net_driver_s *dev);
 static int  sam_addmac(struct net_driver_s *dev, const uint8_t *mac);
 static int  sam_rmmac(struct net_driver_s *dev, const uint8_t *mac);
 #endif
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+static int  sam_ioctl(struct net_driver_s *dev, int cmd, long arg);
+#endif
 
 /* PHY Initialization */
 
@@ -309,6 +313,9 @@ static void sam_phydump(struct sam_gmac_s *priv);
 #  define sam_phydump(priv)
 #endif
 
+#if defined(CONFIG_NETDEV_PHY_IOCTL) && defined(CONFIG_ARCH_PHY_INTERRUPT)
+static int  sam_phyintenable(struct sam_emac_s *priv);
+#endif
 static void sam_enablemdio(struct sam_gmac_s *priv);
 static void sam_disablemdio(struct sam_gmac_s *priv);
 static int  sam_phywait(struct sam_gmac_s *priv);
@@ -517,7 +524,7 @@ static int sam_buffer_initialize(struct sam_gmac_s *priv)
   /* Allocate buffers */
 
   allocsize = CONFIG_SAMA5_GMAC_NTXBUFFERS * sizeof(struct gmac_txdesc_s);
-  priv->txdesc = (struct gmac_txdesc_s *)kmemalign(8, allocsize);
+  priv->txdesc = (struct gmac_txdesc_s *)kmm_memalign(8, allocsize);
   if (!priv->txdesc)
     {
       nlldbg("ERROR: Failed to allocate TX descriptors\n");
@@ -527,7 +534,7 @@ static int sam_buffer_initialize(struct sam_gmac_s *priv)
   memset(priv->txdesc, 0, allocsize);
 
   allocsize = CONFIG_SAMA5_GMAC_NRXBUFFERS * sizeof(struct gmac_rxdesc_s);
-  priv->rxdesc = (struct gmac_rxdesc_s *)kmemalign(8, allocsize);
+  priv->rxdesc = (struct gmac_rxdesc_s *)kmm_memalign(8, allocsize);
   if (!priv->rxdesc)
     {
       nlldbg("ERROR: Failed to allocate RX descriptors\n");
@@ -538,7 +545,7 @@ static int sam_buffer_initialize(struct sam_gmac_s *priv)
   memset(priv->rxdesc, 0, allocsize);
 
   allocsize = CONFIG_SAMA5_GMAC_NTXBUFFERS * GMAC_TX_UNITSIZE;
-  priv->txbuffer = (uint8_t *)kmemalign(8, allocsize);
+  priv->txbuffer = (uint8_t *)kmm_memalign(8, allocsize);
   if (!priv->txbuffer)
     {
       nlldbg("ERROR: Failed to allocate TX buffer\n");
@@ -547,7 +554,7 @@ static int sam_buffer_initialize(struct sam_gmac_s *priv)
     }
 
   allocsize = CONFIG_SAMA5_GMAC_NRXBUFFERS * GMAC_RX_UNITSIZE;
-  priv->rxbuffer = (uint8_t *)kmemalign(8, allocsize);
+  priv->rxbuffer = (uint8_t *)kmm_memalign(8, allocsize);
   if (!priv->rxbuffer)
     {
       nlldbg("ERROR: Failed to allocate RX buffer\n");
@@ -586,25 +593,25 @@ static void sam_buffer_free(struct sam_gmac_s *priv)
 
   if (priv->txdesc)
     {
-      kfree(priv->txdesc);
+      kmm_free(priv->txdesc);
       priv->txdesc = NULL;
     }
 
   if (priv->rxdesc)
     {
-      kfree(priv->rxdesc);
+      kmm_free(priv->rxdesc);
       priv->rxdesc = NULL;
     }
 
   if (priv->txbuffer)
     {
-      kfree(priv->txbuffer);
+      kmm_free(priv->txbuffer);
       priv->txbuffer = NULL;
     }
 
   if (priv->rxbuffer)
     {
-      kfree(priv->rxbuffer);
+      kmm_free(priv->rxbuffer);
       priv->rxbuffer = NULL;
     }
 #endif
@@ -1756,6 +1763,118 @@ static int sam_rmmac(struct net_driver_s *dev, const uint8_t *mac)
 #endif
 
 /****************************************************************************
+ * Function: sam_ioctl
+ *
+ * Description:
+ *  Handles driver ioctl calls:
+ *
+ *  SIOCMIINOTIFY - Set up to received notifications from PHY interrupting
+ *    events.
+ *
+ *  SIOCGMIIPHY, SIOCGMIIREG, and SIOCSMIIREG:
+ *    Executes the SIOCxMIIxxx command and responds using the request struct
+ *    that must be provided as its 2nd parameter.
+ *
+ *    When called with SIOCGMIIPHY it will get the PHY address for the device
+ *    and write it to the req->phy_id field of the request struct.
+ *
+ *    When called with SIOCGMIIREG it will read a register of the PHY that is
+ *    specified using the req->reg_no struct field and then write its output
+ *    to the req->val_out field.
+ *
+ *    When called with SIOCSMIIREG it will write to a register of the PHY that
+ *    is specified using the req->reg_no struct field and use req->val_in as
+ *    its input.
+ *
+ * Parameters:
+ *   dev - Ethernet device structure
+ *   cmd - SIOCxMIIxxx command code
+ *   arg - Request structure also used to return values
+ *
+ * Returned Value: Negated errno on failure.
+ *
+ * Assumptions:
+ *
+ ****************************************************************************/
+
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+static int sam_ioctl(struct net_driver_s *dev, int cmd, long arg)
+{
+  struct sam_emac_s *priv = (struct sam_emac_s *)dev->d_private;
+  int ret;
+
+  switch (cmd)
+  {
+#ifdef CONFIG_ARCH_PHY_INTERRUPT
+  case SIOCMIINOTIFY: /* Set up for PHY event notifications */
+    {
+      struct mii_iotcl_notify_s *req = (struct mii_iotcl_notify_s *)((uintptr_t)arg);
+
+      ret = phy_notify_subscribe(dev->d_ifname, req->pid, req->signo, req->arg);
+      if (ret == OK)
+        {
+          /* Enable PHY link up/down interrupts */
+
+          ret = sam_phyintenable(priv);
+        }
+    }
+    break;
+#endif
+
+  case SIOCGMIIPHY: /* Get MII PHY address */
+    {
+      struct mii_ioctl_data_s *req = (struct mii_ioctl_data_s *)((uintptr_t)arg);
+      req->phy_id = priv->phyaddr;
+      ret = OK;
+    }
+    break;
+
+  case SIOCGMIIREG: /* Get register from MII PHY */
+    {
+      struct mii_ioctl_data_s *req = (struct mii_ioctl_data_s *)((uintptr_t)arg);
+
+      /* Enable the management port */
+
+      sam_enablemdio(priv);
+
+      /* Read from the requested register */
+
+      ret = sam_phyread(priv, req->phy_id, req->reg_num, &req->val_out);
+
+      /* Disable the management port */
+
+      sam_disablemdio(priv);
+    }
+    break;
+
+  case SIOCSMIIREG: /* Set register in MII PHY */
+    {
+      struct mii_ioctl_data_s *req = (struct mii_ioctl_data_s *)((uintptr_t)arg);
+
+      /* Enable the management port */
+
+      sam_enablemdio(priv);
+
+      /* Write to the requested register */
+
+      ret = sam_phywrite(priv, req->phy_id, req->reg_num, req->val_in);
+
+      /* Disable the management port */
+
+      sam_disablemdio(priv);
+    }
+    break;
+
+  default:
+    ret = -ENOTTY;
+    break;
+  }
+
+  return ret;
+}
+#endif /* CONFIG_NETDEV_PHY_IOCTL */
+
+/****************************************************************************
  * Function: sam_phydump
  *
  * Description:
@@ -1797,6 +1916,61 @@ static void sam_phydump(struct sam_gmac_s *priv)
   /* Disable management port */
 
   sam_disablemdio(priv);
+}
+#endif
+
+/****************************************************************************
+ * Function: sam_phyintenable
+ *
+ * Description:
+ *  Enable link up/down PHY interrupts.  The interrupt protocol is like this:
+ *
+ *  - Interrupt status is cleared when the interrupt is enabled.
+ *  - Interrupt occurs.  Interrupt is disabled (at the processor level) when
+ *    is received.
+ *  - Interrupt status is cleared when the interrupt is re-enabled.
+ *
+ * Parameters:
+ *   priv - A reference to the private driver state structure
+ *
+ * Returned Value:
+ *   OK on success; Negated errno (-ETIMEDOUT) on failure.
+ *
+ ****************************************************************************/
+
+#if defined(CONFIG_NETDEV_PHY_IOCTL) && defined(CONFIG_ARCH_PHY_INTERRUPT)
+static int sam_phyintenable(struct sam_emac_s *priv)
+{
+#if defined(SAMA5_GMAC_PHY_KSZ90x1)
+  uint16_t phyval;
+  int ret;
+
+  /* Enable the management port */
+
+  sam_enablemdio(priv);
+
+  /* Read the interrupt status register in order to clear any pending
+   * interrupts
+   */
+
+  ret = sam_phyread(priv, priv->phyaddr, GMII_KSZ90x1_ICS, &phyval);
+  if (ret == OK)
+    {
+      /* Enable link up/down interrupts */
+
+      ret = sam_phywrite(priv, priv->phyaddr, GMII_KSZ90x1_ICS,
+                        (GMII_KSZ90x1_INT_LDEN | GMII_KSZ90x1_INT_LUEN));
+    }
+
+  /* Disable the management port */
+
+  sam_disablemdio(priv);
+  return ret;
+
+#else
+#  warning Missing logic
+  return -ENOSYS;
+#endif
 }
 #endif
 
@@ -2766,6 +2940,26 @@ static void sam_rxreset(struct sam_gmac_s *priv)
 
 static void sam_gmac_reset(struct sam_gmac_s *priv)
 {
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+  /* We are supporting PHY IOCTLs, then do not reset the MAC.  If we do,
+   * then we cannot communicate with the PHY.  So, instead, just disable
+   * interrupts, cancel timers, and disable TX and RX.
+   */
+
+  sam_putreg(priv, SAM_GMAC_IDR, GMAC_INT_ALL);
+
+  /* Reset RX and TX logic */
+
+  sam_rxreset(priv);
+  sam_txreset(priv);
+
+  /* Disable Rx and Tx, plus the statistics registers. */
+
+  regval  = sam_getreg(priv, SAM_GMAC_NCR);
+  regval &= ~(GMAC_NCR_RXEN | GMAC_NCR_TXEN | GMAC_NCR_WESTAT);
+  sam_putreg(priv, SAM_GMAC_NCR, regval);
+
+#else
   /* Disable all GMAC interrupts */
 
   sam_putreg(priv, SAM_GMAC_IDR, GMAC_INT_ALL);
@@ -2782,6 +2976,8 @@ static void sam_gmac_reset(struct sam_gmac_s *priv)
   /* Disable clocking to the GMAC peripheral */
 
   sam_gmac_disableclk();
+
+#endif
 }
 
 /****************************************************************************
@@ -2970,6 +3166,9 @@ int sam_gmac_initialize(void)
 #ifdef CONFIG_NET_IGMP
   priv->dev.d_addmac  = sam_addmac;     /* Add multicast MAC address */
   priv->dev.d_rmmac   = sam_rmmac;      /* Remove multicast MAC address */
+#endif
+#ifdef CONFIG_NETDEV_PHY_IOCTL
+  priv->dev.d_ioctl   = sam_ioctl;      /* Support PHY ioctl() calls */
 #endif
   priv->dev.d_private = (void*)&g_gmac; /* Used to recover private state from dev */
 

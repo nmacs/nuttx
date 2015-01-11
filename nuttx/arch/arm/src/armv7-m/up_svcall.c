@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/armv7-m/up_svcall.c
  *
- *   Copyright (C) 2009, 2011-2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2009, 2011-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -46,8 +46,9 @@
 
 #include <arch/irq.h>
 #include <nuttx/sched.h>
+#include <nuttx/userspace.h>
 
-#ifdef CONFIG_NUTTX_KERNEL
+#ifdef CONFIG_LIB_SYSCALL
 #  include <syscall.h>
 #endif
 
@@ -116,7 +117,7 @@
  *
  ****************************************************************************/
 
-#ifdef CONFIG_NUTTX_KERNEL
+#ifdef CONFIG_LIB_SYSCALL
 static void dispatch_syscall(void) naked_function;
 static void dispatch_syscall(void)
 {
@@ -272,7 +273,7 @@ int up_svcall(int irq, FAR void *context)
        * unprivileged thread mode.
        */
 
-#ifdef CONFIG_NUTTX_KERNEL
+#ifdef CONFIG_LIB_SYSCALL
       case SYS_syscall_return:
         {
           struct tcb_s *rtcb = sched_self();
@@ -311,7 +312,7 @@ int up_svcall(int irq, FAR void *context)
        *   R3 = argv
        */
 
-#ifdef CONFIG_NUTTX_KERNEL
+#ifdef CONFIG_BUILD_PROTECTED
       case SYS_task_start:
         {
           /* Set up to return to the user-space task start-up function in
@@ -343,7 +344,7 @@ int up_svcall(int irq, FAR void *context)
        *   R2 = arg
        */
 
-#if defined(CONFIG_NUTTX_KERNEL) && !defined(CONFIG_DISABLE_PTHREAD)
+#if defined(CONFIG_BUILD_PROTECTED) && !defined(CONFIG_DISABLE_PTHREAD)
       case SYS_pthread_start:
         {
           /* Set up to return to the user-space pthread start-up function in
@@ -377,7 +378,7 @@ int up_svcall(int irq, FAR void *context)
        *        ucontext (on the stack)
        */
 
-#if defined(CONFIG_NUTTX_KERNEL) && !defined(CONFIG_DISABLE_SIGNALS)
+#if defined(CONFIG_BUILD_PROTECTED) && !defined(CONFIG_DISABLE_SIGNALS)
       case SYS_signal_handler:
         {
           struct tcb_s *rtcb   = sched_self();
@@ -406,7 +407,7 @@ int up_svcall(int irq, FAR void *context)
            * parameter will reside at an offset of 4 from the stack pointer.
            */
 
-          regs[REG_R3]         = *(uint32_t*)(regs[REG_SP+4]);
+          regs[REG_R3]         = *(uint32_t*)(regs[REG_SP]+4);
         }
         break;
 #endif
@@ -420,7 +421,7 @@ int up_svcall(int irq, FAR void *context)
        *   R0 = SYS_signal_handler_return
        */
 
-#if defined(CONFIG_NUTTX_KERNEL) && !defined(CONFIG_DISABLE_SIGNALS)
+#if defined(CONFIG_BUILD_PROTECTED) && !defined(CONFIG_DISABLE_SIGNALS)
       case SYS_signal_handler_return:
         {
           struct tcb_s *rtcb   = sched_self();
@@ -443,7 +444,7 @@ int up_svcall(int irq, FAR void *context)
 
       default:
         {
-#ifdef CONFIG_NUTTX_KERNEL
+#ifdef CONFIG_LIB_SYSCALL
           FAR struct tcb_s *rtcb = sched_self();
           int index = rtcb->xcp.nsyscalls;
 
@@ -487,11 +488,15 @@ int up_svcall(int irq, FAR void *context)
     {
       svcdbg("SVCall Return:\n");
       svcdbg("  R0: %08x %08x %08x %08x %08x %08x %08x %08x\n",
-             current_regs[REG_R0],  current_regs[REG_R1],  current_regs[REG_R2],  current_regs[REG_R3],
-             current_regs[REG_R4],  current_regs[REG_R5],  current_regs[REG_R6],  current_regs[REG_R7]);
+             current_regs[REG_R0],  current_regs[REG_R1],
+             current_regs[REG_R2],  current_regs[REG_R3],
+             current_regs[REG_R4],  current_regs[REG_R5],
+             current_regs[REG_R6],  current_regs[REG_R7]);
       svcdbg("  R8: %08x %08x %08x %08x %08x %08x %08x %08x\n",
-             current_regs[REG_R8],  current_regs[REG_R9],  current_regs[REG_R10], current_regs[REG_R11],
-             current_regs[REG_R12], current_regs[REG_R13], current_regs[REG_R14], current_regs[REG_R15]);
+             current_regs[REG_R8],  current_regs[REG_R9],
+             current_regs[REG_R10], current_regs[REG_R11],
+             current_regs[REG_R12], current_regs[REG_R13],
+             current_regs[REG_R14], current_regs[REG_R15]);
 # ifdef REG_EXC_RETURN
       svcdbg(" PSR: %08x EXC_RETURN: %08x\n",
              current_regs[REG_XPSR], current_regs[REG_EXC_RETURN]);

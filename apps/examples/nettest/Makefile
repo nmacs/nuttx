@@ -42,17 +42,23 @@ include $(APPDIR)/Make.defs
 TARG_ASRCS =
 TARG_AOBJS = $(TARG_ASRCS:.S=$(OBJEXT))
 
-TARG_CSRCS = nettest.c
+TARG_CSRCS =
 ifeq ($(CONFIG_EXAMPLES_NETTEST_SERVER),y)
 TARG_CSRCS += nettest_server.c
 else
 TARG_CSRCS += nettest_client.c
 endif
+TARG_MAINSRC = nettest.c
 
 TARG_COBJS = $(TARG_CSRCS:.c=$(OBJEXT))
+TARG_MAINOBJ = $(TARG_MAINSRC:.c=$(OBJEXT))
 
-TARG_SRCS = $(TARG_ASRCS) $(TARG_CSRCS)
+TARG_SRCS = $(TARG_ASRCS) $(TARG_CSRCS) $(TARG_CSRCS)
 TARG_OBJS = $(TARG_AOBJS) $(TARG_COBJS)
+
+ifneq ($(CONFIG_BUILD_KERNEL),y)
+  TARG_OBJS += $(TARG_MAINOBJ)
+endif
 
 ifeq ($(CONFIG_WINDOWS_NATIVE),y)
   TARG_BIN = ..\..\libapps$(LIBEXT)
@@ -83,6 +89,15 @@ HOSTOBJEXT ?= .hobj
 HOST_OBJS = $(HOST_SRCS:.c=$(HOSTOBJEXT))
 HOST_BIN = host
 
+ifeq ($(WINTOOL),y)
+  INSTALL_DIR = "${shell cygpath -w $(BIN_DIR)}"
+else
+  INSTALL_DIR = $(BIN_DIR)
+endif
+
+CONFIG_XYZ_PROGNAME ?= nettest$(EXEEXT)
+PROGNAME = $(CONFIG_XYZ_PROGNAME)
+
 ROOTDEPPATH = --dep-path .
 
 # NET test built-in application info
@@ -101,7 +116,7 @@ all: .built $(HOST_BIN)
 $(TARG_AOBJS): %$(OBJEXT): %.S
 	$(call ASSEMBLE, $<, $@)
 
-$(TARG_COBJS): %$(OBJEXT): %.c
+$(TARG_COBJS) $(TARG_MAINOBJ): %$(OBJEXT): %.c
 	$(call COMPILE, $<, $@)
 
 $(HOST_OBJS): %$(HOSTOBJEXT): %.c
@@ -115,6 +130,19 @@ $(HOST_BIN): $(HOST_OBJS)
 .built: $(TARG_OBJS)
 	$(call ARCHIVE, $(TARG_BIN), $(TARG_OBJS))
 	@touch .built
+
+ifeq ($(CONFIG_BUILD_KERNEL),y)
+$(BIN_DIR)$(DELIM)$(PROGNAME): $(OBJS) $(TARG_MAINOBJ)
+	@echo "LD: $(PROGNAME)"
+	$(Q) $(LD) $(LDELFFLAGS) $(LDLIBPATH) -o $(INSTALL_DIR)$(DELIM)$(PROGNAME) $(ARCHCRT0OBJ) $(TARG_MAINOBJ) $(LDLIBS)
+	$(Q) $(NM) -u  $(INSTALL_DIR)$(DELIM)$(PROGNAME)
+
+install: $(BIN_DIR)$(DELIM)$(PROGNAME)
+
+else
+install:
+
+endif
 
 ifeq ($(CONFIG_NSH_BUILTIN_APPS),y)
 $(BUILTIN_REGISTRY)$(DELIM)$(APPNAME)_main.bdat: $(DEPCONFIG) Makefile

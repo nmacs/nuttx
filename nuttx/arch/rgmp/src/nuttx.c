@@ -6,7 +6,7 @@
  *
  * This file is a part of NuttX:
  *
- *   Copyright (C) 2011 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2011, 2014 Gregory Nutt. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,6 +55,7 @@
 
 #include "task/task.h"
 #include "sched/sched.h"
+#include "group/group.h"
 
 struct tcb_s *current_task = NULL;
 
@@ -125,15 +126,15 @@ int up_create_stack(struct tcb_s *tcb, size_t stack_size, uint8_t ttype)
 
     /* Allocate the memory for the stack */
 
-#if defined(CONFIG_NUTTX_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
+#if defined(CONFIG_BUILD_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
     /* Use the kernel allocator if this is a kernel thread */
 
     if (ttype == TCB_FLAG_TTYPE_KERNEL) {
-        stack_alloc_ptr = (uint32_t *)kmalloc(stack_size);
+        stack_alloc_ptr = (uint32_t *)kmm_malloc(stack_size);
     } else
 #endif
     {
-        stack_alloc_ptr = (uint32_t*)kumalloc(adj_stack_size);
+        stack_alloc_ptr = (uint32_t*)kumm_malloc(adj_stack_size);
     }
     if (stack_alloc_ptr) {
         /* This is the address of the last word in the allocation */
@@ -169,7 +170,6 @@ int up_use_stack(struct tcb_s *tcb, void *stack, size_t stack_size)
     return OK;
 }
 
-#ifdef CONFIG_NUTTX_KERNEL
 FAR void *up_stack_frame(FAR struct tcb_s *tcb, size_t frame_size)
 {
   uintptr_t topaddr;
@@ -198,24 +198,23 @@ FAR void *up_stack_frame(FAR struct tcb_s *tcb, size_t frame_size)
 
   return (FAR void *)(topaddr + sizeof(uint32_t));
 }
-#endif
 
 void up_release_stack(struct tcb_s *dtcb, uint8_t ttype)
 {
   /* Is there a stack allocated? */
 
   if (dtcb->stack_alloc_ptr) {
-#if defined(CONFIG_NUTTX_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
+#if defined(CONFIG_BUILD_KERNEL) && defined(CONFIG_MM_KERNEL_HEAP)
       /* Use the kernel allocator if this is a kernel thread */
 
       if (ttype == TCB_FLAG_TTYPE_KERNEL) {
-          kfree(dtcb->stack_alloc_ptr);
+          kmm_free(dtcb->stack_alloc_ptr);
       } else
 #endif
       {
         /* Use the user-space allocator if this is a task or pthread */
 
-        kufree(dtcb->stack_alloc_ptr);
+        kumm_free(dtcb->stack_alloc_ptr);
       }
   }
 
@@ -287,7 +286,17 @@ void up_block_task(struct tcb_s *tcb, tstate_t task_state)
                 warn("Disable preemption failed for task block itself\n");
                 sched_mergepending();
             }
+
             nexttcb = (struct tcb_s*)g_readytorun.head;
+
+#ifdef CONFIG_ARCH_ADDRENV
+            // Make sure that the address environment for the previously
+            // running task is closed down gracefully (data caches dump,
+            // MMU flushed) and set up the address environment for the new
+            // thread at the head of the ready-to-run list.
+
+            (void)group_addrenv(nexttcb);
+#endif
             // context switch
             up_switchcontext(rtcb, nexttcb);
         }
@@ -334,8 +343,19 @@ void up_unblock_task(struct tcb_s *tcb)
         // g_readytorun task list.
         if (sched_addreadytorun(tcb) && !up_interrupt_context()) {
             /* The currently active task has changed! */
+
             struct tcb_s *nexttcb = (struct tcb_s*)g_readytorun.head;
+
+#ifdef CONFIG_ARCH_ADDRENV
+            // Make sure that the address environment for the previously
+            // running task is closed down gracefully (data caches dump,
+            // MMU flushed) and set up the address environment for the new
+            // thread at the head of the ready-to-run list.
+
+            (void)group_addrenv(nexttcb);
+#endif
             // context switch
+
             up_switchcontext(rtcb, nexttcb);
         }
     }
@@ -354,7 +374,15 @@ void up_release_pending(void)
     if (sched_mergepending()) {
         /* The currently active task has changed! */
         struct tcb_s *nexttcb = (struct tcb_s*)g_readytorun.head;
+#ifdef CONFIG_ARCH_ADDRENV
+        /* Make sure that the address environment for the previously
+         * running task is closed down gracefully (data caches dump,
+         * MMU flushed) and set up the address environment for the new
+         * thread at the head of the ready-to-run list.
+         */
 
+        (void)group_addrenv(nexttcb);
+#endif
         // context switch
         up_switchcontext(rtcb, nexttcb);
     }
@@ -411,6 +439,15 @@ void up_reprioritize_rtr(struct tcb_s *tcb, uint8_t priority)
             }
 
             nexttcb = (struct tcb_s*)g_readytorun.head;
+#ifdef CONFIG_ARCH_ADDRENV
+            /* Make sure that the address environment for the previously
+             * running task is closed down gracefully (data caches dump,
+             * MMU flushed) and set up the address environment for the new
+             * thread at the head of the ready-to-run list.
+             */
+
+            (void)group_addrenv(nexttcb);
+#endif
             // context switch
             up_switchcontext(rtcb, nexttcb);
         }
@@ -430,6 +467,16 @@ void _exit(int status)
      */
 
     tcb = (struct tcb_s*)g_readytorun.head;
+
+#ifdef CONFIG_ARCH_ADDRENV
+    /* Make sure that the address environment for the previously running
+     * task is closed down gracefully (data caches dump, MMU flushed) and
+     * set up the address environment for the new thread at the head of
+     * the ready-to-run list.
+     */
+
+    (void)group_addrenv(tcb);
+#endif
 
     /* Then switch contexts */
 

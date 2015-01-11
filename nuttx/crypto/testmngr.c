@@ -62,7 +62,7 @@
 
 static int do_test_aes(FAR struct cipher_testvec* test, int mode, int encrypt)
 {
-  FAR void *out = kzalloc(test->rlen);
+  FAR void *out = kmm_zalloc(test->rlen);
   int res = aes_cypher(out, test->input, test->ilen, test->iv, test->key,
                        test->klen, mode, encrypt);
   if (res == OK)
@@ -70,7 +70,7 @@ static int do_test_aes(FAR struct cipher_testvec* test, int mode, int encrypt)
       res = memcmp(out, test->result, test->rlen);
     }
 
-  kfree(out);
+  kmm_free(out);
   return res;
 }
 

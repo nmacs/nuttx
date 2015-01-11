@@ -106,7 +106,7 @@ static void pipecommon_semtake(sem_t *sem)
        * awakened by a signal.
        */
 
-      ASSERT(errno == EINTR);
+      ASSERT(get_errno() == EINTR);
     }
 }
 
@@ -151,7 +151,7 @@ FAR struct pipe_dev_s *pipecommon_allocdev(void)
 
   /* Allocate a private structure to manage the pipe */
 
-  dev = (struct pipe_dev_s *)kmalloc(sizeof(struct pipe_dev_s));
+  dev = (struct pipe_dev_s *)kmm_malloc(sizeof(struct pipe_dev_s));
   if (dev)
     {
       /* Initialize the private structure */
@@ -174,7 +174,7 @@ void pipecommon_freedev(FAR struct pipe_dev_s *dev)
    sem_destroy(&dev->d_bfsem);
    sem_destroy(&dev->d_rdsem);
    sem_destroy(&dev->d_wrsem);
-   kfree(dev);
+   kmm_free(dev);
 }
 
 /****************************************************************************
@@ -203,16 +203,16 @@ int pipecommon_open(FAR struct file *filep)
   ret = sem_wait(&dev->d_bfsem);
   if (ret != OK)
     {
-      fdbg("sem_wait failed: %d\n", errno);
-      DEBUGASSERT(errno > 0);
-      return -errno;
+      fdbg("sem_wait failed: %d\n", get_errno());
+      DEBUGASSERT(get_errno() > 0);
+      return -get_errno();
     }
 
   /* If this the first reference on the device, then allocate the buffer */
 
   if (dev->d_refs == 0)
     {
-      dev->d_buffer = (uint8_t*)kmalloc(CONFIG_DEV_PIPE_SIZE);
+      dev->d_buffer = (uint8_t*)kmm_malloc(CONFIG_DEV_PIPE_SIZE);
       if (!dev->d_buffer)
         {
           (void)sem_post(&dev->d_bfsem);
@@ -265,9 +265,9 @@ int pipecommon_open(FAR struct file *filep)
            * a signal.
            */
 
-          fdbg("sem_wait failed: %d\n", errno);
-          DEBUGASSERT(errno > 0);
-          ret = -errno;
+          fdbg("sem_wait failed: %d\n", get_errno());
+          DEBUGASSERT(get_errno() > 0);
+          ret = -get_errno();
 
           /* Immediately close the pipe that we just opened */
 
@@ -333,7 +333,7 @@ int pipecommon_close(FAR struct file *filep)
     {
       /* Yes... deallocate the buffer */
 
-      kfree(dev->d_buffer);
+      kmm_free(dev->d_buffer);
       dev->d_buffer = NULL;
 
       /* And reset all counts and indices */

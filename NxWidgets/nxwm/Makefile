@@ -70,8 +70,8 @@ ifeq ($(CONFIG_NXWM_TOUCHSCREEN),y)
 CXXSRCS += ccalibration.cxx
 endif
 
-ifeq ($(CONFIG_NXWM_NXCONSOLE),y)
-CXXSRCS +=  cnxconsole.cxx
+ifeq ($(CONFIG_NXWM_NXTERM),y)
+CXXSRCS +=  cnxterm.cxx
 endif
 
 # Images

@@ -109,11 +109,11 @@ int putenv(FAR const char *string)
       ret = setenv(pname, pequal+1, TRUE);
     }
 
-  kfree(pname);
+  kmm_free(pname);
   return ret;
 
 errout:
-  errno = ret;
+  set_errno(ret);
   return ERROR;
 }
 

@@ -1,7 +1,7 @@
 /****************************************************************************
  * arch/arm/src/stm32/stm32_serial.c
  *
- *   Copyright (C) 2009-2013 Gregory Nutt. All rights reserved.
+ *   Copyright (C) 2009-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
  *
  * Redistribution and use in source and binary forms, with or without
@@ -68,7 +68,7 @@
 #include "up_internal.h"
 
 /****************************************************************************
- * Definitions
+ * Preprocessor Definitions
  ****************************************************************************/
 /* Some sanity checks *******************************************************/
 /* DMA configuration */
@@ -177,7 +177,7 @@
 /* The DMA buffer size when using RX DMA to emulate a FIFO.
  *
  * When streaming data, the generic serial layer will be called
- * everytime the FIFO receives half this number of bytes.
+ * every time the FIFO receives half this number of bytes.
  */
 
 #  define RXDMA_BUFFER_SIZE   32
@@ -986,13 +986,9 @@ static struct up_dev_s g_uart8priv =
 };
 #endif
 
-/* This table lets us iterate over the configured USARTs.
- *
- * REVISIT:  The following logic is not valid for the STM32F401 which
- * supports 3 USARTS:  USART1, USART2, and USART6.
- */
+/* This table lets us iterate over the configured USARTs */
 
-static struct up_dev_s *uart_devs[STM32_NUSART] =
+static struct up_dev_s * const uart_devs[STM32_NUSART] =
 {
 #ifdef CONFIG_STM32_USART1
   [0] = &g_usart1priv,
@@ -1312,8 +1308,6 @@ static void up_set_format(struct uart_dev_s *dev)
 #endif
 
   up_serialout(priv, STM32_USART_CR3_OFFSET, regval);
-
-#endif
 }
 #endif /* CONFIG_SUPPRESS_UART_CONFIG */
 
@@ -1331,7 +1325,7 @@ static void up_set_format(struct uart_dev_s *dev)
 
 static void up_set_apb_clock(struct uart_dev_s *dev, bool on)
 {
-  struct up_dev_s *priv = (struct up_dev_s*)dev->priv;
+  struct up_dev_s *priv = (struct up_dev_s *)dev->priv;
   uint32_t rcc_en;
   uint32_t regaddr;
 
@@ -1379,13 +1373,13 @@ static void up_set_apb_clock(struct uart_dev_s *dev, bool on)
 #endif
 #ifdef CONFIG_STM32_UART7
     case STM32_UART7_BASE:
-      rcc_en = RCC_APB1ENR_USART5EN;
+      rcc_en = RCC_APB1ENR_UART7EN;
       regaddr = STM32_RCC_APB1ENR;
       break;
 #endif
 #ifdef CONFIG_STM32_UART8
     case STM32_UART8_BASE:
-      rcc_en = RCC_APB1ENR_USART5EN;
+      rcc_en = RCC_APB1ENR_UART8EN;
       regaddr = STM32_RCC_APB1ENR;
       break;
 #endif
@@ -2335,7 +2329,7 @@ static void up_txint(struct uart_dev_s *dev, bool enable)
  * Name: up_txready
  *
  * Description:
- *   Return true if the tranmsit data register is empty
+ *   Return true if the transmit data register is empty
  *
  ****************************************************************************/
 
@@ -2429,8 +2423,6 @@ static void up_dma_rxcallback(DMA_HANDLE handle, uint8_t status, void *arg)
     }
 }
 #endif
-
-#endif /* HAVE UART */
 
 /****************************************************************************
  * Name: up_pm_notify
@@ -2536,10 +2528,14 @@ static int up_pm_prepare(struct pm_callback_s *cb, enum pm_state_e pmstate)
   return OK;
 }
 #endif
+#endif /* HAVE_UART */
+#endif /* USE_SERIALDRIVER */
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+#ifdef USE_SERIALDRIVER
 
 /****************************************************************************
  * Name: up_earlyserialinit
@@ -2737,8 +2733,6 @@ void stm32_serial_dma_poll(void)
  *   Provide priority, low-level access to support OS debug  writes
  *
  ****************************************************************************/
-
-#ifdef USE_SERIALDRIVER
 
 int up_putc(int ch)
 {

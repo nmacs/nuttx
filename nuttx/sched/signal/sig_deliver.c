@@ -51,7 +51,7 @@
 #include "signal/signal.h"
 
 /****************************************************************************
- * Definitions
+ * Pre-processor Definitions
  ****************************************************************************/
 
 /****************************************************************************
@@ -133,7 +133,7 @@ void sig_deliver(FAR struct tcb_s *stcb)
        * calling the task.
        */
 
-#ifdef CONFIG_NUTTX_KERNEL
+#if defined(CONFIG_BUILD_PROTECTED) || defined(CONFIG_BUILD_KERNEL)
       if ((stcb->flags & TCB_FLAG_TTYPE_MASK) != TCB_FLAG_TTYPE_KERNEL)
         {
           /* The sigq_t pointed to by sigq resides in kernel space.  So we
@@ -184,4 +184,3 @@ void sig_deliver(FAR struct tcb_s *stcb)
   stcb->pterrno = saved_errno;
   sched_unlock();
 }
-

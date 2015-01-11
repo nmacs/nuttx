@@ -24,7 +24,7 @@ Contents
   - USB Full-Speed Device
   - HSMCI
   - Touchscreen
-  - ILI9325-Based LCD
+  - ILI9325/41-Based LCD
   - SAM4E-EK-specific Configuration Options
   - Configurations
 
@@ -231,7 +231,7 @@ Atmel Studio 6.1
 
   - Debugging the NuttX Object File:
 
-    1) Rename object file from nutt to nuttx.elf.  That is an extension that
+    1) Rename object file from nuttx to nuttx.elf.  That is an extension that
        will be recognized by the file menu.
 
     2) Select the project name, the full path to the NuttX object (called
@@ -506,6 +506,32 @@ Networking Support
   This delay will be especially long if the board is not connected to
   a network because additional time will be required to fail with timeout
   errors.
+
+  This delay will be especially long if the board is not connected to
+  a network.  On the order of a minute!  You will probably think that
+  NuttX has crashed!  And then, when it finally does come up, the
+  network will not be available.
+
+  Network Initialization Thread
+  -----------------------------
+  There is a configuration option enabled by CONFIG_NSH_NETINIT_THREAD
+  that will do the NSH network bring-up asynchronously in parallel on
+  a separate thread.  This eliminates the (visible) networking delay
+  altogether.  This current implementation, however, has some limitations:
+
+    - If no network is connected, the network bring-up will fail and
+      the network initialization thread will simply exit.  There are no
+      retries and no mechanism to know if the network initialization was
+      successful (it could perform a network Ioctl to see if the link is
+      up and it now, keep trying, but it does not do that now).
+
+    - Furthermore, there is currently no support for detecting loss of
+      network connection and recovery of the connection (similarly, this
+      thread could poll periodically for network status, but does not).
+
+  Both of these shortcomings could be eliminated by enabling the network
+  monitor.  See the SAMA5 configurations for a description of what it would
+  take to incorporate the network monitor feature.
 
 AT25 Serial FLASH
 =================
@@ -891,17 +917,15 @@ Touchscreen
 
     STATUS: Verified 2014-05-14
 
-ILI9325-Based LCD
+ILI9325/41-Based LCD
 =================
 
   The SAM4E-EK carries a TFT transmissive LCD module with touch panel,
-  FTM280C34D. Its integrated driver IC is ILI9325. The LCD display area is
-  2.8 inches diagonally measured, with a native resolution of 240 x 320
+  FTM280C34D. Its integrated driver IC is either a ILI9325 ILI9342 (the
+  original schematics said ILI9325, but I learned the hard way that I had
+  an ILI9341-based LCD). The LCD display area is 2.8 inches diagonally
+  measured, with a native resolution of 240 x 320
   dots.
-
-  No driver has been developed for the SAM4E-EK LCD as of this writing.
-  Some technical information follows might be useful to anyone who is
-  inspired to develop that driver:
 
   Connectivity
   ------------
@@ -937,7 +961,7 @@ ILI9325-Based LCD
      21  PC11  RD
      22  PC8   WR
      23  PC19  RS
-     24  PD18  CS        Via J8, pulled high.  Connects to NRST.
+     24  PD18  CS        Via J8, pulled high.
      25        RESET     Connects to NSRST
      26        IM0       Pulled high
      27        IM1       Grounded
@@ -972,35 +996,34 @@ ILI9325-Based LCD
     brightness control) from a 32-level logarithmic scale. Four resistors
     R93/R94/R95/R96 are implemented for optional current limitation.
 
-  Resources
-  ---------
+  Configuration
+  -------------
 
-    If you want to implement LCD support, here are some references that may
-    help you:
+    This is the basic configuration that enables the ILI9341-based LCD.
+    Of course additional settings would be necessary to enable the graphic
+    capabilities to do anything with the LCD.
 
-    1. Atmel Sample Code (ASF).  There is no example for the SAM4E-EK, but
-       there is for the SAM4S-EK.  The LCD and its processor connectivity
-       appear to be equivalent to the SAM4E-EK so this sample code should be
-       a good place to begin.  NOTE that the clock frequencies may be
-       different and pin usage may be different.  So it may be necessary to
-       adjust the SAM configuration to use this example.
+       System Type -> AT91SAM3/4 Configuration Options
+         CONFIG_SAM34_SMC=y                : SMC support
 
-    2. There is an example of an LCD driver for the SAM3U at
-       configs/sam4u-ek/src/up_lcd.c.  That LCD driver is for an LCD with a
-       different LCD controller but should provide the NuttX SAM framework
-       for an LCD driver.
+       Device Drivers -> LCD Driver Support
+         CONFIG_LCD=y                      : Enable LCD support
+         CONFIG_LCD_MAXCONTRAST=1          : Value should not matter
+         CONFIG_LCD_MAXPOWER=64            : Must be > 16
+         CONFIG_LCD_LANDSCAPE=y            : Landscape orientation
 
-    3. There are other LCD drivers for different MCUs that do support the
-       ILI9325 LCD.  Look at configs/shenzhou/src/up_ili93xx.c,
-       configs/stm3220g-eval/src/up_lcd.c, and
-       configs/stm3240g-eval/src/up_lcd.c.  I believe that the Shenzhou
-       driver is the most recent.
+       Board Selection
+         CONFIG_SAM4EEK_LCD_ILI9341=y      : For the ILI9341-based LCD
+         CONFIG_SAM4EEK_LCD_RGB565=y       : Color resolution
+         CONFIG_SAM4EEK_LCD_BGCOLOR=0x00   : Initial background color
 
   STATUS:
-    2014-05-14:  Fully implemented.  There is still a bug in in the LCD
-    communications.  The LCD ID is read as 0x0000 instead of 0x9325.
 
-    The LCD backlight appears to be functional.
+    2014-8-20:  Updated.  The ILI9341 LCD has some basic functionality.
+    Certainly it can transfer and display data fine.  But there are some
+    issues with the geometry of data that appears on the LCD..
+
+    The LCD backlight is functional.
 
 SAM4E-EK-specific Configuration Options
 =======================================
@@ -1155,9 +1178,14 @@ SAM4E-EK-specific Configuration Options
   LCD Options.  Other than the standard LCD configuration options
   (see configs/README.txt), the SAM4E-EK driver also supports:
 
-    CONFIG_LCD_PORTRAIT - Present the display in the standard 240x320
-       "Portrait" orientation.  Default:  The display is rotated to
-       support a 320x240 "Landscape" orientation.
+    CONFIG_LCD_LANDSCAPE - Define for 320x240 display "landscape"
+      support. Default is this 320x240 "landscape" orientation
+    CONFIG_LCD_RLANDSCAPE - Define for 320x240 display "reverse
+      landscape" support.
+    CONFIG_LCD_PORTRAIT - Define for 240x320 display "portrait"
+      orientation support.
+    CONFIG_LCD_RPORTRAIT - Define for 240x320 display "reverse
+      portrait" orientation support.
 
 Configurations
 ==============
@@ -1274,7 +1302,7 @@ Configurations
        configuration settings above in the section entitled "Networking").
 
        NOTE: In boot-up sequence is very simple in this example; all
-       initialization is done sequential (vs. in parallel) and so you will
+       initialization is done sequentially (vs. in parallel) and so you will
        not see the NSH prompt until all initialization is complete.  The
        network bring-up in particular will add some delay before the NSH
        prompt appears.  In a real application, you would probably want to
@@ -1283,7 +1311,7 @@ Configurations
 
        This delay will be especially long if the board is not connected to
        a network because additional time will be required to fail with
-       timeout errors.
+       timeout errors.  This delay can be eliminated, however, if you enable an NSH initialization option as described above in a paragraph entitled, "Network Initialization Thread."
 
        STATUS:
        2014-3-13: The basic NSH serial console is working.  Network support
@@ -1331,18 +1359,11 @@ Configurations
                   does not mount on either the Linux or Windows host.  This
                   needs to be retested.
 
-    8. This configuration can be used to verify the touchscreen on on the
-       SAM4E-EK LCD.  See the instructions above in the paragraph entitled
-       "Touchscreen".
-
-       STATUS:
-         2014-3-21:  The touchscreen has not yet been tested.
-
-    9. Enabling HSMCI support. The SAM3U-KE provides a an SD memory card
+    8. Enabling HSMCI support. The SAM3U-KE provides a an SD memory card
        slot.  Support for the SD slot can be enabled following the
        instructions provided above in the paragraph entitled "HSMCI."
 
-   11. This configuration has been used for verifying the touchscreen on
+    9. This configuration has been used for verifying the touchscreen on
        on the SAM4E-EK LCD module.
 
        The NSH configuration can be used to verify the ADS7843E touchscreen on
@@ -1389,7 +1410,7 @@ Configurations
          CONFIG_DEBUG_VERBOSE=y            : Enable verbose debug output
          CONFIG_DEBUG_INPUT=y              : Enable debug output from input devices
 
-   11. This configuration can be re-configured to test the on-board LCD
+   10. This configuration can be re-configured to test the on-board LCD
        module.
 
        System Type -> AT91SAM3/4 Configuration Options
@@ -1402,6 +1423,7 @@ Configurations
          CONFIG_LCD_LANDSCAPE=y            : Landscape orientation
 
        Board Selection
+         CONFIG_SAM4EEK_LCD_ILI9341=y      : For the ILI9341-based LCD
          CONFIG_SAM4EEK_LCD_RGB565=y       : Color resolution
          CONFIG_SAM4EEK_LCD_BGCOLOR=0x00   : Initial background color
 
@@ -1419,8 +1441,8 @@ Configurations
 
        Graphics Support -> Font Selections
          CONFIG_NXFONTS_CHARBITS=7
-         CONFIG_NXFONT_SANS22X29B=y
          CONFIG_NXFONT_SANS23X27=y
+         CONFIG_NXFONT_SANS22X29B=y
 
        Application Configuration -> Examples
          CONFIG_EXAMPLES_NXLINES=y
@@ -1446,9 +1468,9 @@ Configurations
 
          2014-05-14: The touchscreen interface was successfully verified.
 
-         2014-05-14: The LCD interface is fully implemented.  However,
-                     there is still a bug in in the LCD communications.  The
-                     LCD ID is read as 0x0000 instead of 0x9325.
+         2014-08-20: The LCD interface is fully implemented and data appears
+                     to be transferred okay.  However, there are errors in
+                     geometry that leave the LCD unusable still.
 
                      The LCD backlight appears to be functional.
 
@@ -1532,3 +1554,79 @@ Configurations
         CONFIG_CDCACM_CONSOLE=n            : The CDC/ACM serial device is NOT the console
         CONFIG_PL2303=y                    : The Prolifics PL2303 emulation is enabled
         CONFIG_PL2303_CONSOLE=y            : The PL2303 serial device is the console
+
+  nxwm:
+
+    This is a special configuration setup for the NxWM window manager
+    UnitTest.  It integrates support for both the SAM4E-EK ILI9341 LCDC and
+    the SAM4E-EK ADS7843E touchscreen controller and provides a more
+    advanced graphics demo. It provides an interactive windowing experience.
+
+    The NxWM window manager is a tiny window manager tailored for use
+    with smaller LCDs.  It supports a task, a start window, and
+    multiple application windows with toolbars.  However, to make the best
+    use of the visible LCD space, only one application window is visible at
+    at time.
+
+    The NxWM window manager can be found here:
+
+      nuttx-git/NxWidgets/nxwm
+
+    The NxWM unit test can be found at:
+
+      nuttx-git/NxWidgets/UnitTests/nxwm
+
+    Documentation for installing the NxWM unit test can be found here:
+
+      nuttx-git/NxWidgets/UnitTests/README.txt
+
+    Here is the quick summary of the build steps.  These steps assume that
+    you have the entire NuttX GIT in some directory ~/nuttx-git.  You may
+    have these components installed elsewhere.  In that case, you will need
+    to adjust all of the paths in the following accordingly:
+
+    1. Install the nxwm configuration
+
+       $ cd ~/nuttx-git/nuttx/tools
+       $ ./configure.sh sam4e-ek/nxwm
+
+    2. Make the build context (only)
+
+       $ cd ..
+       $ . ./setenv.sh
+       $ make context
+       ...
+
+       NOTE: the use of the setenv.sh file is optional.  All that it will
+       do is to adjust your PATH variable so that the build system can find
+       your tools.  If you use it, you will most likely need to modify the
+       script so that it has the correct path to your tool binaries
+       directory.
+
+    3. Install the nxwm unit test
+
+       $ cd ~/nuttx-git/NxWidgets
+       $ tools/install.sh ~/nuttx-git/apps nxwm
+       Creating symbolic link
+        - To ~/nuttx-git/NxWidgets/UnitTests/nxwm
+        - At ~/nuttx-git/apps/external
+
+    4. Build the NxWidgets library
+
+       $ cd ~/nuttx-git/NxWidgets/libnxwidgets
+       $ make TOPDIR=~/nuttx-git/nuttx
+       ...
+
+    5. Build the NxWM library
+
+       $ cd ~/nuttx-git/NxWidgets/nxwm
+       $ make TOPDIR=~/nuttx-git/nuttx
+       ...
+
+    6. Built NuttX with the installed unit test as the application
+
+       $ cd ~/nuttx-git/nuttx
+       $ make
+
+    STATUS:  2014-8-20. I have seen the demo work well but it is not
+    thoroughly exercised.

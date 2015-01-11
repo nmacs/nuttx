@@ -313,7 +313,7 @@ int romdisk_register(int minor, uint8_t *buffer, uint32_t nsectors,
 
   /* Allocate a ramdisk device structure */
 
-  dev = (struct rd_struct_s *)kmalloc(sizeof(struct rd_struct_s));
+  dev = (struct rd_struct_s *)kmm_malloc(sizeof(struct rd_struct_s));
   if (dev)
     {
       /* Initialize the ramdisk device structure */
@@ -335,7 +335,7 @@ int romdisk_register(int minor, uint8_t *buffer, uint32_t nsectors,
       if (ret < 0)
         {
           fdbg("register_blockdriver failed: %d\n", -ret);
-          kfree(dev);
+          kmm_free(dev);
         }
     }
 
