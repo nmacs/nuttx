@@ -566,8 +566,13 @@ static inline void recvfrom_tcpsender(FAR struct uip_driver_s *dev,
 
   if (infrom)
     {
+#ifdef CONFIG_NET_IPv6
+      infrom->sin6_family = AF_INET6;
+      infrom->sin6_port   = TCPBUF->srcport;
+#else
       infrom->sin_family = AF_INET;
       infrom->sin_port   = TCPBUF->srcport;
+#endif
 
 #ifdef CONFIG_NET_IPv6
       uip_ipaddr_copy(infrom->sin6_addr.s6_addr, TCPBUF->srcipaddr);
@@ -812,8 +817,13 @@ static inline void recvfrom_udpsender(struct uip_driver_s *dev, struct recvfrom_
 
   if (infrom)
     {
+#ifdef CONFIG_NET_IPv6
+      infrom->sin6_family = AF_INET6;
+      infrom->sin6_port   = UDPBUF->srcport;
+#else
       infrom->sin_family = AF_INET;
       infrom->sin_port   = UDPBUF->srcport;
+#endif
 
 #ifdef CONFIG_NET_IPv6
       uip_ipaddr_copy(infrom->sin6_addr.s6_addr, UDPBUF->srcipaddr);

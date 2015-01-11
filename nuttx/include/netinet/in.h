@@ -105,6 +105,8 @@
 #define s6_addr16             in6_u.u6_addr16
 #define s6_addr32             in6_u.u6_addr32
 
+#define IN6_IS_ADDR_MULTICAST(a)        ((a)->s6_addr[0] == 0xff)
+
 /****************************************************************************
  * Public Type Definitions
  ****************************************************************************/
@@ -143,8 +145,8 @@ struct in6_addr
 
 struct sockaddr_in6
 {
-  sa_family_t     sin_family;  /* Address family: AF_INET */
-  uint16_t        sin_port;    /* Port in network byte order */
+  sa_family_t     sin6_family;  /* Address family: AF_INET */
+  uint16_t        sin6_port;    /* Port in network byte order */
   struct in6_addr sin6_addr;   /* IPv6 internet address */
 };
 

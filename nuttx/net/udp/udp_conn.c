@@ -383,10 +383,14 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr_in *addr)
 {
   int ret = -EADDRINUSE;
   uip_lock_t flags;
+#ifdef CONFIG_NET_IPv6
+  uint16_t port = addr->sin6_port;
+#else
+  uint16_t port = addr->sin_port;
+#endif
 
   /* Is the user requesting to bind to any port? */
-
-  if (!addr->sin_port)
+  if (!port)
     {
       /* Yes.. Find an unused local port number */
 
@@ -401,11 +405,11 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr_in *addr)
 
       /* Is any other UDP connection bound to this port? */
 
-      if (!uip_find_conn(addr->sin_port))
+      if (!uip_find_conn(port))
         {
           /* No.. then bind the socket to the port */
 
-          conn->lport = addr->sin_port;
+          conn->lport = port;
           ret         = OK;
         }
 
@@ -458,8 +462,13 @@ int udp_connect(FAR struct udp_conn_s *conn,
 
   if (addr)
     {
+#ifndef CONFIG_NET_IPv6
       conn->rport = addr->sin_port;
       uip_ipaddr_copy(conn->ripaddr, addr->sin_addr.s_addr);
+#else
+      conn->rport = addr->sin6_port;
+      uip_ipaddr_copy(conn->ripaddr, addr->sin6_addr.in6_u.u6_addr16);
+#endif
     }
   else
     {

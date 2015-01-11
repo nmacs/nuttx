@@ -462,7 +462,7 @@ int uip_lockedwait(sem_t *sem);
      ((uint16_t*)(dest))[1] = ((uint16_t*)(src))[1]; \
    } while (0)
 #else /* !CONFIG_NET_IPv6 */
-#  define uip_ipaddr_copy(dest, src)    memcpy(&dest, &src, sizeof(uip_ip6addr_t))
+#  define uip_ipaddr_copy(dest, src)    memcpy(dest, src, sizeof(uip_ip6addr_t))
 #  define uiphdr_ipaddr_copy(dest, src) uip_ipaddr_copy(dest, src)
 #endif /* !CONFIG_NET_IPv6 */
 
@@ -486,8 +486,8 @@ int uip_lockedwait(sem_t *sem);
 #  define uip_ipaddr_cmp(addr1, addr2)    (addr1 == addr2)
 #  define uiphdr_ipaddr_cmp(addr1, addr2) uip_ipaddr_cmp(uip_ip4addr_conv(addr1), uip_ip4addr_conv(addr2))
 #else /* !CONFIG_NET_IPv6 */
-#  define uip_ipaddr_cmp(addr1, addr2)    (memcmp(&addr1, &addr2, sizeof(uip_ip6addr_t)) == 0)
-#  define uiphdr_ipaddr_cmp(addr1, addr2) uip_ipaddr_cmp(addr, addr2)
+#  define uip_ipaddr_cmp(addr1, addr2)    (memcmp(addr1, addr2, sizeof(uip_ip6addr_t)) == 0)
+#  define uiphdr_ipaddr_cmp(addr1, addr2) uip_ipaddr_cmp((addr1), (addr2))
 #endif /* !CONFIG_NET_IPv6 */
 
 /* Compare two IP addresses with netmasks
@@ -517,8 +517,16 @@ int uip_lockedwait(sem_t *sem);
   (((in_addr_t)(addr1) & (in_addr_t)(mask)) == \
    ((in_addr_t)(addr2) & (in_addr_t)(mask)))
 #else
-bool uip_ipaddr_maskcmp(uip_ipaddr_t addr1, uip_ipaddr_t addr2,
-                               uip_ipaddr_t mask);
+static inline bool uip_ipaddr_maskcmp(uip_ipaddr_t addr1, uip_ipaddr_t addr2,
+                               uip_ipaddr_t mask)
+{
+	int i;
+	for (i = 0; i < sizeof(uip_ipaddr_t); i++) {
+		if ((addr1[i] & mask[i]) != (addr2[i] & mask[i]))
+			return 0;
+	}
+	return 1;
+}
 #endif
 
 /* Mask out the network part of an IP address.

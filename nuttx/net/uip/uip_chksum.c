@@ -133,7 +133,7 @@ static uint16_t upper_layer_chksum(FAR struct uip_driver_s *dev, uint8_t proto)
 }
 
 #ifdef CONFIG_NET_IPv6
-static uint16_t icmp_6chksum(FAR struct uip_driver_s *dev)
+uint16_t icmp_6chksum(FAR struct uip_driver_s *dev)
 {
   return upper_layer_chksum(dev, UIP_PROTO_ICMP6);
 }

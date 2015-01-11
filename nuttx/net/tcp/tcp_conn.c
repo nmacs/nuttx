@@ -411,7 +411,12 @@ void tcp_free(FAR struct tcp_conn_s *conn)
 FAR struct tcp_conn_s *tcp_active(struct tcp_iphdr_s *buf)
 {
   FAR struct tcp_conn_s *conn = (struct tcp_conn_s *)g_active_tcp_connections.head;
+#ifdef CONFIG_NET_IPv6
+  uip_ip6addr_t srcipaddr;
+  uip_ipaddr_copy(srcipaddr, buf->srcipaddr);
+#else
   in_addr_t srcipaddr = uip_ip4addr_conv(buf->srcipaddr);
+#endif
 
   while (conn)
     {
@@ -521,7 +526,11 @@ FAR struct tcp_conn_s *tcp_alloc_accept(FAR struct tcp_iphdr_s *buf)
       conn->lport         = buf->destport;
       conn->rport         = buf->srcport;
       conn->mss           = UIP_TCP_INITIAL_MSS;
+#ifdef CONFIG_NET_IPv6
+      uip_ipaddr_copy(conn->ripaddr, buf->srcipaddr);
+#else
       uip_ipaddr_copy(conn->ripaddr, uip_ip4addr_conv(buf->srcipaddr));
+#endif
       conn->tcpstateflags = UIP_SYN_RCVD;
 
       tcp_initsequence(conn->sndseq);
@@ -588,7 +597,11 @@ int tcp_bind(FAR struct tcp_conn_s *conn,
   /* Verify or select a local port */
 
   flags = uip_lock();
+#ifdef CONFIG_NET_IPv6
+  port = uip_selectport(ntohs(addr->sin6_port));
+#else
   port = uip_selectport(ntohs(addr->sin_port));
+#endif
   uip_unlock(flags);
 
   if (port < 0)
@@ -601,7 +614,11 @@ int tcp_bind(FAR struct tcp_conn_s *conn,
    * interface is supported, the IP address is not of importance.
    */
 
+#ifdef CONFIG_NET_IPv6
+  conn->lport = addr->sin6_port;
+#else
   conn->lport = addr->sin_port;
+#endif
 
 #if 0 /* Not used */
 #ifdef CONFIG_NET_IPv6
@@ -689,11 +706,19 @@ int tcp_connect(FAR struct tcp_conn_s *conn,
 
   /* The sockaddr port is 16 bits and already in network order */
 
+#ifdef CONFIG_NET_IPv6
+  conn->rport = addr->sin6_port;
+#else
   conn->rport = addr->sin_port;
+#endif
 
   /* The sockaddr address is 32-bits in network order. */
 
+#ifdef CONFIG_NET_IPv6
+  uip_ipaddr_copy(conn->ripaddr, addr->sin6_addr.in6_u.u6_addr16);
+#else
   uip_ipaddr_copy(conn->ripaddr, addr->sin_addr.s_addr);
+#endif
 
 #ifdef CONFIG_NET_TCP_READAHEAD
   /* Initialize the list of TCP read-ahead buffers */

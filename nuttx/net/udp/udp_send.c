@@ -44,6 +44,7 @@
 #include <nuttx/config.h>
 #if defined(CONFIG_NET) && defined(CONFIG_NET_UDP)
 
+#include <string.h>
 #include <debug.h>
 
 #include <nuttx/net/netconfig.h>
@@ -114,13 +115,13 @@ void udp_send(struct uip_driver_s *dev, struct udp_conn_s *conn)
       pudpbuf->vtc         = 0x60;
       pudpbuf->tcf         = 0x00;
       pudpbuf->flow        = 0x00;
-      pudpbuf->len[0]      = (dev->d_sndlen >> 8);
-      pudpbuf->len[1]      = (dev->d_sndlen & 0xff);
-      pudpbuf->nexthdr     = UIP_PROTO_UDP;
-      pudpbuf->hoplimit    = conn->ttl;
+      pudpbuf->len[0]      = ((dev->d_len - UIP_IPH_LEN) >> 8);
+      pudpbuf->len[1]      = ((dev->d_len - UIP_IPH_LEN) & 0xff);
+      pudpbuf->proto       = UIP_PROTO_UDP;
+      pudpbuf->ttl         = conn->ttl;
 
-      uip_ipaddr_copy(pudpbuf->srcipaddr, &dev->d_ipaddr);
-      uip_ipaddr_copy(pudpbuf->destipaddr, &conn->ripaddr);
+      uip_ipaddr_copy(pudpbuf->srcipaddr, dev->d_ipaddr);
+      uip_ipaddr_copy(pudpbuf->destipaddr, conn->ripaddr);
 
 #else /* CONFIG_NET_IPv6 */
 

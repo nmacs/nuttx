@@ -154,7 +154,11 @@ int getsockname(int sockfd, FAR struct sockaddr *addr, FAR socklen_t *addrlen)
       case SOCK_STREAM:
         {
           FAR struct tcp_conn_s *tcp_conn = (FAR struct tcp_conn_s *)psock->s_conn;
+#ifdef CONFIG_NET_IPv6
+          outaddr->sin6_port = tcp_conn->lport; /* Already in network byte order */
+#else
           outaddr->sin_port = tcp_conn->lport; /* Already in network byte order */
+#endif
         }
         break;
 #endif
@@ -163,7 +167,11 @@ int getsockname(int sockfd, FAR struct sockaddr *addr, FAR socklen_t *addrlen)
       case SOCK_DGRAM:
         {
           FAR struct udp_conn_s *udp_conn = (FAR struct udp_conn_s *)psock->s_conn;
+#ifdef CONFIG_NET_IPv6
+          outaddr->sin6_port = udp_conn->lport; /* Already in network byte order */
+#else
           outaddr->sin_port = udp_conn->lport; /* Already in network byte order */
+#endif
         }
         break;
 #endif
@@ -195,7 +203,7 @@ int getsockname(int sockfd, FAR struct sockaddr *addr, FAR socklen_t *addrlen)
 
 #if defined(CONFIG_NET_TCP) || defined(CONFIG_NET_UDP)
 #ifdef CONFIG_NET_IPv6
-  outaddr->sin_family = AF_INET6;
+  outaddr->sin6_family = AF_INET6;
   memcpy(outaddr->sin6_addr.in6_u.u6_addr8, dev->d_ipaddr, 16);
   *addrlen = sizeof(struct sockaddr_in6);
 #else

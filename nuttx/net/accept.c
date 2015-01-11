@@ -106,8 +106,8 @@ static inline void accept_tcpsender(FAR struct tcp_conn_s *conn,
 {
   if (addr)
     {
-      addr->sin_family = AF_INET6;
-      addr->sin_port   = conn->rport;
+      addr->sin6_family = AF_INET6;
+      addr->sin6_port   = conn->rport;
       uip_ipaddr_copy(addr->sin6_addr.s6_addr, conn->ripaddr);
     }
 }

@@ -108,7 +108,11 @@ static FAR struct uip_driver_s *netdev_finddevice(const uip_ipaddr_t addr)
         {
           /* Yes.. check for an address match (under the netmask) */
 
+#ifdef CONFIG_NET_IPv6
+          if (uip_ipaddr_cmp(dev->d_ipaddr, addr))
+#else
           if (uip_ipaddr_maskcmp(dev->d_ipaddr, addr, dev->d_netmask))
+#endif
             {
               /* Its a match */
 

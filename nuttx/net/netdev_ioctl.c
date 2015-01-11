@@ -98,8 +98,8 @@ static void ioctl_getipaddr(FAR void *outaddr, FAR const uip_ipaddr_t *inaddr)
 {
 #ifdef CONFIG_NET_IPv6
   FAR struct sockaddr_in6 *dest = (FAR struct sockaddr_in6 *)outaddr;
-  dest->sin_family              = AF_INET6;
-  dest->sin_port                = 0;
+  dest->sin6_family              = AF_INET6;
+  dest->sin6_port                = 0;
   memcpy(dest->sin6_addr.in6_u.u6_addr8, inaddr, 16);
 #else
   FAR struct sockaddr_in *dest  = (FAR struct sockaddr_in *)outaddr;
@@ -127,7 +127,7 @@ static void ioctl_setipaddr(FAR uip_ipaddr_t *outaddr, FAR const void *inaddr)
 {
 #ifdef CONFIG_NET_IPv6
   FAR const struct sockaddr_in6 *src = (FAR const struct sockaddr_in6 *)inaddr;
-  memcpy(outaddr, src->sin6_addr.in6_u.u6_addr8, 16);
+  uip_ipaddr_copy(outaddr, src->sin6_addr.in6_u.u6_addr8);
 #else
   FAR const struct sockaddr_in *src = (FAR const struct sockaddr_in *)inaddr;
   *outaddr = src->sin_addr.s_addr;
@@ -570,21 +570,21 @@ static int netdev_rtioctl(FAR struct socket *psock, int cmd,
 
 #ifdef CONFIG_NET_IPv6
               addr    = (FAR struct sockaddr_in6 *)rtentry->rt_target;
-              target  = (uip_ipaddr_t)addr->sin6_addr.u6_addr16;
+              uip_ipaddr_copy(target, addr->sin6_addr.in6_u.u6_addr8);
 
               addr    = (FAR struct sockaddr_in6 *)rtentry->rt_netmask;
-              netmask = (uip_ipaddr_t)addr->sin6_addr.u6_addr16;
+              uip_ipaddr_copy(netmask, addr->sin6_addr.in6_u.u6_addr8);
 
               /* The router is an optional argument */
 
               if (rtentry->rt_router)
                 {
                   addr   = (FAR struct sockaddr_in6 *)rtentry->rt_router;
-                  router = (uip_ipaddr_t)addr->sin6_addr.u6_addr16;
+                  uip_ipaddr_copy(router, addr->sin6_addr.in6_u.u6_addr8);
                 }
               else
                 {
-                  router = NULL;
+                  memset(&router, 0, sizeof(uip_ipaddr_t));
                 }
 #else
               addr    = (FAR struct sockaddr_in *)rtentry->rt_target;
@@ -631,10 +631,10 @@ static int netdev_rtioctl(FAR struct socket *psock, int cmd,
 
 #ifdef CONFIG_NET_IPv6
               addr    = (FAR struct sockaddr_in6 *)rtentry->rt_target;
-              target  = (uip_ipaddr_t)addr->sin6_addr.u6_addr16;
+              uip_ipaddr_copy(target, addr->sin6_addr.in6_u.u6_addr8);
 
               addr    = (FAR struct sockaddr_in6 *)rtentry->rt_netmask;
-              netmask = (uip_ipaddr_t)addr->sin6_addr.u6_addr16;
+              uip_ipaddr_copy(netmask, addr->sin6_addr.in6_u.u6_addr8);
 #else
               addr    = (FAR struct sockaddr_in *)rtentry->rt_target;
               target  = (uip_ipaddr_t)addr->sin_addr.s_addr;

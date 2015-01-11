@@ -37,7 +37,7 @@ ifeq ($(CONFIG_NET),y)
 
 # ARP supported is not provided for SLIP (Ethernet only)
 
-ifneq ($(CONFIG_NET_SLIP),y)
+ifeq ($(CONFIG_NET_ARP),y)
 NET_CSRCS += arp_inout.c arp_table.c arp_timer.c
 
 # Include arp build support
