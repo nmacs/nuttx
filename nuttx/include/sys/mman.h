@@ -102,7 +102,7 @@ EXTERN FAR void *mmap(FAR void *start, size_t length, int prot, int flags,
 #ifdef CONFIG_FS_RAMMAP
 EXTERN int munmap(FAR void *start, size_t length);
 #else
-#  define munmap(start, length)
+static inline int munmap(FAR void *start, size_t length) { return 0; }
 #endif
 
 #undef EXTERN
