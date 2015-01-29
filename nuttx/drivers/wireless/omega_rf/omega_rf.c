@@ -42,9 +42,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <wdog.h>
 #include <debug.h>
 
+#include <nuttx/wdog.h>
 #include <nuttx/irq.h>
 #include <nuttx/arch.h>
 #include <nuttx/spi/spi.h>
@@ -52,7 +52,6 @@
 #include <nuttx/clock.h>
 #include <nuttx/kmalloc.h>
 
-#include <nuttx/net/uip.h>
 #include <nuttx/net/netdev.h>
 
 #include <arch/chip/gpio.h>
