@@ -11,6 +11,7 @@ config NETDEV_MULTINIC
 	---help---
 		Select this option if you board and/or MCU are capable of supporting
 		multiple Ethernet MAC drivers.
+	select NET_MULTILINK
 
 config NET_DUMPPACKET
 	bool "Enable packet dumping"
