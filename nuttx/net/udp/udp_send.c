@@ -120,8 +120,8 @@ void udp_send(struct net_driver_s *dev, struct udp_conn_s *conn)
       pudpbuf->vtc         = 0x60;
       pudpbuf->tcf         = 0x00;
       pudpbuf->flow        = 0x00;
-      pudpbuf->len[0]      = ((dev->d_len - UIP_IPH_LEN) >> 8);
-      pudpbuf->len[1]      = ((dev->d_len - UIP_IPH_LEN) & 0xff);
+      pudpbuf->len[0]      = ((dev->d_len - IP_HDRLEN) >> 8);
+      pudpbuf->len[1]      = ((dev->d_len - IP_HDRLEN) & 0xff);
       pudpbuf->proto       = IP_PROTO_UDP;
       pudpbuf->ttl         = conn->ttl;
 

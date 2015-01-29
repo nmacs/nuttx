@@ -56,6 +56,7 @@
 
 #include <devif/devif.h>
 #include "tcp/tcp.h"
+#include "udp/udp.h"
 #include "socket/socket.h"
 
 /****************************************************************************
@@ -329,8 +330,8 @@ static inline int net_udppollsetup(FAR struct socket *psock,
 {
   FAR struct udp_conn_s *conn = psock->s_conn;
   FAR struct net_poll_s *info;
-  FAR struct uip_callback_s *cb;
-  uip_lock_t flags;
+  FAR struct devif_callback_s *cb;
+  net_lock_t flags;
   int ret;
 
   /* Sanity check */
@@ -352,7 +353,7 @@ static inline int net_udppollsetup(FAR struct socket *psock,
 
   /* Some of the  following must be atomic */
 
-  flags = uip_lock();
+  flags = net_lock();
 
   /* Setup the UDP remote connection */
 
@@ -382,14 +383,14 @@ static inline int net_udppollsetup(FAR struct socket *psock,
    * callback processing.
    */
 
-  cb->flags    = (UIP_ABORT|UIP_TIMEDOUT);
+  cb->flags    = (0);
   cb->priv     = (FAR void *)info;
   cb->event    = poll_interrupt;
 
   if (info->fds->events & POLLOUT)
-    cb->flags |= UIP_POLL;
+    cb->flags |= UDP_POLL;
   if (info->fds->events & POLLIN)
-    cb->flags |= UIP_NEWDATA;
+    cb->flags |= UDP_NEWDATA;
 
   /* Save the reference in the poll info structure as fds private as well
    * for use durring poll teardown as well.
@@ -414,12 +415,12 @@ static inline int net_udppollsetup(FAR struct socket *psock,
       sem_post(fds->sem);
     }
 
-  uip_unlock(flags);
+  net_unlock(flags);
   return OK;
 
 errout_with_lock:
-  kfree(info);
-  uip_unlock(flags);
+  kmm_free(info);
+  net_unlock(flags);
   return ret;
 }
 
@@ -504,7 +505,7 @@ static inline int net_udppollteardown(FAR struct socket *psock,
 {
   FAR struct udp_conn_s *conn = psock->s_conn;
   FAR struct net_poll_s *info;
-  uip_lock_t flags;
+  net_lock_t flags;
 
   /* Sanity check */
 
@@ -523,9 +524,9 @@ static inline int net_udppollteardown(FAR struct socket *psock,
     {
       /* Release the callback */
 
-      flags = uip_lock();
-      udp_callbackfree(conn, info->cb);
-      uip_unlock(flags);
+      flags = net_lock();
+      udp_callback_free(conn, info->cb);
+      net_unlock(flags);
 
       /* Release the poll/select data slot */
 
@@ -533,7 +534,7 @@ static inline int net_udppollteardown(FAR struct socket *psock,
 
       /* Then free the poll info container */
 
-      kfree(info);
+      kmm_free(info);
     }
 
   return OK;

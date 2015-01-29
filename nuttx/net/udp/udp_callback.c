@@ -50,7 +50,7 @@
 #include "devif/devif.h"
 #include "udp/udp.h"
 
-#define UDPBUF ((struct udp_iphdr_s *)&dev->d_buf[UIP_LLH_LEN])
+#define UDPBUF(d) ((struct udp_iphdr_s *)&d->d_buf[NET_LL_HDRLEN(d)])
 
 /****************************************************************************
  * Private Data
@@ -61,7 +61,7 @@
  ****************************************************************************/
 
 #ifdef CONFIG_NET_UDP_READAHEAD
-static uint16_t udp_datahandler(FAR struct uip_driver_s *dev, FAR struct udp_conn_s *conn, 
+static uint16_t udp_datahandler(FAR struct net_driver_s *dev, FAR struct udp_conn_s *conn, 
                                 FAR uint8_t *buffer, uint16_t buflen)
 {
   FAR struct iob_s *iob;
@@ -83,16 +83,16 @@ static uint16_t udp_datahandler(FAR struct uip_driver_s *dev, FAR struct udp_con
 
 #ifdef CONFIG_NET_IPv6
   src_addr.sin6_family = AF_INET6;
-  src_addr.sin6_port   = UDPBUF->srcport;
+  src_addr.sin6_port   = UDPBUF(dev)->srcport;
 #else
   src_addr.sin_family = AF_INET;
-  src_addr.sin_port   = UDPBUF->srcport;
+  src_addr.sin_port   = UDPBUF(dev)->srcport;
 #endif
 
 #ifdef CONFIG_NET_IPv6
-  uip_ipaddr_copy(src_addr.sin6_addr.s6_addr, UDPBUF->srcipaddr);
+  net_ipaddr_copy(src_addr.sin6_addr.s6_addr, UDPBUF(dev)->srcipaddr);
 #else
-  uip_ipaddr_copy(src_addr.sin_addr.s_addr, uip_ip4addr_conv(UDPBUF->srcipaddr));
+  net_ipaddr_copy(src_addr.sin_addr.s_addr, net_ip4addr_conv32(UDPBUF(dev)->srcipaddr));
 #endif
 
   /* Copy the src address info into the I/O buffer chain */
@@ -139,15 +139,15 @@ static uint16_t udp_datahandler(FAR struct uip_driver_s *dev, FAR struct udp_con
 #endif /* CONFIG_NET_UDP_READAHEAD */
 
 static inline uint16_t
-uip_dataevent(FAR struct uip_driver_s *dev, FAR struct udp_conn_s *conn,
+net_dataevent(FAR struct net_driver_s *dev, FAR struct udp_conn_s *conn,
               uint16_t flags)
 {
   uint16_t ret;
 
-  ret = (flags & ~UIP_NEWDATA);
+  ret = (flags & ~UDP_NEWDATA);
 
   /* Is there new data?  With non-zero length?  (Certain connection events
-   * can have zero-length with UIP_NEWDATA set just to cause an ACK).
+   * can have zero-length with UDP_NEWDATA set just to cause an ACK).
    */
 
   if (dev->d_len > 0)
@@ -176,7 +176,7 @@ uip_dataevent(FAR struct uip_driver_s *dev, FAR struct udp_conn_s *conn,
          nllvdbg("Dropped %d bytes\n", dev->d_len);
 
  #ifdef CONFIG_NET_STATISTICS
-          uip_stat.udp.drop++;
+          g_netstats.udp.drop++;
 #endif
         }
     }
@@ -218,11 +218,11 @@ uint16_t udp_callback(FAR struct net_driver_s *dev,
 
       flags = devif_callback_execute(dev, conn, flags, conn->list);
 
-      if ((flags & UIP_NEWDATA) != 0)
+      if ((flags & UDP_NEWDATA) != 0)
         {
           /* Data was not handled.. dispose of it appropriately */
 
-          flags = uip_dataevent(dev, conn, flags);
+          flags = net_dataevent(dev, conn, flags);
         }
     }
 

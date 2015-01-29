@@ -44,6 +44,10 @@
 
 #include <sys/types.h>
 
+#ifdef CONFIG_NET_UDP_READAHEAD
+#  include <nuttx/net/iob.h>
+#endif
+
 #ifdef CONFIG_NET_UDP
 
 /****************************************************************************
@@ -74,6 +78,16 @@ struct udp_conn_s
   uint16_t rport;         /* Remote port number (network byte order) */
   uint8_t  ttl;           /* Default time-to-live */
   uint8_t  crefs;         /* Reference counts on this instance */
+
+  /* Read-ahead buffering.
+   *
+   *   readahead - A singly linked list of type struct iob_qentry_s
+   *               where the UDP/IP read-ahead data is retained.
+   */
+
+#ifdef CONFIG_NET_UDP_READAHEAD
+  struct iob_queue_s readahead;   /* Read-ahead buffering */
+#endif
 
   /* Defines the list of UDP callbacks */
 

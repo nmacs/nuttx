@@ -118,7 +118,7 @@ endmenu # Driver buffer configuration
 menu "Data link support"
 
 config NET_MULTILINK
-	bool
+	bool "Enable multilink support"
 	default n
 
 config NET_ETHERNET

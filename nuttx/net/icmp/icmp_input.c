@@ -235,7 +235,7 @@ typeerr:
           picmp->reserved1 = picmp->reserved2 = picmp->reserved3 = 0;
 
           net_ipaddr_hdrcopy(picmp->destipaddr, picmp->srcipaddr);
-          net_ipaddr_hdrcopy(picmp->srcipaddr, &dev->d_ipaddr);
+          net_ipaddr_hdrcopy(picmp->srcipaddr, dev->d_ipaddr);
           picmp->options[0] = ICMP6_OPTION_TARGET_LINK_ADDRESS;
           picmp->options[1] = 1;  /* Options length, 1 = 8 bytes. */
           memcpy(&(picmp->options[2]), &dev->d_mac, IFHWADDRLEN);
@@ -257,7 +257,7 @@ typeerr:
       picmp->type = ICMP6_ECHO_REPLY;
 
       net_ipaddr_hdrcopy(picmp->destipaddr, picmp->srcipaddr);
-      net_ipaddr_hdrcopy(picmp->srcipaddr, &dev->d_ipaddr);
+      net_ipaddr_hdrcopy(picmp->srcipaddr, dev->d_ipaddr);
       picmp->icmpchksum = 0;
       picmp->icmpchksum = ~icmp_6chksum(dev);
     }

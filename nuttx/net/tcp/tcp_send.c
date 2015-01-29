@@ -187,8 +187,8 @@ static void tcp_sendcommon(FAR struct net_driver_s *dev,
   pbuf->srcport  = conn->lport;
   pbuf->destport = conn->rport;
 
-  net_ipaddr_hdrcopy(pbuf->srcipaddr, &dev->d_ipaddr);
-  net_ipaddr_hdrcopy(pbuf->destipaddr, &conn->ripaddr);
+  net_ipaddr_hdrcopy(pbuf->srcipaddr, dev->d_ipaddr);
+  net_ipaddr_hdrcopy(pbuf->destipaddr, conn->ripaddr);
 
   if (conn->tcpstateflags & TCP_STOPPED)
     {
@@ -321,7 +321,7 @@ void tcp_reset(FAR struct net_driver_s *dev)
   /* Swap IP addresses. */
 
   net_ipaddr_hdrcopy(pbuf->destipaddr, pbuf->srcipaddr);
-  net_ipaddr_hdrcopy(pbuf->srcipaddr, &dev->d_ipaddr);
+  net_ipaddr_hdrcopy(pbuf->srcipaddr, dev->d_ipaddr);
 
   /* And send out the RST packet */
 

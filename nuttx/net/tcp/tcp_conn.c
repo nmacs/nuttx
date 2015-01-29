@@ -482,11 +482,19 @@ FAR struct tcp_conn_s *tcp_active(struct tcp_iphdr_s *buf)
   FAR struct tcp_conn_s *conn = (struct tcp_conn_s *)g_active_tcp_connections.head;
 #ifdef CONFIG_NET_IPv6
   net_ip6addr_t srcipaddr;
+#ifdef CONFIG_NETDEV_MULTINIC
+  net_ip6addr_t destipaddr;
+#endif
+
   net_ipaddr_copy(srcipaddr, buf->srcipaddr);
+#ifdef CONFIG_NETDEV_MULTINIC
+  net_ipaddr_copy(destipaddr, buf->destipaddr);
+#endif
 #else
   in_addr_t srcipaddr = net_ip4addr_conv32(buf->srcipaddr);
 #ifdef CONFIG_NETDEV_MULTINIC
   in_addr_t destipaddr = net_ip4addr_conv32(buf->destipaddr);
+#endif
 #endif
 
   while (conn)
@@ -662,14 +670,17 @@ int tcp_bind(FAR struct tcp_conn_s *conn,
   int port;
 #ifdef CONFIG_NETDEV_MULTINIC
   net_ipaddr_t ipaddr;
+#endif
 
   /* Verify or select a local port and address */
 
   flags = net_lock();
+
+#ifdef CONFIG_NETDEV_MULTINIC
 #ifdef CONFIG_NET_IPv6
   /* Get the IPv6 address that we are binding to */
 
-  ipaddr = addr->sin6_addr.in6_u.u6_addr16;
+  net_ipaddr_copy(ipaddr, addr->sin6_addr.in6_u.u6_addr16);
 
 #else
   /* Get the IPv4 address that we are binding to */
@@ -678,7 +689,12 @@ int tcp_bind(FAR struct tcp_conn_s *conn,
 
 #endif
 
+#ifdef CONFIG_NET_IPv6
+  port = tcp_selectport(ipaddr, ntohs(addr->sin6_port));
+#else
   port = tcp_selectport(ipaddr, ntohs(addr->sin_port));
+#endif
+
 #else
   /* Verify or select a local port */
 
@@ -686,6 +702,7 @@ int tcp_bind(FAR struct tcp_conn_s *conn,
   port = tcp_selectport(ntohs(addr->sin6_port));
 #else
   port = tcp_selectport(ntohs(addr->sin_port));
+#endif
 #endif
   net_unlock(flags);
 
@@ -696,11 +713,7 @@ int tcp_bind(FAR struct tcp_conn_s *conn,
 
   /* Save the local address in the connection structure. */
 
-#ifdef CONFIG_NET_IPv6
-  conn->lport = addr->sin6_port;
-#else
-  conn->lport = addr->sin_port;
-#endif
+  conn->lport = port;
 
 #ifdef CONFIG_NETDEV_MULTINIC
   net_ipaddr_copy(conn->lipaddr, ipaddr);

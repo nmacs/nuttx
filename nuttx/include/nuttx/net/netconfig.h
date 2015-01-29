@@ -102,7 +102,7 @@
 #  endif
 #endif
 
-#ifdef CONFIG_NET_ETHERNET
+#if defined(CONFIG_NET_ETHERNET) || defined(CONFIG_WIRELESS)
 #  ifndef CONFIG_NET_ETH_MTU
 #    define CONFIG_NET_ETH_MTU 590
 #  endif
@@ -125,7 +125,7 @@
 #    define _MAX_ETH_MTU   0
 #  endif
 
-#ifdef CONFIG_NET_SLIP
+#  ifdef CONFIG_NET_SLIP
 #    define _MIN_SLIP_MTU  MIN(_MIN_ETH_MTU,CONFIG_NET_SLIP_MTU)
 #    define _MAX_SLIP_MTU  MAX(_MAX_ETH_MTU,CONFIG_NET_SLIP_MTU)
 #  else
@@ -297,7 +297,7 @@
 
 #define TCP_MSS(d)    (NET_DEV_MTU(d) - NET_LL_HDRLEN(d) - IPTCP_HDRLEN)
 
-#ifdef CONFIG_NET_ETHERNET
+#if defined(CONFIG_NET_ETHERNET) || defined(CONFIG_WIRELESS)
 #  define ETH_TCP_MSS  (CONFIG_NET_ETH_MTU - ETH_HDRLEN - IPTCP_HDRLEN)
 #  define MIN_TCP_MSS  ETH_TCP_MSS
 #elif defined(CONFIG_NET_SLIP)

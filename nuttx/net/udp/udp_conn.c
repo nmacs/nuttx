@@ -375,11 +375,11 @@ FAR struct udp_conn_s *udp_active(FAR struct udp_iphdr_s *buf)
 #ifdef CONFIG_NETDEV_MULTINIC
           (net_ipaddr_cmp(conn->lipaddr, g_allzeroaddr) ||
            net_ipaddr_cmp(conn->lipaddr, g_alloneaddr) ||
-           net_ipaddr_hdrcmp(buf->destipaddr, &conn->lipaddr)) &&
+           net_ipaddr_hdrcmp(buf->destipaddr, conn->lipaddr)) &&
 #endif
             (net_ipaddr_cmp(conn->ripaddr, g_allzeroaddr) ||
              net_ipaddr_cmp(conn->ripaddr, g_alloneaddr) ||
-             net_ipaddr_hdrcmp(buf->srcipaddr, &conn->ripaddr)))
+             net_ipaddr_hdrcmp(buf->srcipaddr, conn->ripaddr)))
         {
           /* Matching connection found.. return a reference to it */
 
@@ -450,7 +450,7 @@ int udp_bind(FAR struct udp_conn_s *conn, FAR const struct sockaddr_in *addr)
 #ifdef CONFIG_NET_IPv6
   /* Get the IPv6 address that we are binding to */
 
-  ipaddr = addr->sin6_addr.in6_u.u6_addr16;
+  net_ipaddr_copy(ipaddr, addr->sin6_addr.in6_u.u6_addr16);
 
 #else
   /* Get the IPv4 address that we are binding to */

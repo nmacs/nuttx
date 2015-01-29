@@ -107,7 +107,7 @@ struct net_driver_s
 #endif
 #endif
 
-#ifdef CONFIG_NET_ETHERNET
+#if defined(CONFIG_NET_ETHERNET) || defined(CONFIG_WIRELESS)
   /* Ethernet device identity */
 
   struct ether_addr d_mac;  /* Device MAC address */

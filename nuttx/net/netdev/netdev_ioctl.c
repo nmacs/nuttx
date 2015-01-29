@@ -618,7 +618,7 @@ static int netdev_rtioctl(FAR struct socket *psock, int cmd,
                 }
               else
                 {
-                  memset(&router, 0, sizeof(uip_ipaddr_t));
+                  memset(&router, 0, sizeof(net_ipaddr_t));
                 }
 #else
               addr    = (FAR struct sockaddr_in *)rtentry->rt_target;
