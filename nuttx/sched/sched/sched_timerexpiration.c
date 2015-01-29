@@ -425,6 +425,7 @@ static void sched_timer_start(unsigned int ticks)
   uint64_t usecs;
   uint64_t secs;
 #endif
+  uint64_t max_ticks;
   uint32_t nsecs;
   int ret;
 
@@ -434,6 +435,13 @@ static void sched_timer_start(unsigned int ticks)
   if (ticks > 0)
     {
       struct timespec ts;
+      extern const struct timespec up_timer_max_interval;
+
+      max_ticks = USEC2TICK(1000000 * (uint64_t)up_timer_max_interval.tv_sec + (uint64_t)up_timer_max_interval.tv_nsec / 1000);
+      if ((uint64_t)ticks > max_ticks)
+        {
+          ticks = (unsigned int)max_ticks;
+        }
 
 #if CONFIG_SCHED_TICKLES_LIMIT_MAX_SLEEP
       if (ticks > (up_oneshot_max_delay_usec / CONFIG_USEC_PER_TICK))
