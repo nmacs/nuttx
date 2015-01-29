@@ -280,7 +280,11 @@ static inline void net_statistics(FAR struct nsh_vtbl_s *vtbl)
 int ifconfig_callback(FAR struct net_driver_s *dev, void *arg)
 {
   struct nsh_vtbl_s *vtbl = (struct nsh_vtbl_s*)arg;
+#ifdef CONFIG_NET_IPv6
+  char str[INET6_ADDRSTRLEN];
+#else
   struct in_addr addr;
+#endif
   uint8_t iff;
   const char *status;
   int ret;
@@ -312,6 +316,8 @@ int ifconfig_callback(FAR struct net_driver_s *dev, void *arg)
              dev->d_ifname, ether_ntoa(&dev->d_mac), status);
 #endif
 
+#ifndef CONFIG_NET_IPv6
+
   addr.s_addr = dev->d_ipaddr;
   nsh_output(vtbl, "\tIPaddr:%s ", inet_ntoa(addr));
 
@@ -320,6 +326,19 @@ int ifconfig_callback(FAR struct net_driver_s *dev, void *arg)
 
   addr.s_addr = dev->d_netmask;
   nsh_output(vtbl, "Mask:%s\n", inet_ntoa(addr));
+
+#else
+
+  inet_ntop(AF_INET6, dev->d_ipaddr, str, INET6_ADDRSTRLEN);
+  nsh_output(vtbl, "\tIPaddr:%s ", str);
+
+  inet_ntop(AF_INET6, dev->d_draddr, str, INET6_ADDRSTRLEN);
+  nsh_output(vtbl, "DRaddr:%s ", str);
+
+  inet_ntop(AF_INET6, dev->d_netmask, str, INET6_ADDRSTRLEN);
+  nsh_output(vtbl, "Mask:%s ", str);
+
+#endif
 
 #if defined(CONFIG_NSH_DHCPC) || defined(CONFIG_NSH_DNS)
   dns_getserver(&addr);

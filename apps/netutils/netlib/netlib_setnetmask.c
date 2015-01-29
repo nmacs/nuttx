@@ -96,8 +96,8 @@ int netlib_setnetmask(const char *ifname, const struct in_addr *addr)
 
 #ifdef CONFIG_NET_IPv6
           inaddr             = (struct sockaddr_in6 *)&req.ifr_addr;
-          inaddr->sin_family = AF_INET6;
-          inaddr->sin_port   = 0;
+          inaddr->sin6_family = AF_INET6;
+          inaddr->sin6_port   = 0;
           memcpy(&inaddr->sin6_addr, addr, sizeof(struct in6_addr));
 #else
           inaddr             = (struct sockaddr_in *)&req.ifr_addr;

@@ -75,7 +75,7 @@
 
 #include "nsh.h"
 
-#ifdef CONFIG_NET
+#if defined(CONFIG_NET) && defined(CONFIG_NSH_NETINIT)
 
 /****************************************************************************
  * Pre-processor Definitions
@@ -596,4 +596,11 @@ int nsh_netinit(void)
 #endif
 }
 
-#endif /* CONFIG_NET */
+#else /* defined(CONFIG_NET) && defined(CONFIG_NSH_NETINIT) */
+
+int nsh_netinit(void)
+{
+  return OK;
+}
+
+#endif /* defined(CONFIG_NET) && defined(CONFIG_NSH_NETINIT) */
