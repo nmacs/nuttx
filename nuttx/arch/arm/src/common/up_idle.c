@@ -83,14 +83,14 @@ void up_idle(void)
 #else
 
   /* Sleep until an interrupt occurs to save power */
-#ifdef LED_IDLE
-  board_led_on(LED_IDLE);
+#ifdef LED_CPU
+  board_led_off(LED_CPU);
 #endif
 #if 1
   asm("WFI");  /* For example */
 #endif
-#ifdef LED_IDLE
-  board_led_off(LED_IDLE);
+#ifdef LED_CPU
+  board_led_on(LED_CPU);
 #endif
 #endif
 }
