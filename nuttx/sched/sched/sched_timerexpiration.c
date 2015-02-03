@@ -91,6 +91,10 @@
  * Public Variables
  ************************************************************************/
 
+#ifdef CONFIG_SCHED_TICKLES_LIMIT_MAX_SLEEP
+extern uint64_t up_oneshot_max_delay_usec;
+#endif
+
 /************************************************************************
  * Private Variables
  ************************************************************************/
@@ -430,6 +434,13 @@ static void sched_timer_start(unsigned int ticks)
   if (ticks > 0)
     {
       struct timespec ts;
+
+#if CONFIG_SCHED_TICKLES_LIMIT_MAX_SLEEP
+      if (ticks > (up_oneshot_max_delay_usec / CONFIG_USEC_PER_TICK))
+        {
+          ticks = (up_oneshot_max_delay_usec / CONFIG_USEC_PER_TICK);
+        }
+#endif
 
       /* Save new timer interval */
 
