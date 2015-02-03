@@ -73,10 +73,6 @@
 
 void sam_boardinitialize(void)
 {
-#if defined(CONFIG_SAM34_UART1)
-  sam_configgpio(GPIO_UART1_SWITCH);
-#endif
-
   /* Configure SPI chip selects if 1) SPI is not disabled, and 2) the weak function
    * sam_spiinitialize() has been brought into the link.
    */

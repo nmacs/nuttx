@@ -24,6 +24,9 @@
  ************************************************************************************/
 
 /* Clocking *************************************************************************/
+
+#define BOARD_SLOWCLK_FREQUENCY    (32768)
+
 /* After power-on reset, the sam4cm device is running on a 4MHz internal RC.
  */
 
@@ -104,7 +107,6 @@
 
 /* Board specific pin configuration *************************************************/
 
-#define GPIO_UART1_SWITCH    (GPIO_OUTPUT | GPIO_OUTPUT_SET    | GPIO_PORT_PIOC | GPIO_PIN6)
 #define GPIO_AT25_NPCS1      (GPIO_OUTPUT | GPIO_OUTPUT_SET    | GPIO_PORT_PIOA | GPIO_PIN21)
 
 #define GPIO_OMEGA_RF_NPCS2  (GPIO_OUTPUT | GPIO_OUTPUT_SET    | GPIO_PORT_PIOA | GPIO_PIN22)
@@ -118,6 +120,10 @@
 /* Pin Multiplexing Disambiguation **************************************************/
 
 /* LEDS ****************************************************************************/
+
+#define LED_CPU              (0)
+
+#define GPIO_LED_CPU         (GPIO_OUTPUT | GPIO_OUTPUT_CLEAR  | GPIO_PORT_PIOC | GPIO_PIN6)
 
 /************************************************************************************
  * Public Data
@@ -134,6 +140,8 @@ void sam_reset(void);
 void sam_boardinitialize(void);
 #ifdef CONFIG_ARCH_LEDS
 void board_led_initialize(void);
+void board_led_on(int led);
+void board_led_off(int led);
 #endif
 #ifdef CONFIG_SAM34_METROLOGY
 int sam_metrology_initialize(void);

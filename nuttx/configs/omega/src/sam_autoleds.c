@@ -110,37 +110,20 @@
 
 void board_led_initialize(void)
 {
-  //(void)sam_configgpio(GPIO_LED0);
+  (void)sam_configgpio(GPIO_LED_CPU);
 }
 
 /****************************************************************************
  * Name: board_led_on
  ****************************************************************************/
-#if 0
 void board_led_on(int led)
 {
-  bool ledstate = true;
-
   switch (led)
     {
-    case 0:                   /* LED_STARTED:      NuttX has been started  LED0=OFF */
-                              /* LED_HEAPALLOCATE: Heap has been allocated LED0=OFF */
-                              /* LED_IRQSENABLED:  Interrupts enabled      LED0=OFF */
-      break;                  /* Leave ledstate == true to turn OFF */
-
-    default:
-    case 2:                   /* LED_INIRQ:        In an interrupt         LED0=N/C */
-                              /* LED_SIGNAL:       In a signal handler     LED0=N/C */
-                              /* LED_ASSERTION:    An assertion failed     LED0=N/C */
-      return;                 /* Return to leave LED0 unchanged */
-
-    case 3:                   /* LED_PANIC:        The system has crashed  LED0=FLASH */
-    case 1:                   /* LED_STACKCREATED: Idle stack created      LED0=ON */
-      ledstate = false;       /* Set ledstate == false to turn ON */
+    case LED_CPU:
+      sam_gpiowrite(GPIO_LED_CPU, 0); /* LED_CPU: Idle stack created      LED0=ON */
       break;
     }
-
-  sam_gpiowrite(GPIO_LED0, ledstate);
 }
 
 /****************************************************************************
@@ -151,28 +134,10 @@ void board_led_off(int led)
 {
   switch (led)
     {
-    /* These should not happen and are ignored */
-
-    default:
-    case 0:                   /* LED_STARTED:      NuttX has been started  LED0=OFF */
-                              /* LED_HEAPALLOCATE: Heap has been allocated LED0=OFF */
-                              /* LED_IRQSENABLED:  Interrupts enabled      LED0=OFF */
-    case 1:                   /* LED_STACKCREATED: Idle stack created      LED0=ON */
-
-    /* These result in no-change */
-
-    case 2:                   /* LED_INIRQ:        In an interrupt         LED0=N/C */
-                              /* LED_SIGNAL:       In a signal handler     LED0=N/C */
-                              /* LED_ASSERTION:    An assertion failed     LED0=N/C */
-      return;                 /* Return to leave LED0 unchanged */
-
-    /* Turn LED0 off set driving the output high */
-
-    case 3:                   /* LED_PANIC:        The system has crashed  LED0=FLASH */
-      sam_gpiowrite(GPIO_LED0, true);
+    case LED_CPU:
+      sam_gpiowrite(GPIO_LED_CPU, 1); /* LED_CPU: Idle stack created      LED0=ON */
       break;
     }
 }
-#endif
 
 #endif /* CONFIG_ARCH_LEDS */
